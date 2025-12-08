@@ -1,0 +1,17 @@
+{
+    "name": "desplega-ai-toolbox",
+    "owner": {
+        "name": "desplega.ai",
+        "email": "contact@desplega.ai"
+    },
+    "metadata": {
+        "description": "A collection of AI tools and plugins for enhanced agentic development."
+    },
+    "plugins": [
+        {
+            "name": "base",
+            "source": "./cc-plugin/base",
+            "description": "Plugin for effective agentic development"
+        }
+    ]
+}
