@@ -1,0 +1,21 @@
+[project]
+name = "hn-sql"
+version = "0.1.0"
+description = "Fetch Hacker News data and store as Parquet for DuckDB"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "httpx>=0.28.0",
+    "pyarrow>=18.0.0",
+    "rich>=13.0.0",
+    "click>=8.1.0",
+    "duckdb>=1.4.2",
+    "pytz>=2025.2",
+]
+
+[project.scripts]
+hn-sql = "hn_sql.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
