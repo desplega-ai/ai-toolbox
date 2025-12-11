@@ -6,7 +6,7 @@ Fetch Hacker News data into local Parquet files and query with SQL.
 
 - **Async fetching** - Fast concurrent downloads from HN Firebase API
 - **Incremental sync** - Only fetches new items on subsequent runs
-- **Time-partitioned Parquet** - Optimized for DuckDB with zstd compression
+- **Sorted Parquet files** - Optimized for DuckDB with zstd compression and zonemap filtering
 - **Built-in SQL shell** - Query data directly without external tools
 - **Checkpoint/resume** - Interruption-safe, continues where it left off
 
@@ -60,6 +60,34 @@ hn-sql reset --data     # Delete checkpoint and all data
 hn-sql reset --data -y  # Skip confirmation
 ```
 
+### migrate
+Consolidates all data into a single sorted Parquet file for optimal query performance.
+
+```bash
+hn-sql migrate --dry-run    # Preview what will happen
+hn-sql migrate              # Run migration (creates data/items_v2/)
+hn-sql migrate --swap       # Migrate and swap directories
+hn-sql migrate --swap -y    # Skip confirmation
+```
+
+**What it does:**
+1. Reads all existing data (handles both old hive-partitioned and new flat files)
+2. Sorts by ID (correlates with time, enables DuckDB zonemap filtering)
+3. Writes a single consolidated `hn.parquet` file to `data/items_v2/`
+4. With `--swap`: moves old data to `data/items_old/` and new data to `data/items/`
+
+**When to use:**
+- After a large sync to consolidate chunk files
+- To migrate from old hive-partitioned format (year/month directories)
+- Periodically to keep data in a single sorted file
+
+**Directory layout after `--swap`:**
+```
+data/
+  items/          # Active data (single hn.parquet)
+  items_old/      # Backup of previous data (delete when verified)
+```
+
 ### api
 ```bash
 hn-sql api              # Start API server on port 8000
@@ -89,4 +117,3 @@ The `hn` table contains all item types (story, comment, job, poll, pollopt):
 | deleted | bool | Deleted item |
 | poll | int64 | Parent poll (for pollopts) |
 | parts | list | Poll option IDs (for polls) |
-| year, month | int | Partition columns |

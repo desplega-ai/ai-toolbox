@@ -367,6 +367,166 @@ def reset(data: bool, yes: bool):
         console.print("[green]✓ Data deleted[/green]")
 
 
+MIGRATE_HELP = """
+Consolidate all data into a single sorted Parquet file.
+
+This handles both old hive-partitioned data (year/month) and new flat
+chunk files, consolidating everything into one sorted file for optimal
+query performance.
+
+\b
+The migration:
+  1. Reads all existing data (hive partitions + flat chunks)
+  2. Sorts by ID (correlates with time, enables zonemap filtering)
+  3. Writes a single consolidated hn.parquet file
+  4. Optionally swaps old and new directories
+
+Run with --dry-run first to see what would happen.
+"""
+
+
+@main.command(help=MIGRATE_HELP)
+@click.option("--swap", "-s", is_flag=True, help="Swap old/new directories after migration")
+@click.option("--dry-run", "-n", is_flag=True, help="Show what would be done without doing it")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
+def migrate(swap: bool, dry_run: bool, yes: bool):
+    """Consolidate data into a single sorted Parquet file."""
+    import shutil
+
+    old_dir = Path("data/items")
+    new_dir = Path("data/items_v2")
+    backup_dir = Path("data/items_old")
+
+    # Check for different data formats
+    hive_files = list(old_dir.glob("year=*/month=*/*.parquet")) if old_dir.exists() else []
+    flat_files = list(old_dir.glob("*.parquet")) if old_dir.exists() else []
+
+    if not hive_files and not flat_files:
+        console.print("[yellow]No data found in data/items/[/yellow]")
+        console.print("[dim]Looking for: data/items/*.parquet or data/items/year=*/month=*/*.parquet[/dim]")
+        return
+
+    # Build query to read all formats
+    conn = duckdb.connect()
+    sources = []
+
+    if hive_files:
+        sources.append(f"""
+            SELECT * EXCLUDE (year, month)
+            FROM read_parquet('data/items/year=*/month=*/*.parquet', hive_partitioning=true)
+        """)
+
+    if flat_files:
+        sources.append(f"""
+            SELECT * FROM read_parquet('data/items/*.parquet')
+        """)
+
+    union_query = " UNION ALL ".join(sources)
+
+    try:
+        result = conn.execute(f"""
+            SELECT count(*) as total,
+                   min(id) as min_id,
+                   max(id) as max_id
+            FROM ({union_query})
+        """).fetchone()
+        total_items, min_id, max_id = result
+    except Exception as e:
+        console.print(f"[red]Error reading data:[/red] {e}")
+        return
+
+    # Get file stats
+    all_files = hive_files + flat_files
+    old_size_mb = sum(f.stat().st_size for f in all_files) / (1024 * 1024)
+
+    console.print("\n[bold cyan]═══ Migration Plan ═══[/bold cyan]\n")
+    console.print("[bold]Source data:[/bold]")
+    if hive_files:
+        console.print(f"  Hive partitions: {len(hive_files)} files")
+    if flat_files:
+        console.print(f"  Flat files: {len(flat_files)} files")
+    console.print(f"  Total items: {total_items:,}")
+    console.print(f"  ID range: {min_id:,} → {max_id:,}")
+    console.print(f"  Size: {old_size_mb:.1f} MB")
+
+    console.print(f"\n[bold]Target:[/bold]")
+    console.print(f"  Output: {new_dir}/hn.parquet")
+    console.print(f"  Sorted by: id (ascending)")
+
+    if swap:
+        console.print(f"\n[bold]After migration:[/bold]")
+        console.print(f"  {old_dir}/ → {backup_dir}/ (backup)")
+        console.print(f"  {new_dir}/ → {old_dir}/ (active)")
+
+    if dry_run:
+        console.print("\n[yellow]Dry run - no changes made[/yellow]")
+        return
+
+    if not yes:
+        console.print()
+        if not click.confirm("Proceed with migration?"):
+            console.print("[dim]Cancelled.[/dim]")
+            return
+
+    # Create new directory
+    new_dir.mkdir(parents=True, exist_ok=True)
+
+    console.print(f"\n[bold]Migrating...[/bold]")
+    start_time = time.time()
+
+    # Export sorted data using DuckDB
+    output_file = new_dir / "hn.parquet"
+    try:
+        conn.execute(f"""
+            COPY (
+                SELECT * FROM ({union_query}) ORDER BY id
+            ) TO '{output_file}' (
+                FORMAT PARQUET,
+                COMPRESSION ZSTD,
+                COMPRESSION_LEVEL 3,
+                ROW_GROUP_SIZE 100000
+            )
+        """)
+
+        elapsed = time.time() - start_time
+        console.print(f"[green]✓ Data exported in {_format_time(elapsed)}[/green]")
+
+        new_size_mb = output_file.stat().st_size / (1024 * 1024)
+        console.print(f"  Output: {output_file}")
+        console.print(f"  Size: {new_size_mb:.1f} MB")
+
+    except Exception as e:
+        console.print(f"[red]Error during migration:[/red] {e}")
+        return
+
+    # Swap directories if requested
+    if swap:
+        console.print(f"\n[bold]Swapping directories...[/bold]")
+        try:
+            # Move old to backup
+            if backup_dir.exists():
+                shutil.rmtree(backup_dir)
+            old_dir.rename(backup_dir)
+            console.print(f"[green]✓ {old_dir}/ → {backup_dir}/[/green]")
+
+            # Move new to active
+            new_dir.rename(old_dir)
+            console.print(f"[green]✓ {new_dir}/ → {old_dir}/[/green]")
+
+            console.print(f"\n[dim]Old data backed up to {backup_dir}/[/dim]")
+            console.print(f"[dim]Run 'rm -rf {backup_dir}' to delete backup[/dim]")
+        except Exception as e:
+            console.print(f"[red]Error swapping directories:[/red] {e}")
+            return
+
+    console.print(f"\n[bold green]Migration complete![/bold green]")
+
+    if not swap:
+        console.print(f"\n[dim]New data is in {new_dir}/[/dim]")
+        console.print(f"[dim]To use it, run: hn-sql migrate --swap[/dim]")
+        console.print(f"[dim]Or query directly: SELECT * FROM read_parquet('{new_dir}/*.parquet')[/dim]")
+
+
 def _format_time(seconds: float) -> str:
     """Format execution time in a human-readable way."""
     if seconds < 0.001:
@@ -384,9 +544,12 @@ def _format_time(seconds: float) -> str:
 def _get_connection(data_path: str) -> duckdb.DuckDBPyConnection:
     """Create a DuckDB connection with the HN data as a view."""
     conn = duckdb.connect()
+    # union_by_name handles schema differences between old (with year/month) and new (without) files
     conn.execute(f"""
         CREATE VIEW hn AS
-        SELECT * FROM read_parquet('{data_path}', hive_partitioning=true)
+        SELECT id, type, "by", time, text, url, title, score, descendants,
+               parent, kids, dead, deleted, poll, parts
+        FROM read_parquet('{data_path}', hive_partitioning=true, union_by_name=true)
     """)
     return conn
 

@@ -30,18 +30,24 @@ ITEM_SCHEMA_NO_PARTITION = pa.schema([
 ])
 
 
-def item_to_row(item: dict) -> dict:
-    """Convert HN API item dict to schema-compatible row."""
+def item_to_row(item: dict, include_partitions: bool = False) -> dict:
+    """Convert HN API item dict to schema-compatible row.
+
+    Args:
+        item: Raw item dict from HN API
+        include_partitions: If True, include year/month columns (for legacy hive partitioning)
+    """
     from datetime import datetime, timezone
 
     if item is None:
         return None
 
+    ts = item.get("time")
+    dt = datetime.fromtimestamp(ts, tz=timezone.utc) if ts else None
+
     # Handle deleted/dead items with minimal data
     if item.get("deleted") or item.get("dead"):
-        ts = item.get("time")
-        dt = datetime.fromtimestamp(ts, tz=timezone.utc) if ts else None
-        return {
+        row = {
             "id": item.get("id"),
             "type": item.get("type"),
             "by": item.get("by"),
@@ -57,29 +63,28 @@ def item_to_row(item: dict) -> dict:
             "deleted": item.get("deleted", False),
             "poll": None,
             "parts": None,
-            "year": dt.year if dt else None,
-            "month": dt.month if dt else None,
+        }
+    else:
+        row = {
+            "id": item.get("id"),
+            "type": item.get("type"),
+            "by": item.get("by"),
+            "time": dt,
+            "text": item.get("text"),
+            "url": item.get("url"),
+            "title": item.get("title"),
+            "score": item.get("score"),
+            "descendants": item.get("descendants"),
+            "parent": item.get("parent"),
+            "kids": item.get("kids"),
+            "dead": item.get("dead", False),
+            "deleted": item.get("deleted", False),
+            "poll": item.get("poll"),
+            "parts": item.get("parts"),
         }
 
-    ts = item.get("time")
-    dt = datetime.fromtimestamp(ts, tz=timezone.utc) if ts else None
+    if include_partitions:
+        row["year"] = dt.year if dt else None
+        row["month"] = dt.month if dt else None
 
-    return {
-        "id": item.get("id"),
-        "type": item.get("type"),
-        "by": item.get("by"),
-        "time": dt,
-        "text": item.get("text"),
-        "url": item.get("url"),
-        "title": item.get("title"),
-        "score": item.get("score"),
-        "descendants": item.get("descendants"),
-        "parent": item.get("parent"),
-        "kids": item.get("kids"),
-        "dead": item.get("dead", False),
-        "deleted": item.get("deleted", False),
-        "poll": item.get("poll"),
-        "parts": item.get("parts"),
-        "year": dt.year if dt else None,
-        "month": dt.month if dt else None,
-    }
+    return row
