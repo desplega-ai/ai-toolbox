@@ -142,6 +142,7 @@ async def _fetch(concurrency: int, batch_size: int, resume: bool, output: str, s
 
                 # Update checkpoint
                 checkpoint.update(batch_end - 1, len(batch_items), len(batch_items))
+                writer.flush_all()
                 checkpoint_mgr.save(checkpoint)
 
                 current_pos = batch_end
