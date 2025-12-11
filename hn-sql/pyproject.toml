@@ -1,9 +1,19 @@
 [project]
 name = "hn-sql"
-version = "0.1.0"
+version = "0.2.0"
 description = "Fetch Hacker News data and store as Parquet for DuckDB"
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.13"
+authors = [
+    { name = "Desplega", email = "contact@desplega.ai" }
+]
+keywords = ["hacker-news", "duckdb", "parquet", "sql", "api"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.13",
+]
 dependencies = [
     "httpx>=0.28.0",
     "pyarrow>=18.0.0",
@@ -11,6 +21,8 @@ dependencies = [
     "click>=8.1.0",
     "duckdb>=1.4.2",
     "pytz>=2025.2",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.32.0",
 ]
 
 [project.scripts]

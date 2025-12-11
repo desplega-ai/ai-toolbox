@@ -60,6 +60,14 @@ hn-sql reset --data     # Delete checkpoint and all data
 hn-sql reset --data -y  # Skip confirmation
 ```
 
+### api
+```bash
+hn-sql api              # Start API server on port 8000
+hn-sql api -p 8080      # Custom port
+```
+
+Browse http://localhost:8000/docs for interactive API documentation.
+
 ## Data Schema
 
 The `hn` table contains all item types (story, comment, job, poll, pollopt):

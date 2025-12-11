@@ -528,5 +528,55 @@ def _show_help():
         console.print(f"{sql};\n")
 
 
+@main.command()
+@click.option("--port", "-p", default=8000, help="Port to run the API server on")
+@click.option("--host", "-h", default="127.0.0.1", help="Host to bind the server to")
+@click.option("--reload", "-r", is_flag=True, help="Enable auto-reload for development")
+@click.option("--data", "-d", default=DATA_PATH, help="Path to parquet files")
+def api(port: int, host: str, reload: bool, data: str):
+    """Start the FastAPI server for remote SQL execution.
+
+    Examples:
+
+      # Start on default port 8000
+      hn-sql api
+
+      # Start on custom port
+      hn-sql api --port 8080
+
+      # Allow external connections
+      hn-sql api --host 0.0.0.0
+
+      # Development mode with auto-reload
+      hn-sql api --reload
+    """
+    import uvicorn
+    from pathlib import Path
+
+    # Check data exists
+    data_dir = Path(data).parent.parent if "**" in data else Path(data).parent
+    if not data_dir.exists() or not list(data_dir.glob("**/*.parquet")):
+        console.print("[yellow]No data found. Run 'hn-sql fetch' first.[/yellow]")
+        return
+
+    # Update the data path in the API module
+    from hn_sql import api as api_module
+    api_module.DATA_PATH = data
+
+    console.print(f"[bold green]Starting HN-SQL API server[/bold green]")
+    console.print(f"  Host: {host}")
+    console.print(f"  Port: {port}")
+    console.print(f"  Data: {data}")
+    console.print(f"  Docs: http://{host}:{port}/docs")
+    console.print()
+
+    uvicorn.run(
+        "hn_sql.api:app",
+        host=host,
+        port=port,
+        reload=reload,
+    )
+
+
 if __name__ == "__main__":
     main()
