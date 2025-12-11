@@ -2,6 +2,7 @@
 
 import asyncio
 import signal
+import time
 from pathlib import Path
 
 import click
@@ -366,6 +367,20 @@ def reset(data: bool, yes: bool):
         console.print("[green]✓ Data deleted[/green]")
 
 
+def _format_time(seconds: float) -> str:
+    """Format execution time in a human-readable way."""
+    if seconds < 0.001:
+        return f"{seconds * 1_000_000:.0f}µs"
+    elif seconds < 1:
+        return f"{seconds * 1000:.1f}ms"
+    elif seconds < 60:
+        return f"{seconds:.2f}s"
+    else:
+        mins = int(seconds // 60)
+        secs = seconds % 60
+        return f"{mins}m {secs:.1f}s"
+
+
 def _get_connection(data_path: str) -> duckdb.DuckDBPyConnection:
     """Create a DuckDB connection with the HN data as a view."""
     conn = duckdb.connect()
@@ -437,8 +452,11 @@ def query(sql: str | None, interactive: bool, limit: int, data: str):
         _interactive_shell(conn, display_limit)
     elif sql:
         try:
+            start_time = time.perf_counter()
             result = conn.execute(sql)
             _print_result(result, display_limit)
+            elapsed = time.perf_counter() - start_time
+            console.print(f"[dim]Executed in {_format_time(elapsed)}[/dim]")
         except duckdb.Error as e:
             console.print(f"[red]Error:[/red] {e}")
     else:
@@ -481,8 +499,11 @@ def _interactive_shell(conn: duckdb.DuckDBPyConnection, limit: int | None):
 
             # Execute SQL
             try:
+                start_time = time.perf_counter()
                 result = conn.execute(sql)
                 _print_result(result, limit)
+                elapsed = time.perf_counter() - start_time
+                console.print(f"[dim]Executed in {_format_time(elapsed)}[/dim]")
             except duckdb.Error as e:
                 console.print(f"[red]Error:[/red] {e}")
 
