@@ -199,7 +199,7 @@ export function NotebookQueryTab({ tab, onUpdate }: NotebookQueryTabProps) {
             onChange={(content) => handleBlockChange(block.id, content)}
             onDelete={() => handleBlockDelete(block.id)}
             canDelete={blocks.length > 1}
-            forceCollapsed={allCollapsed}
+            forceCollapsed={allCollapsed ? true : undefined}
           />
         ))}
 

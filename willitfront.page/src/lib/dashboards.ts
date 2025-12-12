@@ -33,6 +33,13 @@ export const dashboards: DashboardConfig[] = [
         sql: `SELECT type, COUNT(*) as count FROM hn GROUP BY type ORDER BY count DESC`,
         visualization: 'bar',
       },
+      {
+        id: 'last-synced',
+        title: 'Last Synced Item',
+        sql: `SELECT MAX(time) as last_sync FROM hn`,
+        visualization: 'metric',
+        metricLabel: 'Latest item timestamp',
+      },
     ],
   },
   {

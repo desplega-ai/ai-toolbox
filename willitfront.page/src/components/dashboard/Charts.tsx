@@ -85,13 +85,27 @@ export function LineChartViz({ data }: ChartProps) {
 
 export function MetricCard({ data, label }: ChartProps & { label?: string }) {
   const value = data.rows[0]?.[0] ?? 0;
-  const displayValue = typeof value === 'number'
-    ? formatCompact(value)
-    : String(value);
+
+  let displayValue: string;
+  let isDate = false;
+  if (typeof value === 'number') {
+    displayValue = formatCompact(value);
+  } else if (typeof value === 'string' && !isNaN(Date.parse(value))) {
+    isDate = true;
+    displayValue = new Date(value).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } else {
+    displayValue = String(value);
+  }
 
   return (
-    <div className="bg-white p-6 rounded-lg border text-center">
-      <div className="text-4xl font-bold text-[var(--hn-orange)]">
+    <div className="bg-white p-6 rounded-lg border text-center h-full flex flex-col justify-center">
+      <div className={`font-bold text-[var(--hn-orange)] ${isDate ? 'text-lg' : 'text-4xl'}`}>
         {displayValue}
       </div>
       {label && <div className="text-gray-500 mt-1">{label}</div>}

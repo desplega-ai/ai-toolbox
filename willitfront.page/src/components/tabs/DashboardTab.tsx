@@ -55,7 +55,7 @@ export function DashboardTab() {
         </div>
 
         {hasMetrics && (
-          <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             {metrics.map(query => (
               <DashboardPanel key={query.id} query={query} />
             ))}
