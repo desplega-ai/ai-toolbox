@@ -97,6 +97,27 @@ class StatsResponse(BaseModel):
     timing: TimingInfo
 
 
+class ColumnInfo(BaseModel):
+    """Column information for schema endpoint."""
+    name: str = Field(..., description="Column name")
+    type: str = Field(..., description="Column data type")
+    nullable: bool = Field(..., description="Whether the column can be null")
+    description: str | None = Field(None, description="Column description")
+
+
+class TableInfo(BaseModel):
+    """Table information for schema endpoint."""
+    name: str = Field(..., description="Table name")
+    columns: list[ColumnInfo] = Field(..., description="Table columns")
+
+
+class SchemaResponse(BaseModel):
+    """Database schema response for editor autocompletion."""
+    tables: list[TableInfo] = Field(..., description="Available tables")
+    keywords: list[str] = Field(..., description="SQL keywords")
+    functions: list[str] = Field(..., description="Available SQL functions")
+
+
 # --- Helper Functions ---
 
 def _format_time(seconds: float) -> str:
@@ -181,6 +202,70 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
 async def health_check():
     """Health check endpoint."""
     return {"status": "ok"}
+
+
+@app.get("/schema", response_model=SchemaResponse)
+async def get_schema() -> SchemaResponse:
+    """
+    Get database schema for editor autocompletion.
+
+    Returns table definitions, SQL keywords, and common functions
+    useful for building SQL query autocompletion in editors like Monaco.
+    """
+    # Column definitions with descriptions
+    columns = [
+        ColumnInfo(name="id", type="int64", nullable=False, description="Item ID"),
+        ColumnInfo(name="type", type="string", nullable=True, description="Item type: story, comment, job, poll, pollopt"),
+        ColumnInfo(name="by", type="string", nullable=True, description="Author username (quote as \"by\" in SQL)"),
+        ColumnInfo(name="time", type="timestamp", nullable=True, description="Creation time (UTC)"),
+        ColumnInfo(name="title", type="string", nullable=True, description="Title (stories/jobs/polls)"),
+        ColumnInfo(name="url", type="string", nullable=True, description="External URL"),
+        ColumnInfo(name="text", type="string", nullable=True, description="Content (HTML)"),
+        ColumnInfo(name="score", type="int32", nullable=True, description="Points/score"),
+        ColumnInfo(name="descendants", type="int32", nullable=True, description="Comment count"),
+        ColumnInfo(name="parent", type="int64", nullable=True, description="Parent item ID"),
+        ColumnInfo(name="kids", type="list<int64>", nullable=True, description="Child comment IDs"),
+        ColumnInfo(name="dead", type="bool", nullable=True, description="Dead/flagged item"),
+        ColumnInfo(name="deleted", type="bool", nullable=True, description="Deleted item"),
+        ColumnInfo(name="poll", type="int64", nullable=True, description="Parent poll (for pollopts)"),
+        ColumnInfo(name="parts", type="list<int64>", nullable=True, description="Poll option IDs (for polls)"),
+    ]
+
+    tables = [TableInfo(name="hn", columns=columns)]
+
+    # Common SQL keywords for autocompletion
+    keywords = [
+        "SELECT", "FROM", "WHERE", "AND", "OR", "NOT", "IN", "LIKE", "ILIKE",
+        "BETWEEN", "IS", "NULL", "ORDER", "BY", "ASC", "DESC", "LIMIT", "OFFSET",
+        "GROUP", "HAVING", "DISTINCT", "AS", "JOIN", "LEFT", "RIGHT", "INNER",
+        "OUTER", "FULL", "ON", "UNION", "ALL", "EXCEPT", "INTERSECT", "CASE",
+        "WHEN", "THEN", "ELSE", "END", "CAST", "TRUE", "FALSE", "NULLS", "FIRST", "LAST",
+    ]
+
+    # Common DuckDB functions
+    functions = [
+        # Aggregates
+        "COUNT", "SUM", "AVG", "MIN", "MAX", "FIRST", "LAST",
+        "COUNT_DISTINCT", "APPROX_COUNT_DISTINCT", "LIST", "STRING_AGG",
+        # String
+        "LENGTH", "LOWER", "UPPER", "TRIM", "LTRIM", "RTRIM", "SUBSTR", "SUBSTRING",
+        "REPLACE", "CONCAT", "CONCAT_WS", "SPLIT_PART", "REGEXP_MATCHES",
+        "REGEXP_REPLACE", "REGEXP_EXTRACT", "CONTAINS", "STARTS_WITH", "ENDS_WITH",
+        # Date/Time
+        "DATE_TRUNC", "DATE_PART", "DATE_DIFF", "EXTRACT", "STRFTIME",
+        "YEAR", "MONTH", "DAY", "HOUR", "MINUTE", "SECOND",
+        "CURRENT_DATE", "CURRENT_TIMESTAMP", "NOW",
+        # Numeric
+        "ABS", "ROUND", "CEIL", "FLOOR", "POWER", "SQRT", "LOG", "LN",
+        # Conditional
+        "COALESCE", "NULLIF", "IFNULL", "IF",
+        # List
+        "LIST_VALUE", "LIST_AGGREGATE", "UNNEST", "ARRAY_LENGTH", "LEN",
+        # Type conversion
+        "CAST", "TRY_CAST",
+    ]
+
+    return SchemaResponse(tables=tables, keywords=keywords, functions=functions)
 
 
 @app.get("/stories", response_model=ListResponse)
