@@ -6,13 +6,13 @@ import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/ca
 import { Database, BarChart3, Lightbulb } from 'lucide-react';
 
 const QUICK_ACTIONS = [
-  { type: 'query' as const, title: 'SQL Query', description: 'Write custom SQL queries', icon: Database, disabled: false },
+  { type: 'query' as const, title: 'Notebook', description: 'Interactive analysis with SQL (more languages coming soon)', icon: Database, disabled: false },
   { type: 'dashboard' as const, title: 'Analytics', description: 'Dashboards with key metrics and insights', icon: BarChart3, disabled: false },
-  { type: null, title: 'Post Tester', description: 'Test your post titles against HN sentiment', icon: Lightbulb, disabled: true },
+  { type: null, title: 'Post Tester', description: 'Test your post titles before submitting', icon: Lightbulb, disabled: true },
 ];
 
 function App() {
-  const { tabs, activeTabId, activeTab, createTab, closeTab, setActiveTab, updateTab } = useTabs();
+  const { tabs, activeTabId, activeTab, createTab, closeTab, setActiveTab, updateTab, resetTabs } = useTabs();
 
   return (
     <div className="h-screen flex flex-col bg-[var(--hn-bg)]">
@@ -22,6 +22,7 @@ function App() {
         onTabSelect={setActiveTab}
         onTabClose={closeTab}
         onTabRename={(tabId, title) => updateTab(tabId, { title })}
+        onReset={resetTabs}
       />
 
       <main className="flex-1 overflow-hidden">
@@ -33,8 +34,8 @@ function App() {
           )
         ) : (
           <div className="h-full flex flex-col items-center justify-center p-8">
-            <h1 className="text-2xl font-bold mb-2">HN Data Analysis</h1>
-            <p className="text-gray-500 mb-8">Explore Hacker News data with SQL</p>
+            <h1 className="text-2xl font-bold mb-2">Will it front page?</h1>
+            <p className="text-gray-500 mb-8">Analyze what makes content go viral. Currently featuring Hacker News data, with Product Hunt and more coming soon.</p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl w-full">
               {QUICK_ACTIONS.map((action) => (
                 <Card

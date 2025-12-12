@@ -1,5 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, RotateCcw } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import type { Tab } from '@/types/tabs';
 
 interface TabBarProps {
@@ -8,11 +17,13 @@ interface TabBarProps {
   onTabSelect: (tabId: string | null) => void;
   onTabClose: (tabId: string) => void;
   onTabRename: (tabId: string, newTitle: string) => void;
+  onReset: () => void;
 }
 
-export function TabBar({ tabs, activeTabId, onTabSelect, onTabClose, onTabRename }: TabBarProps) {
+export function TabBar({ tabs, activeTabId, onTabSelect, onTabClose, onTabRename, onReset }: TabBarProps) {
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -42,47 +53,98 @@ export function TabBar({ tabs, activeTabId, onTabSelect, onTabClose, onTabRename
     }
   };
 
-  return (
-    <div className="flex items-center bg-[var(--hn-orange)] px-2 h-10">
-      {tabs.map(tab => (
-        <div
-          key={tab.id}
-          className={`flex items-center px-3 py-1 mr-1 cursor-pointer rounded-t ${
-            tab.id === activeTabId ? 'bg-[var(--hn-bg)]' : 'bg-orange-200 hover:bg-orange-100'
-          }`}
-          onClick={() => onTabSelect(tab.id)}
-          onDoubleClick={() => handleDoubleClick(tab)}
-        >
-          {editingTabId === tab.id ? (
-            <input
-              ref={inputRef}
-              type="text"
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              onBlur={handleSave}
-              onKeyDown={handleKeyDown}
-              onClick={(e) => e.stopPropagation()}
-              className="text-sm w-24 px-1 rounded border border-gray-300 outline-none"
-            />
-          ) : (
-            <span className="text-sm truncate max-w-32">{tab.title}</span>
-          )}
-          <button
-            className="ml-2 hover:bg-gray-200 rounded p-0.5"
-            onClick={(e) => { e.stopPropagation(); onTabClose(tab.id); }}
-          >
-            <X size={14} />
-          </button>
-        </div>
-      ))}
+  const handleReset = () => {
+    onReset();
+    setShowResetConfirm(false);
+  };
 
-      <button
-        className="p-1.5 hover:bg-orange-600 rounded ml-1 cursor-pointer transition-colors"
-        onClick={() => onTabSelect(null)}
-        title="New tab"
-      >
-        <Plus size={18} className="text-white" />
-      </button>
-    </div>
+  return (
+    <>
+      <div className="flex items-center bg-[var(--hn-orange)] px-2 h-10">
+        {/* Logo */}
+        <button
+          onClick={() => onTabSelect(null)}
+          className="flex items-center gap-2 px-2 py-1 mr-2 text-white font-bold text-sm hover:bg-orange-600 rounded transition-colors"
+          title="Home"
+        >
+          <img src="/favicon-32x32.png" alt="WIFP" className="w-6 h-6" />
+          <span className="hidden sm:inline">WIFP</span>
+        </button>
+
+        <div className="w-px h-6 bg-orange-400 mr-2" />
+
+        {tabs.map(tab => (
+          <div
+            key={tab.id}
+            className={`flex items-center px-3 py-1 mr-1 cursor-pointer rounded-t ${
+              tab.id === activeTabId ? 'bg-[var(--hn-bg)]' : 'bg-orange-200 hover:bg-orange-100'
+            }`}
+            onClick={() => onTabSelect(tab.id)}
+            onDoubleClick={() => handleDoubleClick(tab)}
+          >
+            {editingTabId === tab.id ? (
+              <input
+                ref={inputRef}
+                type="text"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onBlur={handleSave}
+                onKeyDown={handleKeyDown}
+                onClick={(e) => e.stopPropagation()}
+                className="text-sm w-24 px-1 rounded border border-gray-300 outline-none"
+              />
+            ) : (
+              <span className="text-sm truncate max-w-32">{tab.title}</span>
+            )}
+            <button
+              className="ml-2 hover:bg-gray-200 rounded p-0.5"
+              onClick={(e) => { e.stopPropagation(); onTabClose(tab.id); }}
+            >
+              <X size={14} />
+            </button>
+          </div>
+        ))}
+
+        <button
+          className="p-1.5 hover:bg-orange-600 rounded ml-1 cursor-pointer transition-colors"
+          onClick={() => onTabSelect(null)}
+          title="New tab"
+        >
+          <Plus size={18} className="text-white" />
+        </button>
+
+        <div className="flex-1" />
+
+        {/* Reset button */}
+        <button
+          className="p-1.5 hover:bg-orange-600 rounded cursor-pointer transition-colors flex items-center gap-1 text-white text-xs"
+          onClick={() => setShowResetConfirm(true)}
+          title="Reset all tabs"
+        >
+          <RotateCcw size={14} />
+          <span className="hidden sm:inline">Reset</span>
+        </button>
+      </div>
+
+      {/* Reset confirmation dialog */}
+      <Dialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset all tabs?</DialogTitle>
+            <DialogDescription>
+              This will close all tabs and clear your saved queries. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowResetConfirm(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleReset}>
+              Reset
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
