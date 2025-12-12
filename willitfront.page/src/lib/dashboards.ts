@@ -104,9 +104,15 @@ export const dashboards: DashboardConfig[] = [
         visualization: 'bar',
       },
       {
+        id: 'posts-by-day',
+        title: 'Posts by Day of Week',
+        sql: `SELECT DAYOFWEEK(time) as day, COUNT(*) as posts FROM hn WHERE type = 'story' GROUP BY day ORDER BY day`,
+        visualization: 'bar',
+      },
+      {
         id: 'activity-timeline',
-        title: 'Activity Over Time',
-        sql: `SELECT DATE_TRUNC('hour', time) as hour, COUNT(*) as items FROM hn GROUP BY hour ORDER BY hour`,
+        title: 'Activity Over Time (Monthly)',
+        sql: `SELECT DATE_TRUNC('month', time) as month, COUNT(*) as items FROM hn GROUP BY month ORDER BY month`,
         visualization: 'line',
       },
     ],

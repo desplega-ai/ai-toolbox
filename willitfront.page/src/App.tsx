@@ -21,6 +21,7 @@ function App() {
         activeTabId={activeTabId}
         onTabSelect={setActiveTab}
         onTabClose={closeTab}
+        onTabRename={(tabId, title) => updateTab(tabId, { title })}
       />
 
       <main className="flex-1 overflow-hidden">

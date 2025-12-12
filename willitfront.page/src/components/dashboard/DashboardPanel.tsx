@@ -51,6 +51,11 @@ export function DashboardPanel({ query }: DashboardPanelProps) {
       {query.visualization === 'bar' && <BarChartViz data={data} />}
       {query.visualization === 'line' && <LineChartViz data={data} />}
       {query.visualization === 'metric' && <MetricCard data={data} label={query.metricLabel} />}
+      {data.timing && (
+        <div className="text-xs text-gray-400 mt-2 text-right">
+          {data.timing.elapsed_formatted}
+        </div>
+      )}
     </div>
   );
 }

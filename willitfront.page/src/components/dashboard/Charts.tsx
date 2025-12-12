@@ -5,24 +5,46 @@ interface ChartProps {
   data: QueryResponse;
 }
 
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function formatHour(hour: number): string {
+  if (hour === 0) return '12 AM';
+  if (hour === 12) return '12 PM';
+  if (hour < 12) return `${hour} AM`;
+  return `${hour - 12} PM`;
+}
+
+function formatCompact(value: number): string {
+  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1).replace(/\.0$/, '')}B`;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1).replace(/\.0$/, '')}k`;
+  return value.toString();
+}
+
 export function BarChartViz({ data }: ChartProps) {
+  const labelKey = data.columns[0] ?? 'label';
+  const valueKey = data.columns[1] ?? 'value';
+
   const chartData = data.rows.map(row => {
     const obj: Record<string, unknown> = {};
     data.columns.forEach((col, i) => {
-      obj[col] = row[i];
+      if (col === 'day' && typeof row[i] === 'number') {
+        obj[col] = DAY_NAMES[row[i] as number] ?? row[i];
+      } else if (col === 'hour' && typeof row[i] === 'number') {
+        obj[col] = formatHour(row[i] as number);
+      } else {
+        obj[col] = row[i];
+      }
     });
     return obj;
   });
-
-  const labelKey = data.columns[0] ?? 'label';
-  const valueKey = data.columns[1] ?? 'value';
 
   return (
     <ResponsiveContainer width="100%" height={300}>
       <BarChart data={chartData}>
         <XAxis dataKey={labelKey} />
-        <YAxis />
-        <Tooltip />
+        <YAxis tickFormatter={(v) => formatCompact(v)} />
+        <Tooltip formatter={(v: number) => v.toLocaleString()} />
         <Bar dataKey={valueKey} fill="var(--hn-orange)" />
       </BarChart>
     </ResponsiveContainer>
@@ -34,7 +56,10 @@ export function LineChartViz({ data }: ChartProps) {
     const obj: Record<string, unknown> = {};
     data.columns.forEach((col, i) => {
       // Format timestamps for display
-      if (col.includes('hour') || col.includes('time') || col.includes('date')) {
+      if (col.includes('month')) {
+        const d = new Date(row[i] as string);
+        obj[col] = d.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+      } else if (col.includes('hour') || col.includes('time') || col.includes('date')) {
         obj[col] = new Date(row[i] as string).toLocaleString();
       } else {
         obj[col] = row[i];
@@ -49,10 +74,10 @@ export function LineChartViz({ data }: ChartProps) {
   return (
     <ResponsiveContainer width="100%" height={300}>
       <LineChart data={chartData}>
-        <XAxis dataKey={xKey} tick={{ fontSize: 10 }} />
-        <YAxis />
-        <Tooltip />
-        <Line type="monotone" dataKey={yKey} stroke="var(--hn-orange)" />
+        <XAxis dataKey={xKey} tick={{ fontSize: 10 }} angle={-45} textAnchor="end" height={60} />
+        <YAxis tickFormatter={(v) => formatCompact(v)} />
+        <Tooltip formatter={(v: number) => v.toLocaleString()} />
+        <Line type="monotone" dataKey={yKey} stroke="var(--hn-orange)" dot={false} />
       </LineChart>
     </ResponsiveContainer>
   );
@@ -61,7 +86,7 @@ export function LineChartViz({ data }: ChartProps) {
 export function MetricCard({ data, label }: ChartProps & { label?: string }) {
   const value = data.rows[0]?.[0] ?? 0;
   const displayValue = typeof value === 'number'
-    ? value.toLocaleString()
+    ? formatCompact(value)
     : String(value);
 
   return (

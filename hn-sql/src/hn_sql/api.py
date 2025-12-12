@@ -194,7 +194,7 @@ def _execute_query(sql: str, limit: int = DEFAULT_LIMIT) -> QueryResponse:
 # --- Endpoints ---
 
 @app.post("/query", response_model=QueryResponse)
-async def execute_query(request: QueryRequest) -> QueryResponse:
+def execute_query(request: QueryRequest) -> QueryResponse:
     """
     Execute a SQL query against the HN data.
 
@@ -208,13 +208,13 @@ async def execute_query(request: QueryRequest) -> QueryResponse:
 
 
 @app.get("/health")
-async def health_check():
+def health_check():
     """Health check endpoint."""
     return {"status": "ok"}
 
 
 @app.get("/schema", response_model=SchemaResponse)
-async def get_schema() -> SchemaResponse:
+def get_schema() -> SchemaResponse:
     """
     Get database schema for editor autocompletion.
 
@@ -278,7 +278,7 @@ async def get_schema() -> SchemaResponse:
 
 
 @app.get("/stories", response_model=ListResponse)
-async def list_stories(
+def list_stories(
     limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
     sort: str = Query("time", description="Sort field: time, score, descendants"),
@@ -352,7 +352,7 @@ async def list_stories(
 
 
 @app.get("/comments", response_model=ListResponse)
-async def list_comments(
+def list_comments(
     limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
     sort: str = Query("time", description="Sort field: time, id"),
@@ -421,7 +421,7 @@ async def list_comments(
 
 
 @app.get("/jobs", response_model=ListResponse)
-async def list_jobs(
+def list_jobs(
     limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
     sort: str = Query("time", description="Sort field: time, id"),
@@ -482,7 +482,7 @@ async def list_jobs(
 
 
 @app.get("/stats/types", response_model=StatsResponse)
-async def stats_by_type() -> StatsResponse:
+def stats_by_type() -> StatsResponse:
     """
     Get item counts grouped by type.
 
@@ -519,7 +519,7 @@ async def stats_by_type() -> StatsResponse:
 
 
 @app.get("/stats/users", response_model=StatsResponse)
-async def stats_top_users(
+def stats_top_users(
     limit: int = Query(100, ge=1, le=1000, description="Number of top users to return"),
 ) -> StatsResponse:
     """
@@ -560,7 +560,7 @@ async def stats_top_users(
 
 
 @app.get("/top/stories", response_model=ListResponse)
-async def top_stories(
+def top_stories(
     limit: int = Query(100, ge=1, le=1000, description="Number of top stories to return"),
     min_score: int = Query(0, ge=0, description="Minimum score filter"),
 ) -> ListResponse:
