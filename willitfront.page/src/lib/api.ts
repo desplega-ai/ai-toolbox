@@ -1,6 +1,7 @@
 import type { QueryRequest, QueryResponse, SchemaResponse } from '@/types/api';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://api.willitfront.page';
+// Use relative paths - same-origin requests
+const API_BASE = '/api';
 
 class ApiError extends Error {
   constructor(public status: number, public detail: string) {

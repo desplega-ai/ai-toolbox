@@ -4,10 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
+    "dev": "bun --hot index.ts",
+    "build": "bun run typecheck && bun build ./index.html --outdir=./dist --minify",
     "typecheck": "tsc --noEmit",
-    "preview": "vite preview"
+    "start": "bun index.ts"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18",
@@ -31,6 +31,8 @@
     "@vitejs/plugin-react": "^5.1.2",
     "ag-grid-community": "^35.0.0",
     "ag-grid-react": "^35.0.0",
+    "ai": "^5.0.112",
+    "bun-plugin-tailwind": "^0.1.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.561.0",
@@ -41,6 +43,7 @@
     "sql-formatter": "^15.6.11",
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
-    "vite": "^7.2.7"
+    "vite": "^7.2.7",
+    "zod": "^4.1.13"
   }
 }

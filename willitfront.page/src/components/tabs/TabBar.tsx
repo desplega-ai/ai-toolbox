@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Plus, X, RotateCcw } from 'lucide-react';
+import faviconUrl from '../../../public/favicon-32x32.png';
 import {
   Dialog,
   DialogContent,
@@ -67,7 +68,7 @@ export function TabBar({ tabs, activeTabId, onTabSelect, onTabClose, onTabRename
           className="flex items-center gap-2 px-2 py-1 mr-2 text-white font-bold text-sm hover:bg-orange-600 rounded transition-colors"
           title="Home"
         >
-          <img src="/favicon-32x32.png" alt="WIFP" className="w-6 h-6" />
+          <img src={faviconUrl} alt="WIFP" className="w-6 h-6" />
           <span className="hidden sm:inline">WIFP</span>
         </button>
 
