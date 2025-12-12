@@ -57,7 +57,6 @@ def fetch(concurrency: int, batch_size: int, resume: bool, output: str, start: i
 async def _fetch(concurrency: int, batch_size: int, resume: bool, output: str, start: int | None, end: int | None):
     """Async fetch implementation."""
     checkpoint_mgr = CheckpointManager()
-    writer = PartitionedWriter(output)
 
     # Set up signal handler for clean shutdown
     shutdown_event = asyncio.Event()
@@ -82,6 +81,12 @@ async def _fetch(concurrency: int, batch_size: int, resume: bool, output: str, s
         max_id = end if end is not None else api_max_id
 
         # Determine start point
+        # Preserve partition_style from existing checkpoint if present
+        existing_style = None
+        if checkpoint_mgr.exists():
+            existing_cp = checkpoint_mgr.load()
+            existing_style = existing_cp.partition_style
+
         if start is not None:
             # Handle negative start (relative to max)
             if start < 0:
@@ -90,16 +95,19 @@ async def _fetch(concurrency: int, batch_size: int, resume: bool, output: str, s
             else:
                 start_id = start
                 console.print(f"[green]Starting from {start_id:,}[/green]")
-            checkpoint = Checkpoint.new(max_id)
+            checkpoint = Checkpoint.new(max_id, partition_style=existing_style or "hive")
         elif resume and checkpoint_mgr.exists():
             checkpoint = checkpoint_mgr.load()
             start_id = checkpoint.last_fetched_id + 1
             checkpoint.max_item_id = max_id
             console.print(f"[yellow]Resuming from item {start_id:,}[/yellow]")
         else:
-            checkpoint = Checkpoint.new(max_id)
+            checkpoint = Checkpoint.new(max_id, partition_style=existing_style or "hive")
             start_id = 1
             console.print("[green]Starting fresh fetch[/green]")
+
+        # Create writer with checkpoint's partition style
+        writer = PartitionedWriter(output, partition_style=checkpoint.partition_style)
 
         total_items = max_id - start_id + 1
         console.print(f"[cyan]Fetching {total_items:,} items ({start_id:,} → {max_id:,})[/cyan]\n")
@@ -265,6 +273,7 @@ def stats(tree: bool):
         console.print(f"\n[bold]Active Checkpoint:[/bold]")
         console.print(f"  Last fetched ID: {cp.last_fetched_id:,}")
         console.print(f"  Items fetched: {cp.items_fetched:,}")
+        console.print(f"  Partition style: {cp.partition_style}")
         console.print(f"  Started: {cp.started_at}")
 
     # Show partition tree if requested
@@ -515,6 +524,14 @@ def migrate(swap: bool, dry_run: bool, yes: bool):
 
             console.print(f"\n[dim]Old data backed up to {backup_dir}/[/dim]")
             console.print(f"[dim]Run 'rm -rf {backup_dir}' to delete backup[/dim]")
+
+            # Update checkpoint to use flat partition style
+            checkpoint_mgr = CheckpointManager()
+            if checkpoint_mgr.exists():
+                cp = checkpoint_mgr.load()
+                cp.partition_style = "flat"
+                checkpoint_mgr.save(cp)
+                console.print(f"[green]✓ Checkpoint updated to flat partition style[/green]")
         except Exception as e:
             console.print(f"[red]Error swapping directories:[/red] {e}")
             return

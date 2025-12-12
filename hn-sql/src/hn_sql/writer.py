@@ -5,15 +5,15 @@ from pathlib import Path
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from .schema import ITEM_SCHEMA_NO_PARTITION, item_to_row
+from .schema import ITEM_SCHEMA, ITEM_SCHEMA_NO_PARTITION, item_to_row
 
 
 class ParquetWriter:
-    """Writes HN items to flat Parquet files (no hive partitioning).
+    """Writes HN items to Parquet files.
 
-    Files are written as numbered chunks when the buffer fills up.
-    This provides better query performance for general queries since
-    DuckDB doesn't need to traverse partition directories.
+    Supports two partition styles:
+    - "flat": Numbered chunk files (chunk-00000.parquet, etc.)
+    - "hive": Year/month directories (year=2024/month=12/data.parquet)
     """
 
     # DuckDB-optimized settings
@@ -26,15 +26,17 @@ class ParquetWriter:
         "version": "2.6",
     }
 
-    def __init__(self, output_dir: str = "data/items"):
+    def __init__(self, output_dir: str = "data/items", partition_style: str = "hive"):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.partition_style = partition_style
         self._buffer: list[dict] = []
         self._buffer_size = 50_000  # Flush when buffer reaches this size
 
     def add_item(self, item: dict) -> None:
         """Add an item to the buffer."""
-        row = item_to_row(item, include_partitions=False)
+        include_partitions = (self.partition_style == "hive")
+        row = item_to_row(item, include_partitions=include_partitions)
         if row is None:
             return
 
@@ -54,19 +56,47 @@ class ParquetWriter:
         if not self._buffer:
             return
 
-        # Find next available file number
+        if self.partition_style == "hive":
+            self._flush_hive()
+        else:
+            self._flush_flat()
+
+        # Clear buffer
+        self._buffer = []
+
+    def _flush_flat(self) -> None:
+        """Write buffer as a flat chunk file."""
         existing = list(self.output_dir.glob("chunk-*.parquet"))
         next_num = len(existing)
         output_path = self.output_dir / f"chunk-{next_num:05d}.parquet"
 
-        # Convert to PyArrow table
         table = pa.Table.from_pylist(self._buffer, schema=ITEM_SCHEMA_NO_PARTITION)
-
-        # Write with optimized settings
         pq.write_table(table, output_path, **self.PARQUET_CONFIG)
 
-        # Clear buffer
-        self._buffer = []
+    def _flush_hive(self) -> None:
+        """Write buffer to hive-partitioned directories (year=X/month=Y/)."""
+        from collections import defaultdict
+
+        # Group items by year/month
+        partitions = defaultdict(list)
+        for row in self._buffer:
+            year = row.get("year")
+            month = row.get("month")
+            if year is not None and month is not None:
+                partitions[(year, month)].append(row)
+
+        # Write each partition
+        for (year, month), rows in partitions.items():
+            partition_dir = self.output_dir / f"year={year}" / f"month={month}"
+            partition_dir.mkdir(parents=True, exist_ok=True)
+
+            # Find next available file number in this partition
+            existing = list(partition_dir.glob("*.parquet"))
+            next_num = len(existing)
+            output_path = partition_dir / f"data-{next_num:05d}.parquet"
+
+            table = pa.Table.from_pylist(rows, schema=ITEM_SCHEMA)
+            pq.write_table(table, output_path, **self.PARQUET_CONFIG)
 
     def flush_all(self) -> None:
         """Flush buffer to disk."""

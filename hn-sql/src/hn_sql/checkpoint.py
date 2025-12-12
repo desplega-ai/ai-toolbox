@@ -15,9 +15,10 @@ class Checkpoint:
     items_written: int
     started_at: str
     updated_at: str
+    partition_style: str = "hive"  # "hive" or "flat"
 
     @classmethod
-    def new(cls, max_item_id: int) -> "Checkpoint":
+    def new(cls, max_item_id: int, partition_style: str = "hive") -> "Checkpoint":
         now = datetime.now(timezone.utc).isoformat()
         return cls(
             last_fetched_id=0,
@@ -26,6 +27,7 @@ class Checkpoint:
             items_written=0,
             started_at=now,
             updated_at=now,
+            partition_style=partition_style,
         )
 
     def update(self, last_id: int, fetched: int, written: int) -> None:
@@ -54,6 +56,8 @@ class CheckpointManager:
         if not self.exists():
             return None
         data = json.loads(self.path.read_text())
+        # Backward compat: default to "hive" for old checkpoints
+        data.setdefault("partition_style", "hive")
         return Checkpoint(**data)
 
     def save(self, checkpoint: Checkpoint) -> None:

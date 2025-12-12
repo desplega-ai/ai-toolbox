@@ -116,9 +116,12 @@ def _format_time(seconds: float) -> str:
 def _get_connection(data_path: str = DATA_PATH) -> duckdb.DuckDBPyConnection:
     """Create a DuckDB connection with the HN data as a view."""
     conn = duckdb.connect()
+    # union_by_name handles schema differences between old (with year/month) and new (without) files
     conn.execute(f"""
         CREATE VIEW hn AS
-        SELECT * FROM read_parquet('{data_path}', hive_partitioning=true)
+        SELECT id, type, "by", time, text, url, title, score, descendants,
+               parent, kids, dead, deleted, poll, parts
+        FROM read_parquet('{data_path}', hive_partitioning=true, union_by_name=true)
     """)
     return conn
 

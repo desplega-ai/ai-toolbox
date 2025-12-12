@@ -49,9 +49,11 @@ In interactive mode: `.help`, `.schema`, `.tables`, `.quit`
 
 ### stats
 ```bash
-hn-sql stats        # Show data coverage and storage info
+hn-sql stats        # Show data coverage, storage info, and checkpoint status
 hn-sql stats -t     # Include partition tree
 ```
+
+Shows: item count, ID range, file stats, and checkpoint info (including `partition_style`).
 
 ### reset
 ```bash
@@ -71,15 +73,16 @@ hn-sql migrate --swap -y    # Skip confirmation
 ```
 
 **What it does:**
-1. Reads all existing data (handles both old hive-partitioned and new flat files)
+1. Reads all existing data (handles both hive-partitioned and flat chunk files)
 2. Sorts by ID (correlates with time, enables DuckDB zonemap filtering)
 3. Writes a single consolidated `hn.parquet` file to `data/items_v2/`
-4. With `--swap`: moves old data to `data/items_old/` and new data to `data/items/`
+4. With `--swap`: moves old data to `data/items_old/`, new to `data/items/`
+5. Updates checkpoint's `partition_style` to `"flat"`
 
 **When to use:**
-- After a large sync to consolidate chunk files
+- After initial sync to consolidate into optimized format
+- Periodically (e.g., daily) to merge accumulated chunk files
 - To migrate from old hive-partitioned format (year/month directories)
-- Periodically to keep data in a single sorted file
 
 **Directory layout after `--swap`:**
 ```
@@ -87,6 +90,9 @@ data/
   items/          # Active data (single hn.parquet)
   items_old/      # Backup of previous data (delete when verified)
 ```
+
+**Incremental sync workflow:**
+After migration, each `fetch` adds new items as `chunk-*.parquet` files. Queries read both `hn.parquet` and chunks seamlessly. Run `migrate --swap` periodically to reconsolidate.
 
 ### api
 ```bash
