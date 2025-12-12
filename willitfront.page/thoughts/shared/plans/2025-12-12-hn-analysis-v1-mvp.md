@@ -166,14 +166,14 @@ export default defineConfig({
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] `bun run dev` starts without errors
-- [ ] `bun run build` completes successfully
-- [ ] TypeScript compiles: `bun run typecheck` (add script)
-- [ ] App loads at `http://localhost:5193`
+- [x] `bun run dev` starts without errors
+- [x] `bun run build` completes successfully
+- [x] TypeScript compiles: `bun run typecheck` (add script)
+- [x] App loads at `http://localhost:5193`
 
 #### Manual Verification:
-- [ ] Page displays "Hello World" or similar placeholder
-- [ ] Browser console has no errors
+- [x] Page displays "Hello World" or similar placeholder
+- [x] Browser console has no errors
 
 ---
 
@@ -416,16 +416,16 @@ export default App;
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] `bun run build` succeeds
-- [ ] `bun run typecheck` passes
+- [x] `bun run build` succeeds
+- [x] `bun run typecheck` passes
 
 #### Manual Verification:
-- [ ] Can click + to open new tab dialog
-- [ ] Can create Query and Dashboard tabs
-- [ ] Can switch between tabs
-- [ ] Can close tabs with X button
-- [ ] Tab state persists after page refresh
-- [ ] Closing last tab shows empty state
+- [x] Can click + to open new tab dialog
+- [x] Can create Query and Dashboard tabs
+- [x] Can switch between tabs
+- [x] Can close tabs with X button
+- [x] Tab state persists after page refresh
+- [x] Closing last tab shows empty state
 
 ---
 
@@ -597,12 +597,12 @@ export function useSchema() {
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] `bun run typecheck` passes
-- [ ] `bun run build` succeeds
+- [x] `bun run typecheck` passes
+- [x] `bun run build` succeeds
 
 #### Manual Verification:
-- [ ] API proxy works (can fetch from `/api/health` in browser console)
-- [ ] Schema loads on app start (verify in React DevTools or console)
+- [x] API proxy works (can fetch from `/api/health` in browser console)
+- [x] Schema loads on app start (verify in React DevTools or console)
 
 ---
 
@@ -746,16 +746,16 @@ export function SqlEditor({ value, onChange, onExecute }: SqlEditorProps) {
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] `bun run typecheck` passes
-- [ ] `bun run build` succeeds
+- [x] `bun run typecheck` passes
+- [x] `bun run build` succeeds
 
 #### Manual Verification:
-- [ ] Monaco editor renders in query tab
-- [ ] Typing SQL shows autocomplete suggestions
-- [ ] Keywords (SELECT, FROM, WHERE) appear in autocomplete
-- [ ] Column names appear with type info
-- [ ] "by" column suggests quoted version ("by")
-- [ ] Cmd/Ctrl+Enter triggers execute callback
+- [x] Monaco editor renders in query tab
+- [x] Typing SQL shows autocomplete suggestions
+- [x] Keywords (SELECT, FROM, WHERE) appear in autocomplete
+- [x] Column names appear with type info
+- [x] "by" column suggests quoted version ("by")
+- [x] Cmd/Ctrl+Enter triggers execute callback
 
 ---
 
@@ -931,19 +931,19 @@ import { QueryTab } from '@/components/tabs/QueryTab';
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] `bun run typecheck` passes
-- [ ] `bun run build` succeeds
+- [x] `bun run typecheck` passes
+- [x] `bun run build` succeeds
 
 #### Manual Verification:
-- [ ] Query tab shows Monaco editor at top
-- [ ] "Run Query" button executes the query
-- [ ] Results appear in AG Grid below
-- [ ] Grid columns match query columns
-- [ ] Can sort and filter columns
-- [ ] Timestamps are formatted readably
-- [ ] Row count and timing shown after query
-- [ ] Error messages display when query fails
-- [ ] Cmd/Ctrl+Enter executes query from editor
+- [x] Query tab shows Monaco editor at top
+- [x] "Run Query" button executes the query
+- [x] Results appear in AG Grid below
+- [x] Grid columns match query columns
+- [x] Can sort and filter columns
+- [x] Timestamps are formatted readably
+- [x] Row count and timing shown after query
+- [x] Error messages display when query fails
+- [x] Cmd/Ctrl+Enter executes query from editor
 
 ---
 
@@ -1340,18 +1340,18 @@ export default App;
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] `bun run typecheck` passes
-- [ ] `bun run build` succeeds
+- [x] `bun run typecheck` passes
+- [x] `bun run build` succeeds
 
 #### Manual Verification:
-- [ ] Overview dashboard shows 3 metric cards
-- [ ] Overview shows Items by Type bar chart
-- [ ] Top Content dashboard shows two tables
-- [ ] User Leaderboard shows table and bar chart
-- [ ] Domain Analysis shows table and bar chart
-- [ ] Activity Timeline shows bar chart and line chart
-- [ ] All dashboards load data without errors
-- [ ] Charts render with HN orange color
+- [x] Overview dashboard shows 3 metric cards
+- [x] Overview shows Items by Type bar chart
+- [x] Top Content dashboard shows two tables
+- [x] User Leaderboard shows table and bar chart
+- [x] Domain Analysis shows table and bar chart
+- [x] Activity Timeline shows bar chart and line chart
+- [x] All dashboards load data without errors
+- [x] Charts render with HN orange color
 
 ---
 

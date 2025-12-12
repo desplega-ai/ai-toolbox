@@ -1,0 +1,80 @@
+import { useState } from 'react';
+import { dashboards, getDashboard } from '@/lib/dashboards';
+import { DashboardPanel } from '@/components/dashboard/DashboardPanel';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { BarChart3, Users, Globe, Activity, TrendingUp } from 'lucide-react';
+
+const DASHBOARD_ICONS: Record<string, typeof BarChart3> = {
+  'overview': BarChart3,
+  'top-content': TrendingUp,
+  'users': Users,
+  'domains': Globe,
+  'activity': Activity,
+};
+
+export function DashboardTab() {
+  const [activeDashboardId, setActiveDashboardId] = useState('overview');
+  const dashboard = getDashboard(activeDashboardId);
+
+  if (!dashboard) {
+    return <div className="p-4 text-red-500">Dashboard not found: {activeDashboardId}</div>;
+  }
+
+  const hasMetrics = dashboard.queries.some(q => q.visualization === 'metric');
+  const metrics = dashboard.queries.filter(q => q.visualization === 'metric');
+  const otherQueries = dashboard.queries.filter(q => q.visualization !== 'metric');
+
+  return (
+    <div className="h-full flex flex-col">
+      {/* Internal tab bar */}
+      <div className="flex items-center border-b bg-gray-50 px-4">
+        {dashboards.map(d => {
+          const Icon = DASHBOARD_ICONS[d.id] || BarChart3;
+          return (
+            <button
+              key={d.id}
+              onClick={() => setActiveDashboardId(d.id)}
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                d.id === activeDashboardId
+                  ? 'border-[var(--hn-orange)] text-[var(--hn-orange)]'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Icon size={16} />
+              {d.name}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Dashboard content */}
+      <div className="flex-1 overflow-auto p-4">
+        <div className="mb-4">
+          <h1 className="text-2xl font-bold">{dashboard.name}</h1>
+          <p className="text-gray-500">{dashboard.description}</p>
+        </div>
+
+        {hasMetrics && (
+          <div className="grid grid-cols-3 gap-4 mb-6">
+            {metrics.map(query => (
+              <DashboardPanel key={query.id} query={query} />
+            ))}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {otherQueries.map(query => (
+            <Card key={query.id}>
+              <CardHeader>
+                <CardTitle className="text-lg">{query.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <DashboardPanel query={query} />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
