@@ -2,15 +2,12 @@
   "buildCommand": "bun run build",
   "installCommand": "bun install",
   "outputDirectory": "dist",
-  "rewrites": [
-    { "source": "/((?!.*\\.).*)", "destination": "/index.html" }
-  ],
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" }
-      ]
+  "functions": {
+    "api/*.ts": {
+      "runtime": "@vercel/bun"
     }
+  },
+  "rewrites": [
+    { "source": "/((?!api|.*\\.).*)", "destination": "/index.html" }
   ]
 }
