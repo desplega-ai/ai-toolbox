@@ -22,12 +22,19 @@ function formatCompact(value: number): string {
 }
 
 export function BarChartViz({ data }: ChartProps) {
-  const labelKey = data.columns[0] ?? 'label';
-  const valueKey = data.columns[1] ?? 'value';
+  const columns = data?.columns ?? [];
+  const rows = data?.rows ?? [];
 
-  const chartData = data.rows.map(row => {
+  if (columns.length === 0 || rows.length === 0) {
+    return <div className="h-[300px] flex items-center justify-center text-gray-400">No data</div>;
+  }
+
+  const labelKey = columns[0] ?? 'label';
+  const valueKey = columns[1] ?? 'value';
+
+  const chartData = rows.map(row => {
     const obj: Record<string, unknown> = {};
-    data.columns.forEach((col, i) => {
+    columns.forEach((col, i) => {
       if (col === 'day' && typeof row[i] === 'number') {
         obj[col] = DAY_NAMES[row[i] as number] ?? row[i];
       } else if (col === 'hour' && typeof row[i] === 'number') {
@@ -52,9 +59,16 @@ export function BarChartViz({ data }: ChartProps) {
 }
 
 export function LineChartViz({ data }: ChartProps) {
-  const chartData = data.rows.map(row => {
+  const columns = data?.columns ?? [];
+  const rows = data?.rows ?? [];
+
+  if (columns.length === 0 || rows.length === 0) {
+    return <div className="h-[300px] flex items-center justify-center text-gray-400">No data</div>;
+  }
+
+  const chartData = rows.map(row => {
     const obj: Record<string, unknown> = {};
-    data.columns.forEach((col, i) => {
+    columns.forEach((col, i) => {
       // Format timestamps for display
       if (col.includes('month')) {
         const d = new Date(row[i] as string);
@@ -68,8 +82,8 @@ export function LineChartViz({ data }: ChartProps) {
     return obj;
   });
 
-  const xKey = data.columns[0] ?? 'x';
-  const yKey = data.columns[1] ?? 'y';
+  const xKey = columns[0] ?? 'x';
+  const yKey = columns[1] ?? 'y';
 
   return (
     <ResponsiveContainer width="100%" height={300}>
@@ -84,7 +98,8 @@ export function LineChartViz({ data }: ChartProps) {
 }
 
 export function MetricCard({ data, label }: ChartProps & { label?: string }) {
-  const value = data.rows[0]?.[0] ?? 0;
+  const rows = data?.rows ?? [];
+  const value = rows[0]?.[0] ?? 0;
 
   let displayValue: string;
   let isDate = false;

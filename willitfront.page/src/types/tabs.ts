@@ -1,4 +1,4 @@
-export type TabType = 'notebook' | 'dashboard';
+export type TabType = 'notebook' | 'dashboard' | 'idea-tester';
 
 // Message type that matches UIMessage from @ai-sdk/react
 // We store messages in UIMessage format to avoid conversion issues
@@ -11,7 +11,7 @@ export interface Message {
 
 export type MessagePart =
   | { type: 'text'; text: string }
-  | { type: 'reasoning'; reasoning: string }
+  | { type: 'reasoning'; text: string }
   | { type: 'dynamic-tool'; toolName: string; toolCallId: string; state: string; input?: unknown; output?: unknown; errorText?: string }
   | { type: 'tool-result'; toolName: string; result: unknown };
 
@@ -59,6 +59,15 @@ export interface Tab {
   sqlBlocks?: StoredSqlBlock[];
   // For dashboard tabs
   dashboardId?: string;
+  // For idea-tester tabs
+  ideaTesterInput?: {
+    title: string;
+    url?: string;
+    type: 'story' | 'show_hn' | 'ask_hn';
+    plannedTime?: string;
+    model?: string;
+  };
+  ideaTesterResult?: Record<string, unknown>;
 }
 
 export interface TabsState {

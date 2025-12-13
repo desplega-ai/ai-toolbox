@@ -14,36 +14,39 @@ interface DashboardPanelProps {
 function metricToQueryResponse(res: MetricResponse): QueryResponse {
   return {
     columns: ['value'],
-    rows: [[res.value]],
+    rows: [[res?.value ?? 0]],
     row_count: 1,
     truncated: false,
-    timing: res.timing,
+    timing: res?.timing,
   };
 }
 
 // Transform DashboardTableResponse to QueryResponse format
 function tableToQueryResponse(res: DashboardTableResponse): QueryResponse {
+  const columns = res?.columns ?? [];
+  const rows = res?.rows ?? [];
   return {
-    columns: res.columns,
-    rows: res.rows.map(row => res.columns.map(col => row[col])),
-    row_count: res.row_count,
+    columns,
+    rows: rows.map(row => columns.map(col => row[col])),
+    row_count: res?.row_count ?? 0,
     truncated: false,
-    timing: res.timing,
+    timing: res?.timing,
   };
 }
 
 // Transform DashboardChartResponse to QueryResponse format
 function chartToQueryResponse(res: DashboardChartResponse): QueryResponse {
-  if (res.data.length === 0) {
-    return { columns: [], rows: [], row_count: 0, truncated: false, timing: res.timing };
+  const data = res?.data ?? [];
+  if (!data || data.length === 0) {
+    return { columns: [], rows: [], row_count: 0, truncated: false, timing: res?.timing };
   }
-  const columns = Object.keys(res.data[0]);
+  const columns = Object.keys(data[0]);
   return {
     columns,
-    rows: res.data.map(row => columns.map(col => row[col])),
-    row_count: res.count,
+    rows: data.map(row => columns.map(col => row[col])),
+    row_count: res?.count ?? data.length,
     truncated: false,
-    timing: res.timing,
+    timing: res?.timing,
   };
 }
 

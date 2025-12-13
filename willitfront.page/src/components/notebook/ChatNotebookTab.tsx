@@ -30,6 +30,7 @@ import {
   Database,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   Plus,
   Play,
   Trash2,
@@ -214,6 +215,70 @@ function ReasoningBlock({ reasoning }: ReasoningBlockProps) {
             {reasoning}
           </pre>
         </div>
+      )}
+    </div>
+  );
+}
+
+// Collapsible text component for long AI messages
+interface CollapsibleTextProps {
+  children: React.ReactNode;
+  maxLines?: number;
+}
+
+function CollapsibleText({ children, maxLines = 3 }: CollapsibleTextProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [needsCollapse, setNeedsCollapse] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // Use ResizeObserver to detect content changes instead of depending on children
+  // This avoids infinite loops since children is always a new reference
+  useEffect(() => {
+    const element = contentRef.current;
+    if (!element) return;
+
+    const checkCollapse = () => {
+      const lineHeight = parseInt(getComputedStyle(element).lineHeight) || 24;
+      const maxHeight = lineHeight * maxLines;
+      setNeedsCollapse(element.scrollHeight > maxHeight + 10);
+    };
+
+    // Initial check
+    checkCollapse();
+
+    // Watch for size changes
+    const observer = new ResizeObserver(checkCollapse);
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, [maxLines]);
+
+  return (
+    <div className="relative">
+      <div
+        ref={contentRef}
+        className={!isExpanded && needsCollapse ? 'overflow-hidden' : ''}
+        style={!isExpanded && needsCollapse ? { maxHeight: `${maxLines * 1.5}rem` } : undefined}
+      >
+        {children}
+      </div>
+      {needsCollapse && (
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="mt-2 text-sm text-[var(--hn-orange)] hover:underline flex items-center gap-1"
+        >
+          {isExpanded ? (
+            <>
+              <ChevronUp size={14} />
+              Show less
+            </>
+          ) : (
+            <>
+              <ChevronDown size={14} />
+              Show more
+            </>
+          )}
+        </button>
       )}
     </div>
   );
@@ -584,7 +649,7 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
     const raw = message.parts
       .filter(isTextUIPart)
       .map(part => part.text)
-      .join('');
+      .join('\n');
     return preprocessText(raw);
   };
 
@@ -752,8 +817,8 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
     // Extract reasoning parts and combine them
     const reasoningParts = message.parts.filter(
       (part) => typeof part === 'object' && part !== null && 'type' in part && (part as { type: string }).type === 'reasoning'
-    ) as unknown as Array<{ type: 'reasoning'; reasoning: string }>;
-    const combinedReasoning = reasoningParts.map(p => p.reasoning).join('\n\n');
+    ) as unknown as Array<{ type: 'reasoning'; text: string }>;
+    const combinedReasoning = reasoningParts.map(p => p.text).join('\n\n');
 
     // Separate tool calls into successful, failed, and running
     const toolParts = message.parts
@@ -788,11 +853,10 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
         className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
       >
         <div
-          className={`w-[80%] rounded-lg ${
-            isUser
-              ? 'bg-[var(--hn-orange)] text-white p-4'
-              : 'bg-white border shadow-sm p-4'
-          }`}
+          className={`w-full sm:w-[85%] md:w-[80%] rounded-lg ${isUser
+            ? 'bg-[var(--hn-orange)] text-white p-3 sm:p-4'
+            : 'bg-white border shadow-sm p-3 sm:p-4'
+            }`}
         >
           {/* Timestamp for assistant messages */}
           {!isUser && timeStr && (
@@ -812,80 +876,82 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
             isUser ? (
               <div className="whitespace-pre-wrap">{textContent}</div>
             ) : (
-              <div className="prose prose-sm max-w-none prose-pre:bg-transparent prose-pre:p-0 prose-pre:my-2 prose-code:text-orange-600 prose-code:before:content-none prose-code:after:content-none prose-table:my-0">
-                <Markdown
-                  remarkPlugins={[remarkGfm, remarkBreaks]}
-                  components={{
-                    // Wrap tables in scrollable container
-                    table: ({ children }) => (
-                      <div className="overflow-x-auto -mx-4 px-4">
-                        <table className="min-w-full">{children}</table>
-                      </div>
-                    ),
-                    // Style table cells nicely
-                    th: ({ children }) => (
-                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 bg-gray-50 border-b">{children}</th>
-                    ),
-                    td: ({ children }) => (
-                      <td className="px-3 py-2 text-sm border-b border-gray-100 whitespace-nowrap">{children}</td>
-                    ),
-                    // Use Monaco for code blocks
-                    code: (props) => {
-                      const { className, children, node, ...rest } = props as { className?: string; children?: React.ReactNode; node?: unknown; [key: string]: unknown };
-                      const match = /language-(\w+)/.exec(className || '');
-                      const code = String(children).replace(/\n$/, '');
+              <CollapsibleText maxLines={3}>
+                <div className="prose prose-sm max-w-none [&>p]:mb-4 [&>ul]:mb-4 [&>ol]:mb-4 prose-pre:bg-transparent prose-pre:p-0 prose-pre:my-2 prose-code:text-orange-600 prose-code:before:content-none prose-code:after:content-none prose-table:my-0">
+                  <Markdown
+                    remarkPlugins={[remarkGfm, remarkBreaks]}
+                    components={{
+                      // Wrap tables in scrollable container
+                      table: ({ children }) => (
+                        <div className="overflow-x-auto -mx-4 px-4">
+                          <table className="min-w-full">{children}</table>
+                        </div>
+                      ),
+                      // Style table cells nicely
+                      th: ({ children }) => (
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 bg-gray-50 border-b">{children}</th>
+                      ),
+                      td: ({ children }) => (
+                        <td className="px-3 py-2 text-sm border-b border-gray-100 whitespace-nowrap">{children}</td>
+                      ),
+                      // Use Monaco for code blocks
+                      code: (props) => {
+                        const { className, children, node, ...rest } = props as { className?: string; children?: React.ReactNode; node?: unknown;[key: string]: unknown };
+                        const match = /language-(\w+)/.exec(className || '');
+                        const code = String(children).replace(/\n$/, '');
 
-                      // If it's a code block with language or multiline, use Monaco
-                      if (match || code.includes('\n')) {
-                        const language = match?.[1] || 'plaintext';
-                        const lineCount = code.split('\n').length;
-                        const height = Math.min(Math.max(lineCount * 19 + 10, 40), 300);
+                        // If it's a code block with language or multiline, use Monaco
+                        if (match || code.includes('\n')) {
+                          const language = match?.[1] || 'plaintext';
+                          const lineCount = code.split('\n').length;
+                          const height = Math.min(Math.max(lineCount * 19 + 10, 40), 240);
 
+                          return (
+                            <div className="rounded overflow-hidden border not-prose my-2">
+                              <Editor
+                                height={`${height}px`}
+                                language={language === 'sql' ? 'sql' : language}
+                                value={code}
+                                theme="vs"
+                                options={{
+                                  readOnly: true,
+                                  minimap: { enabled: false },
+                                  fontSize: 11,
+                                  lineNumbers: 'off',
+                                  scrollBeyondLastLine: false,
+                                  wordWrap: 'on',
+                                  automaticLayout: true,
+                                  scrollbar: {
+                                    vertical: 'hidden',
+                                    horizontal: 'auto',
+                                  },
+                                  overviewRulerLanes: 0,
+                                  hideCursorInOverviewRuler: true,
+                                  overviewRulerBorder: false,
+                                  renderLineHighlight: 'none',
+                                  contextmenu: false,
+                                  folding: true,
+                                  lineDecorationsWidth: 0.1,
+                                  lineNumbersMinChars: 3,
+                                }}
+                              />
+                            </div>
+                          );
+                        }
+
+                        // Inline code - don't spread unknown props
                         return (
-                          <div className="rounded overflow-hidden border not-prose my-2">
-                            <Editor
-                              height={`${height}px`}
-                              language={language === 'sql' ? 'sql' : language}
-                              value={code}
-                              theme="vs"
-                              options={{
-                                readOnly: true,
-                                minimap: { enabled: false },
-                                fontSize: 13,
-                                lineNumbers: lineCount > 5 ? 'on' : 'off',
-                                scrollBeyondLastLine: false,
-                                wordWrap: 'on',
-                                automaticLayout: true,
-                                scrollbar: {
-                                  vertical: 'hidden',
-                                  horizontal: 'auto',
-                                },
-                                overviewRulerLanes: 0,
-                                hideCursorInOverviewRuler: true,
-                                overviewRulerBorder: false,
-                                renderLineHighlight: 'none',
-                                contextmenu: false,
-                                folding: false,
-                                lineDecorationsWidth: 0,
-                                lineNumbersMinChars: 3,
-                              }}
-                            />
-                          </div>
+                          <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm font-mono text-orange-600">
+                            {children}
+                          </code>
                         );
-                      }
-
-                      // Inline code - don't spread unknown props
-                      return (
-                        <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm font-mono text-orange-600">
-                          {children}
-                        </code>
-                      );
-                    },
-                  }}
-                >
-                  {textContent}
-                </Markdown>
-              </div>
+                      },
+                    }}
+                  >
+                    {textContent}
+                  </Markdown>
+                </div>
+              </CollapsibleText>
             )
           )}
 
@@ -921,17 +987,14 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
     return (
       <div
         key={block.id}
-        className={`border rounded-lg shadow-sm overflow-hidden ${
-          isReadonly ? 'bg-purple-50/50 border-purple-200' : 'bg-white'
-        }`}
+        className={`border rounded-lg shadow-sm overflow-hidden ${isReadonly ? 'bg-purple-50/50 border-purple-200' : 'bg-white'
+          }`}
       >
         {/* Block header */}
-        <div className={`flex items-center gap-2 px-3 py-2 border-b ${
-          isReadonly ? 'bg-purple-100/50 border-purple-200' : 'bg-gray-50'
-        }`}>
-          <span className={`text-xs font-medium font-mono px-2 py-0.5 rounded ${
-            isReadonly ? 'text-purple-700 bg-purple-100' : 'text-blue-600 bg-blue-50'
+        <div className={`flex items-center gap-2 px-3 py-2 border-b ${isReadonly ? 'bg-purple-100/50 border-purple-200' : 'bg-gray-50'
           }`}>
+          <span className={`text-xs font-medium font-mono px-2 py-0.5 rounded ${isReadonly ? 'text-purple-700 bg-purple-100' : 'text-blue-600 bg-blue-50'
+            }`}>
             {block.name}
           </span>
           {isReadonly && (
@@ -1090,25 +1153,25 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center gap-2 p-3 border-b bg-gray-50">
+      <div className="flex items-center gap-1 sm:gap-2 p-2 sm:p-3 border-b bg-gray-50 overflow-x-auto">
         <ModelSelector
           value={defaultModel}
           onChange={handleModelChange}
           disabled={status === 'streaming'}
         />
 
-        <Button variant="outline" size="sm" onClick={addSqlBlock}>
-          <Plus size={16} className="mr-1" />
-          Add SQL
+        <Button variant="outline" size="sm" onClick={addSqlBlock} className="shrink-0">
+          <Plus size={16} className="sm:mr-1" />
+          <span className="hidden sm:inline">Add SQL</span>
         </Button>
 
         <Dialog>
           <DialogTrigger asChild>
-            <Button variant="outline" size="sm">
-              <Database size={16} className="mr-1" />
-              Schema
+            <Button variant="outline" size="sm" className="shrink-0">
+              <Database size={16} className="sm:mr-1" />
+              <span className="hidden sm:inline">Schema</span>
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
@@ -1148,47 +1211,50 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
         {/* SQL block actions - only show when there are blocks */}
         {sqlBlocks.length > 0 && (
           <>
-            <div className="w-px h-6 bg-gray-300 mx-1" />
+            <div className="hidden sm:block w-px h-6 bg-gray-300 mx-1" />
             <Button
               variant="ghost"
               size="sm"
               onClick={runAllBlocks}
               disabled={status === 'streaming'}
               title="Run all SQL blocks"
+              className="shrink-0"
             >
-              <PlayCircle size={16} className="mr-1" />
-              Run All
+              <PlayCircle size={16} className="sm:mr-1" />
+              <span className="hidden sm:inline">Run All</span>
             </Button>
             <Button
               variant="ghost"
               size="sm"
               onClick={expandAll}
               title="Expand all results"
+              className="shrink-0"
             >
-              <ChevronsUpDown size={16} className="mr-1" />
-              Expand
+              <ChevronsUpDown size={16} className="sm:mr-1" />
+              <span className="hidden sm:inline">Expand</span>
             </Button>
             <Button
               variant="ghost"
               size="sm"
               onClick={collapseAll}
               title="Collapse all results"
+              className="shrink-0"
             >
-              <ChevronsDownUp size={16} className="mr-1" />
-              Collapse
+              <ChevronsDownUp size={16} className="sm:mr-1" />
+              <span className="hidden sm:inline">Collapse</span>
             </Button>
           </>
         )}
 
-        <span className="text-sm text-gray-500 ml-auto">
-          {messages.length} message{messages.length !== 1 ? 's' : ''}
-          {sqlBlocks.length > 0 && ` · ${sqlBlocks.length} SQL block${sqlBlocks.length !== 1 ? 's' : ''}`}
+        <span className="text-xs sm:text-sm text-gray-500 ml-auto whitespace-nowrap">
+          {messages.length} msg{messages.length !== 1 ? 's' : ''}
+          {sqlBlocks.length > 0 && ` · ${sqlBlocks.length} SQL`}
         </span>
       </div>
 
       {/* Content - Unified Timeline */}
-      <div className="flex-1 overflow-auto">
-        <div className="max-w-4xl mx-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
+        <div className="max-w-4xl mx-auto p-2 sm:p-4 space-y-3 sm:space-y-4">
           {timeline.length === 0 && (
             <div className="text-center text-gray-500 py-12">
               <p className="text-lg mb-2">Start a conversation</p>
@@ -1252,8 +1318,8 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
 
       {/* Input area */}
       <div className="border-t bg-gray-50">
-        <form onSubmit={handleChatSubmit} className="max-w-4xl mx-auto p-4">
-          <div className="flex gap-2 items-center">
+        <form onSubmit={handleChatSubmit} className="max-w-4xl mx-auto p-2 sm:p-4">
+          <div className="flex gap-2 items-end">
             <div className="flex-1 relative">
               <textarea
                 value={chatInput}
@@ -1271,20 +1337,20 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
                     }
                   }
                 }}
-                placeholder={schemaLoading ? 'Loading schema...' : 'Ask about HN data or your SQL blocks...'}
+                placeholder={schemaLoading ? 'Loading schema...' : 'Ask about HN data...'}
                 disabled={status === 'streaming' || schemaLoading}
                 rows={1}
-                className="w-full px-4 py-2 pb-6 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--hn-orange)] focus:border-transparent resize-none overflow-y-auto placeholder:text-gray-400"
+                className="w-full px-3 sm:px-4 py-2 pb-6 sm:pb-6 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--hn-orange)] focus:border-transparent resize-none overflow-y-auto placeholder:text-gray-400 text-sm sm:text-base"
                 style={{ minHeight: '42px', maxHeight: '120px' }}
               />
-              <span className="absolute bottom-2 right-3 text-[10px] text-gray-400 pointer-events-none">
+              <span className="absolute bottom-1.5 sm:bottom-2 right-2 sm:right-3 text-[9px] sm:text-[10px] text-gray-400 pointer-events-none hidden sm:block">
                 Enter to send · Shift+Enter for new line
               </span>
             </div>
             <Button
               type="submit"
               disabled={!chatInput.trim() || status === 'streaming' || schemaLoading}
-              className="shrink-0"
+              className="shrink-0 h-[42px]"
             >
               {status === 'streaming' ? (
                 <Loader2 size={16} className="animate-spin" />
@@ -1296,11 +1362,11 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
               type="button"
               variant="outline"
               onClick={addSqlBlock}
-              title="Add a new SQL query block"
-              className="shrink-0"
+              title="Add SQL block"
+              className="shrink-0 h-[42px] hidden sm:flex"
             >
-              <Database size={14} className="mr-1" />
-              <span className="text-xs">+ SQL</span>
+              <Database size={14} className="sm:mr-1" />
+              <span className="hidden sm:inline text-xs">+ SQL</span>
             </Button>
           </div>
         </form>

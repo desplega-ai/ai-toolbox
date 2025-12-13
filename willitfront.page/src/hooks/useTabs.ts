@@ -15,10 +15,15 @@ export function useTabs() {
     const newTab: Tab = {
       id: generateId(),
       type,
-      title: title || (type === 'notebook' ? 'New Chat' : 'Dashboard'),
+      title: title || (
+        type === 'notebook' ? 'New Chat' :
+        type === 'dashboard' ? 'Dashboard' :
+        'Post Tester'
+      ),
       defaultModel: type === 'notebook' ? DEFAULT_MODEL : undefined,
       messages: type === 'notebook' ? [] : undefined,
       dashboardId: type === 'dashboard' ? dashboardId : undefined,
+      ideaTesterInput: type === 'idea-tester' ? { title: '', type: 'story' } : undefined,
     };
     setState((prev) => ({
       tabs: [...prev.tabs, newTab],

@@ -41,6 +41,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       gateway: {
         user: userId,
       },
+      // Anthropic Claude 3.7+/4 extended thinking
+      anthropic: {
+        thinking: { type: 'enabled', budgetTokens: 10000 },
+      },
+      // OpenRouter reasoning (for DeepSeek R1, etc.)
+      openrouter: {
+        reasoning: { max_tokens: 10000 },
+      },
     },
   });
 

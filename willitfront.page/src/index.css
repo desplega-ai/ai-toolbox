@@ -84,3 +84,12 @@ body {
 [data-state="closed"] .animate-out {
   animation: fadeOut 0.15s ease-in;
 }
+
+/* Hide scrollbar for tabs */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

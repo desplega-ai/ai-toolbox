@@ -1,4 +1,4 @@
-import { streamText, stepCountIs, convertToModelMessages } from 'ai';
+import { streamText, streamObject, stepCountIs, convertToModelMessages } from 'ai';
 import { createQuerySqlTool } from './tools/querySql';
 import { buildSystemPrompt, type SqlBlockInfo } from './buildSystemPrompt';
 import { DEFAULT_MODEL } from '../lib/constants';
@@ -10,6 +10,10 @@ import {
   isModelAllowed,
   type GatewayModel,
 } from './gateway';
+import { ideaTestInputSchema, ideaTestReportSchema, type IdeaTestInput } from '../../lib/ideaTester/types';
+import { buildAnalysisBundle } from '../../lib/ideaTester/analyze';
+import { findSimilarPosts } from '../../lib/ideaTester/findSimilarPosts';
+import { SYNTHESIS_SYSTEM_PROMPT } from '../../lib/ideaTester/synthesisPrompt';
 
 export async function handleChat(req: Request): Promise<Response> {
   if (!gateway) {
@@ -44,6 +48,14 @@ export async function handleChat(req: Request): Promise<Response> {
     providerOptions: {
       gateway: {
         user: userId,
+      },
+      // Anthropic Claude 3.7+/4 extended thinking
+      anthropic: {
+        thinking: { type: 'enabled', budgetTokens: 10000 },
+      },
+      // OpenRouter reasoning (for DeepSeek R1, etc.)
+      openrouter: {
+        reasoning: { max_tokens: 10000 },
       },
     },
   });
@@ -165,5 +177,66 @@ export async function handleStatsTypes(): Promise<Response> {
   } catch (error) {
     console.error('Stats types error:', error);
     return Response.json({ error: 'Failed to fetch stats' }, { status: 500 });
+  }
+}
+
+// Idea Tester handler
+const DEFAULT_SYNTHESIS_MODEL = 'anthropic/claude-3-5-haiku-latest';
+
+export async function handleAnalyzeIdea(req: Request): Promise<Response> {
+  if (!gateway) {
+    return Response.json(
+      { error: 'AI Gateway not configured. Set AI_GATEWAY_API_KEY environment variable.' },
+      { status: 503 }
+    );
+  }
+
+  const body = await req.json();
+  const { model: requestedModel, ...inputData } = body;
+
+  // Validate input
+  const parseResult = ideaTestInputSchema.safeParse(inputData);
+  if (!parseResult.success) {
+    return Response.json(
+      { error: 'Invalid input', details: parseResult.error.issues },
+      { status: 400 }
+    );
+  }
+
+  const input: IdeaTestInput = parseResult.data;
+  const model = requestedModel || DEFAULT_SYNTHESIS_MODEL;
+
+  try {
+    // Run deterministic analysis in parallel with similar posts query
+    const similarPosts = await findSimilarPosts(input);
+    const bundle = buildAnalysisBundle(input, similarPosts);
+
+    // Stream structured response from LLM
+    const result = streamObject({
+      model: gateway(model),
+      schema: ideaTestReportSchema,
+      system: SYNTHESIS_SYSTEM_PROMPT,
+      prompt: `Analyze this HN post idea and generate a structured report:
+
+## Input
+Title: "${input.title}"
+URL: ${input.url || '(none - Ask HN style)'}
+Type: ${input.type}
+Planned Time: ${input.plannedTime || 'not specified'}
+
+## Analysis Data
+${JSON.stringify(bundle, null, 2)}
+
+Generate a report evaluating this post's potential on Hacker News.
+Use the analysis data to support your assessments.`,
+    });
+
+    return result.toTextStreamResponse();
+  } catch (error) {
+    console.error('Analysis error:', error);
+    return Response.json(
+      { error: error instanceof Error ? error.message : 'Analysis failed' },
+      { status: 500 }
+    );
   }
 }

@@ -4,6 +4,7 @@ import { useAvailableModels } from '@/hooks/useAvailableModels';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, Search, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import type { Model } from '@/types/api';
 
 interface ModelSelectorProps {
@@ -12,6 +13,7 @@ interface ModelSelectorProps {
   showInheritOption?: boolean;
   inheritLabel?: string;
   disabled?: boolean;
+  className?: string;
 }
 
 const MAX_RESULTS = 10;
@@ -22,6 +24,7 @@ export function ModelSelector({
   showInheritOption,
   inheritLabel,
   disabled,
+  className,
 }: ModelSelectorProps) {
   const { models, loading, error } = useAvailableModels();
   const [open, setOpen] = useState(false);
@@ -73,7 +76,7 @@ export function ModelSelector({
 
   if (loading) {
     return (
-      <Button variant="outline" className="w-[280px] justify-between bg-white" disabled>
+      <Button variant="outline" className={cn("w-full sm:w-[280px] justify-between bg-white shrink-0", className)} disabled>
         <span className="text-muted-foreground">Loading...</span>
         <Loader2 className="h-4 w-4 animate-spin" />
       </Button>
@@ -82,7 +85,7 @@ export function ModelSelector({
 
   if (error && models.length === 0) {
     return (
-      <Button variant="outline" className="w-[280px] justify-between bg-white" disabled>
+      <Button variant="outline" className={cn("w-full sm:w-[280px] justify-between bg-white shrink-0", className)} disabled>
         <span className="text-muted-foreground">Error loading</span>
       </Button>
     );
@@ -95,14 +98,14 @@ export function ModelSelector({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-[280px] justify-between bg-white"
+          className={cn("w-full sm:w-[280px] justify-between bg-white shrink-0", className)}
           disabled={disabled}
         >
           <span className="truncate">{displayValue}</span>
           <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[400px] p-0 bg-white" align="start">
+      <PopoverContent className="w-[calc(100vw-2rem)] sm:w-[400px] p-0 bg-white" align="start">
         {/* Search input */}
         <div className="flex items-center border-b px-3 py-2">
           <Search className="h-4 w-4 shrink-0 opacity-50 mr-2" />

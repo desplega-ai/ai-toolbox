@@ -73,7 +73,17 @@ ${tableDescriptions}
 ## Available SQL Functions
 ${functions}
 
-${DUCKDB_SYNTAX_TIPS}`;
+${DUCKDB_SYNTAX_TIPS}
+
+## Response Formatting Guidelines
+Format your responses using Markdown for readability:
+- Use **bold** for emphasis on key terms or values
+- Use bullet points or numbered lists for multiple items
+- Separate paragraphs with blank lines for clear visual breaks
+- Use \`inline code\` for column names, table names, or SQL snippets
+- Use code blocks with \`\`\`sql for multi-line SQL examples
+- Avoid using headings (##, ###) unless the response covers multiple distinct topics
+- Keep responses concise and well-structured`;
 
   if (sqlBlocks && sqlBlocks.length > 0) {
     // Show full SQL for each block so LLM can understand and reuse them

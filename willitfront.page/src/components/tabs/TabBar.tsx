@@ -63,64 +63,66 @@ export function TabBar({ tabs, activeTabId, onTabSelect, onTabClose, onTabRename
 
   return (
     <>
-      <div className="flex items-center bg-[var(--hn-orange)] px-2 h-10">
+      <div className="flex items-center bg-[var(--hn-orange)] px-2 h-10 overflow-hidden">
         {/* Logo */}
         <button
           onClick={() => onTabSelect(null)}
-          className="flex items-center gap-2 px-2 py-1 mr-2 text-white font-bold text-sm hover:bg-orange-600 rounded transition-colors"
+          className="flex items-center gap-2 px-2 py-1 mr-2 text-white font-bold text-sm hover:bg-orange-600 rounded transition-colors shrink-0"
           title="Home"
         >
           <img src={faviconUrl} alt="WIFP" className="w-6 h-6" />
           <span className="hidden sm:inline">WIFP</span>
         </button>
 
-        <div className="w-px h-6 bg-orange-400 mr-2" />
+        <div className="w-px h-6 bg-orange-400 mr-2 shrink-0" />
 
-        {tabs.map(tab => (
-          <div
-            key={tab.id}
-            className={`flex items-center px-3 py-1 mr-1 cursor-pointer rounded-t ${
-              tab.id === activeTabId ? 'bg-[var(--hn-bg)]' : 'bg-orange-200 hover:bg-orange-100'
-            }`}
-            onClick={() => onTabSelect(tab.id)}
-            onDoubleClick={() => handleDoubleClick(tab)}
-          >
-            {editingTabId === tab.id ? (
-              <input
-                ref={inputRef}
-                type="text"
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                onBlur={handleSave}
-                onKeyDown={handleKeyDown}
-                onClick={(e) => e.stopPropagation()}
-                className="text-sm w-24 px-1 rounded border border-gray-300 outline-none"
-              />
-            ) : (
-              <span className="text-sm truncate max-w-32">{tab.title}</span>
-            )}
-            <button
-              className="ml-2 hover:bg-gray-200 rounded p-0.5"
-              onClick={(e) => { e.stopPropagation(); onTabClose(tab.id); }}
+        {/* Scrollable tabs container */}
+        <div className="flex-1 flex items-center overflow-x-auto scrollbar-hide min-w-0">
+          {tabs.map(tab => (
+            <div
+              key={tab.id}
+              className={`flex items-center px-2 sm:px-3 py-1 mr-1 cursor-pointer rounded-t shrink-0 ${
+                tab.id === activeTabId ? 'bg-[var(--hn-bg)]' : 'bg-orange-200 hover:bg-orange-100'
+              }`}
+              onClick={() => onTabSelect(tab.id)}
+              onDoubleClick={() => handleDoubleClick(tab)}
             >
-              <X size={14} />
-            </button>
-          </div>
-        ))}
+              {editingTabId === tab.id ? (
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onBlur={handleSave}
+                  onKeyDown={handleKeyDown}
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-sm w-20 sm:w-24 px-1 rounded border border-gray-300 outline-none"
+                />
+              ) : (
+                <span className="text-xs sm:text-sm truncate max-w-20 sm:max-w-32">{tab.title}</span>
+              )}
+              <button
+                className="ml-1 sm:ml-2 hover:bg-gray-200 rounded p-0.5"
+                onClick={(e) => { e.stopPropagation(); onTabClose(tab.id); }}
+              >
+                <X size={12} className="sm:hidden" />
+                <X size={14} className="hidden sm:block" />
+              </button>
+            </div>
+          ))}
+        </div>
 
         <button
-          className="p-1.5 hover:bg-orange-600 rounded ml-1 cursor-pointer transition-colors"
+          className="p-1.5 hover:bg-orange-600 rounded ml-1 cursor-pointer transition-colors shrink-0"
           onClick={() => onTabSelect(null)}
           title="New tab"
         >
           <Plus size={18} className="text-white" />
         </button>
 
-        <div className="flex-1" />
-
         {/* Reset button */}
         <button
-          className="p-1.5 hover:bg-orange-600 rounded cursor-pointer transition-colors flex items-center gap-1 text-white text-xs"
+          className="p-1.5 hover:bg-orange-600 rounded cursor-pointer transition-colors flex items-center gap-1 text-white text-xs shrink-0"
           onClick={() => setShowResetConfirm(true)}
           title="Reset all tabs"
         >
