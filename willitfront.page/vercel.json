@@ -2,6 +2,7 @@
   "buildCommand": "bun run build",
   "installCommand": "bun install",
   "outputDirectory": "dist",
+  "bunVersion": "1.x",
   "functions": {
     "api/*.ts": {
       "includeFiles": "lib/**"
