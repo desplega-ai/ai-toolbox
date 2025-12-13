@@ -71,6 +71,13 @@ class HNFetcher:
         resp.raise_for_status()
         return resp.json()
 
+    async def get_updates(self) -> list[int]:
+        """Fetch recently changed item IDs from /updates.json."""
+        resp = await self._client.get(f"{HN_API_BASE}/updates.json")
+        resp.raise_for_status()
+        data = resp.json()
+        return data.get("items", [])
+
     async def fetch_item(self, item_id: int) -> dict | None:
         """Fetch a single item by ID. Returns None if not found."""
         if self._is_shutdown():

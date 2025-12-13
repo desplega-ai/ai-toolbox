@@ -1,6 +1,7 @@
 """Command-line interface for hn-sql."""
 
 import asyncio
+import os
 import signal
 import time
 from pathlib import Path
@@ -202,6 +203,86 @@ async def _fetch(concurrency: int, batch_size: int, resume: bool, output: str, s
 
 
 @main.command()
+@click.option("--concurrency", "-c", default=100, help="Number of concurrent requests")
+@click.option("--output", "-o", default="data/updates", help="Output directory for updates")
+def update(concurrency: int, output: str):
+    """Fetch recently changed items from HN API.
+
+    Polls /updates.json for recently modified item IDs and re-fetches them.
+    Updated items are stored separately and automatically deduplicated in queries.
+
+    Examples:
+
+      # Fetch updates with default settings
+      hn-sql update
+
+      # Use higher concurrency
+      hn-sql update -c 200
+
+    Designed for crontab use to keep data fresh.
+    """
+    asyncio.run(_update(concurrency, output))
+
+
+async def _update(concurrency: int, output: str):
+    """Async update implementation."""
+    from .writer import PartitionedWriter
+    from .schema import items_to_table
+
+    output_dir = Path(output)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    async with HNFetcher(concurrency=concurrency) as fetcher:
+        # Get list of recently changed items
+        console.print("[cyan]Fetching /updates.json...[/cyan]")
+        update_ids = await fetcher.get_updates()
+
+        if not update_ids:
+            console.print("[yellow]No updates available[/yellow]")
+            return
+
+        console.print(f"[bold]Found {len(update_ids)} changed items[/bold]")
+
+        # Fetch all updated items
+        items = []
+        fetched = 0
+        async for item_id, item in fetcher.fetch_items(update_ids):
+            fetched += 1
+            if item is not None:
+                items.append(item)
+            # Progress indicator
+            if fetched % 10 == 0 or fetched == len(update_ids):
+                console.print(f"\r[dim]Fetched {fetched}/{len(update_ids)} items...[/dim]", end="")
+
+        console.print()  # Newline after progress
+
+        if not items:
+            console.print("[yellow]No valid items fetched[/yellow]")
+            return
+
+        # Write to parquet
+        import pyarrow.parquet as pq
+        from datetime import datetime, timezone
+
+        table = items_to_table(items)
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        output_file = output_dir / f"update-{timestamp}.parquet"
+
+        pq.write_table(
+            table,
+            output_file,
+            compression="zstd",
+            compression_level=3,
+        )
+
+        size_kb = output_file.stat().st_size / 1024
+        console.print(f"\n[bold green]Update complete![/bold green]")
+        console.print(f"  Items updated: {len(items)}")
+        console.print(f"  Output: {output_file}")
+        console.print(f"  Size: {size_kb:.1f} KB")
+
+
+@main.command()
 @click.option("--tree", "-t", is_flag=True, help="Show partition tree")
 def stats(tree: bool):
     """Show statistics about fetched data."""
@@ -275,6 +356,17 @@ def stats(tree: bool):
         console.print(f"  Items fetched: {cp.items_fetched:,}")
         console.print(f"  Partition style: {cp.partition_style}")
         console.print(f"  Started: {cp.started_at}")
+
+    # Show updates info
+    updates_dir = Path("data/updates")
+    if updates_dir.exists():
+        update_files = list(updates_dir.glob("**/*.parquet"))
+        if update_files:
+            updates_size_kb = sum(f.stat().st_size for f in update_files) / 1024
+            console.print(f"\n[bold]Pending Updates:[/bold]")
+            console.print(f"  Files: {len(update_files)}")
+            console.print(f"  Size: {updates_size_kb:.1f} KB")
+            console.print(f"  [dim]Run 'hn-sql migrate --swap' to merge updates[/dim]")
 
     # Show partition tree if requested
     if tree:
@@ -405,32 +497,53 @@ def migrate(swap: bool, dry_run: bool, yes: bool):
     old_dir = Path("data/items")
     new_dir = Path("data/items_v2")
     backup_dir = Path("data/items_old")
+    updates_dir = Path("data/updates")
 
     # Check for different data formats
     hive_files = list(old_dir.glob("year=*/month=*/*.parquet")) if old_dir.exists() else []
     flat_files = list(old_dir.glob("*.parquet")) if old_dir.exists() else []
+    update_files = list(updates_dir.glob("**/*.parquet")) if updates_dir.exists() else []
 
     if not hive_files and not flat_files:
         console.print("[yellow]No data found in data/items/[/yellow]")
         console.print("[dim]Looking for: data/items/*.parquet or data/items/year=*/month=*/*.parquet[/dim]")
         return
 
-    # Build query to read all formats
+    # Build query to read all formats with deduplication
     conn = duckdb.connect()
+    _configure_duckdb(conn)
     sources = []
 
     if hive_files:
         sources.append(f"""
-            SELECT * EXCLUDE (year, month)
+            SELECT *, 0 as _source EXCLUDE (year, month)
             FROM read_parquet('data/items/year=*/month=*/*.parquet', hive_partitioning=true)
         """)
 
     if flat_files:
         sources.append(f"""
-            SELECT * FROM read_parquet('data/items/*.parquet')
+            SELECT *, 0 as _source FROM read_parquet('data/items/*.parquet')
+        """)
+
+    if update_files:
+        sources.append(f"""
+            SELECT *, 1 as _source FROM read_parquet('data/updates/**/*.parquet', union_by_name=true)
         """)
 
     union_query = " UNION ALL ".join(sources)
+
+    # If we have updates, wrap with deduplication
+    if update_files:
+        union_query = f"""
+            WITH all_data AS ({union_query}),
+            deduped AS (
+                SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY _source DESC) as _rn
+                FROM all_data
+            )
+            SELECT * EXCLUDE (_source, _rn) FROM deduped WHERE _rn = 1
+        """
+    else:
+        union_query = f"SELECT * EXCLUDE (_source) FROM ({union_query})"
 
     try:
         result = conn.execute(f"""
@@ -445,7 +558,7 @@ def migrate(swap: bool, dry_run: bool, yes: bool):
         return
 
     # Get file stats
-    all_files = hive_files + flat_files
+    all_files = hive_files + flat_files + update_files
     old_size_mb = sum(f.stat().st_size for f in all_files) / (1024 * 1024)
 
     console.print("\n[bold cyan]═══ Migration Plan ═══[/bold cyan]\n")
@@ -454,9 +567,14 @@ def migrate(swap: bool, dry_run: bool, yes: bool):
         console.print(f"  Hive partitions: {len(hive_files)} files")
     if flat_files:
         console.print(f"  Flat files: {len(flat_files)} files")
+    if update_files:
+        updates_size = sum(f.stat().st_size for f in update_files) / 1024
+        console.print(f"  Updates: {len(update_files)} files ({updates_size:.1f} KB)")
     console.print(f"  Total items: {total_items:,}")
     console.print(f"  ID range: {min_id:,} → {max_id:,}")
     console.print(f"  Size: {old_size_mb:.1f} MB")
+    if update_files:
+        console.print(f"  [dim](updates will be deduplicated)[/dim]")
 
     console.print(f"\n[bold]Target:[/bold]")
     console.print(f"  Output: {new_dir}/hn.parquet")
@@ -466,6 +584,8 @@ def migrate(swap: bool, dry_run: bool, yes: bool):
         console.print(f"\n[bold]After migration:[/bold]")
         console.print(f"  {old_dir}/ → {backup_dir}/ (backup)")
         console.print(f"  {new_dir}/ → {old_dir}/ (active)")
+        if update_files:
+            console.print(f"  {updates_dir}/ → deleted")
 
     if dry_run:
         console.print("\n[yellow]Dry run - no changes made[/yellow]")
@@ -532,6 +652,11 @@ def migrate(swap: bool, dry_run: bool, yes: bool):
                 cp.partition_style = "flat"
                 checkpoint_mgr.save(cp)
                 console.print(f"[green]✓ Checkpoint updated to flat partition style[/green]")
+
+            # Delete updates directory (now merged into main file)
+            if updates_dir.exists() and update_files:
+                shutil.rmtree(updates_dir)
+                console.print(f"[green]✓ Updates directory deleted (merged into main file)[/green]")
         except Exception as e:
             console.print(f"[red]Error swapping directories:[/red] {e}")
             return
@@ -558,16 +683,68 @@ def _format_time(seconds: float) -> str:
         return f"{mins}m {secs:.1f}s"
 
 
-def _get_connection(data_path: str) -> duckdb.DuckDBPyConnection:
-    """Create a DuckDB connection with the HN data as a view."""
+def _get_system_memory_gb() -> int:
+    """Get system memory in GB using platform-specific methods."""
+    try:
+        # macOS/Linux
+        pages = os.sysconf('SC_PHYS_PAGES')
+        page_size = os.sysconf('SC_PAGE_SIZE')
+        return (pages * page_size) // (1024**3)
+    except (ValueError, AttributeError, OSError):
+        return 8  # Default fallback
+
+
+def _configure_duckdb(conn: duckdb.DuckDBPyConnection) -> None:
+    """Auto-configure DuckDB based on available system resources."""
+    # Use 75% of total memory
+    total_gb = _get_system_memory_gb()
+    memory_gb = max(1, int(total_gb * 0.75))
+
+    # Get CPU cores
+    cpu_count = os.cpu_count() or 4
+
+    conn.execute(f"SET memory_limit='{memory_gb}GB'")
+    conn.execute(f"SET threads={cpu_count}")
+
+
+def _get_connection(data_path: str, updates_path: str = "data/updates/**/*.parquet") -> duckdb.DuckDBPyConnection:
+    """Create a DuckDB connection with the HN data as a view.
+
+    Automatically deduplicates items, preferring updates over original data.
+    Also auto-configures memory and threads based on system resources.
+    """
     conn = duckdb.connect()
-    # union_by_name handles schema differences between old (with year/month) and new (without) files
-    conn.execute(f"""
-        CREATE VIEW hn AS
-        SELECT id, type, "by", time, text, url, title, score, descendants,
-               parent, kids, dead, deleted, poll, parts
-        FROM read_parquet('{data_path}', hive_partitioning=true, union_by_name=true)
-    """)
+    _configure_duckdb(conn)
+
+    # Check if updates directory has any files
+    updates_dir = Path("data/updates")
+    has_updates = updates_dir.exists() and any(updates_dir.glob("**/*.parquet"))
+
+    if has_updates:
+        # Deduplicate: updates (source=1) take precedence over items (source=0)
+        conn.execute(f"""
+            CREATE VIEW hn AS
+            WITH all_data AS (
+                SELECT *, 0 as _source FROM read_parquet('{data_path}', hive_partitioning=true, union_by_name=true)
+                UNION ALL
+                SELECT *, 1 as _source FROM read_parquet('{updates_path}', hive_partitioning=true, union_by_name=true)
+            ),
+            deduped AS (
+                SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY _source DESC) as _rn
+                FROM all_data
+            )
+            SELECT id, type, "by", time, text, url, title, score, descendants,
+                   parent, kids, dead, deleted, poll, parts
+            FROM deduped WHERE _rn = 1
+        """)
+    else:
+        # No updates, use simple view
+        conn.execute(f"""
+            CREATE VIEW hn AS
+            SELECT id, type, "by", time, text, url, title, score, descendants,
+                   parent, kids, dead, deleted, poll, parts
+            FROM read_parquet('{data_path}', hive_partitioning=true, union_by_name=true)
+        """)
     return conn
 
 

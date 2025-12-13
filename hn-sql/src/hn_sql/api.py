@@ -1,6 +1,8 @@
 """FastAPI server for hn-sql queries."""
 
+import os
 import time
+from pathlib import Path
 from typing import Any
 
 import duckdb
@@ -143,16 +145,68 @@ def _format_time(seconds: float) -> str:
         return f"{mins}m {secs:.1f}s"
 
 
-def _get_connection(data_path: str = DATA_PATH) -> duckdb.DuckDBPyConnection:
-    """Create a DuckDB connection with the HN data as a view."""
+def _get_system_memory_gb() -> int:
+    """Get system memory in GB using platform-specific methods."""
+    try:
+        # macOS/Linux
+        pages = os.sysconf('SC_PHYS_PAGES')
+        page_size = os.sysconf('SC_PAGE_SIZE')
+        return (pages * page_size) // (1024**3)
+    except (ValueError, AttributeError, OSError):
+        return 8  # Default fallback
+
+
+def _configure_duckdb(conn: duckdb.DuckDBPyConnection) -> None:
+    """Auto-configure DuckDB based on available system resources."""
+    # Use 75% of total memory
+    total_gb = _get_system_memory_gb()
+    memory_gb = max(1, int(total_gb * 0.75))
+
+    # Get CPU cores
+    cpu_count = os.cpu_count() or 4
+
+    conn.execute(f"SET memory_limit='{memory_gb}GB'")
+    conn.execute(f"SET threads={cpu_count}")
+
+
+def _get_connection(data_path: str = DATA_PATH, updates_path: str = "data/updates/**/*.parquet") -> duckdb.DuckDBPyConnection:
+    """Create a DuckDB connection with the HN data as a view.
+
+    Automatically deduplicates items, preferring updates over original data.
+    Also auto-configures memory and threads based on system resources.
+    """
     conn = duckdb.connect()
-    # union_by_name handles schema differences between old (with year/month) and new (without) files
-    conn.execute(f"""
-        CREATE VIEW hn AS
-        SELECT id, type, "by", time, text, url, title, score, descendants,
-               parent, kids, dead, deleted, poll, parts
-        FROM read_parquet('{data_path}', hive_partitioning=true, union_by_name=true)
-    """)
+    _configure_duckdb(conn)
+
+    # Check if updates directory has any files
+    updates_dir = Path("data/updates")
+    has_updates = updates_dir.exists() and any(updates_dir.glob("**/*.parquet"))
+
+    if has_updates:
+        # Deduplicate: updates (source=1) take precedence over items (source=0)
+        conn.execute(f"""
+            CREATE VIEW hn AS
+            WITH all_data AS (
+                SELECT *, 0 as _source FROM read_parquet('{data_path}', hive_partitioning=true, union_by_name=true)
+                UNION ALL
+                SELECT *, 1 as _source FROM read_parquet('{updates_path}', hive_partitioning=true, union_by_name=true)
+            ),
+            deduped AS (
+                SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY _source DESC) as _rn
+                FROM all_data
+            )
+            SELECT id, type, "by", time, text, url, title, score, descendants,
+                   parent, kids, dead, deleted, poll, parts
+            FROM deduped WHERE _rn = 1
+        """)
+    else:
+        # No updates, use simple view
+        conn.execute(f"""
+            CREATE VIEW hn AS
+            SELECT id, type, "by", time, text, url, title, score, descendants,
+                   parent, kids, dead, deleted, poll, parts
+            FROM read_parquet('{data_path}', hive_partitioning=true, union_by_name=true)
+        """)
     return conn
 
 

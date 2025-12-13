@@ -88,3 +88,18 @@ def item_to_row(item: dict, include_partitions: bool = False) -> dict:
         row["month"] = dt.month if dt else None
 
     return row
+
+
+def items_to_table(items: list[dict]) -> pa.Table:
+    """Convert a list of HN API items to a PyArrow table."""
+    rows = [item_to_row(item) for item in items if item is not None]
+    if not rows:
+        return pa.table({}, schema=ITEM_SCHEMA_NO_PARTITION)
+
+    # Build columns
+    columns = {field.name: [] for field in ITEM_SCHEMA_NO_PARTITION}
+    for row in rows:
+        for field in ITEM_SCHEMA_NO_PARTITION:
+            columns[field.name].append(row.get(field.name))
+
+    return pa.table(columns, schema=ITEM_SCHEMA_NO_PARTITION)

@@ -461,6 +461,19 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
       // Build query with CTEs for any referenced blocks
       const queryWithCTEs = buildQueryWithCTEs(blockIndex, sqlBlocks);
       const result = await api.query(queryWithCTEs);
+
+      // Check if the result contains an error (API returns 200 with error/detail field for SQL errors)
+      const errorResult = result as unknown as { error?: string; detail?: string };
+      if (errorResult.error || errorResult.detail) {
+        const errorMsg = errorResult.error && errorResult.detail
+          ? `${errorResult.error}: ${errorResult.detail}`
+          : errorResult.error || errorResult.detail || 'Query failed';
+        setSqlBlockPositions(prev => prev.map(p =>
+          p.block.id === blockId ? { ...p, block: { ...p.block, isLoading: false, error: errorMsg, result: undefined } } : p
+        ));
+        return;
+      }
+
       setSqlBlockPositions(prev => prev.map(p =>
         p.block.id === blockId ? { ...p, block: { ...p.block, isLoading: false, result, error: undefined } } : p
       ));
