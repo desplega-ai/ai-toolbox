@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { HN_SQL_API } from './_lib/constants';
+
+const HN_SQL_API = process.env.HN_SQL_API_URL || 'http://localhost:3123';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
