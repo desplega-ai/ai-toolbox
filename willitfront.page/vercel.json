@@ -3,7 +3,8 @@
   "installCommand": "bun install",
   "outputDirectory": "dist",
   "bunVersion": "1.x",
+  "cleanUrls": true,
   "rewrites": [
-    { "source": "/((?!api|.*\\.).*)", "destination": "/index.html" }
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
