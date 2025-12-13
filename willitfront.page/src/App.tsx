@@ -1,10 +1,11 @@
+import { useEffect } from 'react';
 import { useTabs } from '@/hooks/useTabs';
 import { TabBar } from '@/components/tabs/TabBar';
 import { ChatNotebookTab } from '@/components/notebook/ChatNotebookTab';
 import { DashboardTab } from '@/components/tabs/DashboardTab';
 import { IdeaTesterTab } from '@/components/tabs/IdeaTesterTab';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { MessageSquare, BarChart3, Lightbulb } from 'lucide-react';
+import { MessageSquare, BarChart3, Lightbulb, Shield, Github, Database } from 'lucide-react';
 
 const QUICK_ACTIONS = [
   { type: 'notebook' as const, title: 'Chat Analysis', description: 'Ask questions about HN data using natural language', icon: MessageSquare, disabled: false },
@@ -14,6 +15,19 @@ const QUICK_ACTIONS = [
 
 function App() {
   const { tabs, activeTabId, activeTab, createTab, closeTab, setActiveTab, updateTab, resetTabs } = useTabs();
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Only confirm if there are tabs with user data (not dashboard)
+      const hasDataTabs = tabs.some(t => t.type !== 'dashboard');
+      if (hasDataTabs) {
+        e.preventDefault();
+        return '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [tabs]);
 
   return (
     <div className="h-screen flex flex-col bg-[var(--hn-bg)]">
@@ -26,7 +40,7 @@ function App() {
         onReset={resetTabs}
       />
 
-      <main className="flex-1 overflow-hidden">
+      <main className="flex-1 overflow-auto lg:overflow-hidden">
         {activeTab ? (
           activeTab.type === 'notebook' ? (
             <ChatNotebookTab key={activeTab.id} tab={activeTab} onUpdate={(u) => updateTab(activeTab.id, u)} />
@@ -37,7 +51,7 @@ function App() {
           )
         ) : (
           <div className="h-full flex flex-col items-center justify-center p-4 sm:p-8">
-            <h1 className="text-xl sm:text-2xl font-bold mb-2 text-center">Will it front page?</h1>
+            <h1 className="text-3xl sm:text-4xl font-bold mb-2 text-center">Will it front page?</h1>
             <p className="text-gray-500 mb-6 sm:mb-8 text-center text-sm sm:text-base max-w-lg">Analyze what makes content go viral. Currently featuring Hacker News data, with Product Hunt and more coming soon.</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 max-w-4xl w-full">
               {QUICK_ACTIONS.map((action) => (
@@ -68,6 +82,22 @@ function App() {
                   </CardHeader>
                 </Card>
               ))}
+            </div>
+            <div className="mt-8 flex flex-col items-center gap-3 text-gray-500 text-sm">
+              <div className="flex items-center gap-2">
+                <Shield className="h-4 w-4" />
+                <span>Your data stays private. Everything is stored locally in your browser — we don't collect or store any information.</span>
+              </div>
+              <div className="flex items-center gap-4">
+                <a href="https://github.com/desplega-ai/ai-toolbox/tree/main/willitfront.page" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 hover:text-[var(--hn-orange)] transition-colors">
+                  <Github className="h-4 w-4" />
+                  <span>Project</span>
+                </a>
+                <a href="https://github.com/desplega-ai/ai-toolbox/tree/main/hn-sql" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 hover:text-[var(--hn-orange)] transition-colors">
+                  <Database className="h-4 w-4" />
+                  <span>HN SQL API</span>
+                </a>
+              </div>
             </div>
           </div>
         )}

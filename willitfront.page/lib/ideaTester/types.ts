@@ -4,7 +4,8 @@ import { z } from 'zod';
 export const ideaTestInputSchema = z.object({
   title: z.string().min(1).max(200),
   url: z.string().url().optional(),
-  type: z.enum(['story', 'show_hn', 'ask_hn']),
+  text: z.string().max(10000).optional(),
+  type: z.enum(['story', 'show_hn', 'ask_hn', 'launch_hn']),
   plannedTime: z.string().datetime().optional(),
 });
 
@@ -68,14 +69,12 @@ export interface StatisticalPrediction {
 
 export interface AnalysisBundle {
   input: IdeaTestInput;
-  ruleBasedAnalysis: {
-    titleScore: TitleAnalysis;
-    domainScore: DomainAnalysis;
-    timingScore: TimingAnalysis;
-    typeScore: TypeAnalysis;
+  metadata: {
+    titleAnalysis: TitleAnalysis;
+    domainAnalysis: DomainAnalysis;
+    timingAnalysis: TimingAnalysis;
+    typeAnalysis: TypeAnalysis;
     penalties: PenaltyAnalysis;
-    overallScore: number;
-    frontPageProbability: number;
   };
   similarPosts: SimilarPost[];
   statisticalPrediction: StatisticalPrediction;
@@ -87,11 +86,13 @@ export const ideaTestReportSchema = z.object({
     level: z.enum(['strong', 'moderate', 'challenging']),
     summary: z.string().describe('One sentence explanation of the verdict'),
     frontPageProbability: z.number(),
+    frontPageReasoning: z.string().describe('2-3 sentence explanation of why this front page probability was assigned'),
     expectedScoreRange: z.object({
       low: z.number().describe('25th percentile score'),
       median: z.number().describe('50th percentile score'),
       high: z.number().describe('75th percentile score'),
     }),
+    expectedScoreReasoning: z.string().describe('2-3 sentence explanation of how the expected score range was determined'),
   }),
 
   strengths: z.array(z.object({

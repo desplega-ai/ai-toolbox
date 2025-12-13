@@ -3,7 +3,8 @@ import Fuse from 'fuse.js';
 import { useAvailableModels } from '@/hooks/useAvailableModels';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, Search, Loader2 } from 'lucide-react';
+import { ChevronDown, Search } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 import type { Model } from '@/types/api';
 
@@ -78,7 +79,7 @@ export function ModelSelector({
     return (
       <Button variant="outline" className={cn("w-full sm:w-[280px] justify-between bg-white shrink-0", className)} disabled>
         <span className="text-muted-foreground">Loading...</span>
-        <Loader2 className="h-4 w-4 animate-spin" />
+        <Spinner className="size-4" />
       </Button>
     );
   }

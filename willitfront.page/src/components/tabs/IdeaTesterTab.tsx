@@ -4,6 +4,7 @@ import type { Tab } from '@/types/tabs';
 import { ideaTestReportSchema } from '@/../lib/ideaTester/types';
 import { IdeaTesterForm } from '@/components/idea-tester/IdeaTesterForm';
 import { IdeaTesterResults } from '@/components/idea-tester/IdeaTesterResults';
+import { Spinner } from '@/components/ui/spinner';
 
 interface IdeaTesterTabProps {
   tab: Tab;
@@ -21,6 +22,7 @@ function generateTabTitle(input: { title: string; type: string }): string {
 
 export function IdeaTesterTab({ tab, onUpdate }: IdeaTesterTabProps) {
   const [hasSubmitted, setHasSubmitted] = useState(!!tab.ideaTesterResult);
+  const [timing, setTiming] = useState<{ startTime: Date; endTime?: Date } | null>(null);
   const persistedResult = useRef<Record<string, unknown> | null>(tab.ideaTesterResult || null);
   const hasSavedResult = useRef(false);
 
@@ -31,6 +33,13 @@ export function IdeaTesterTab({ tab, onUpdate }: IdeaTesterTabProps) {
 
   // Use persisted result if available and not currently loading
   const displayResult = object || (hasSubmitted && !isLoading ? persistedResult.current : null);
+
+  // Track when streaming completes
+  useEffect(() => {
+    if (timing && timing.startTime && !timing.endTime && !isLoading && object) {
+      setTiming(prev => prev ? { ...prev, endTime: new Date() } : null);
+    }
+  }, [isLoading, object, timing]);
 
   // Persist result when streaming completes - only once per submission
   useEffect(() => {
@@ -46,13 +55,15 @@ export function IdeaTesterTab({ tab, onUpdate }: IdeaTesterTabProps) {
   const handleSubmit = useCallback((input: {
     title: string;
     url?: string;
-    type: 'story' | 'show_hn' | 'ask_hn';
+    text?: string;
+    type: 'story' | 'show_hn' | 'ask_hn' | 'launch_hn';
     plannedTime?: string;
     model?: string;
   }) => {
     setHasSubmitted(true);
     hasSavedResult.current = false; // Reset for new submission
     persistedResult.current = null;
+    setTiming({ startTime: new Date() }); // Track start time
     submit(input);
 
     const newTitle = generateTabTitle(input);
@@ -64,9 +75,9 @@ export function IdeaTesterTab({ tab, onUpdate }: IdeaTesterTabProps) {
   }, [submit, onUpdate]);
 
   return (
-    <div className="h-full flex flex-col lg:flex-row overflow-hidden">
-      {/* Form Column - scrollable independently */}
-      <div className="w-full lg:w-[40%] lg:max-w-md lg:flex-shrink-0 overflow-y-auto p-4 lg:p-6 lg:border-r">
+    <div className="flex flex-col lg:flex-row lg:h-full lg:overflow-hidden">
+      {/* Form Column - scrollable independently on desktop */}
+      <div className="w-full lg:w-[40%] lg:max-w-md lg:flex-shrink-0 lg:overflow-y-auto p-4 lg:p-6 lg:border-r">
         <div className="mb-6">
           <h1 className="text-2xl font-bold mb-2">Post Tester</h1>
           <p className="text-gray-500 text-sm">
@@ -82,8 +93,8 @@ export function IdeaTesterTab({ tab, onUpdate }: IdeaTesterTabProps) {
         </div>
       </div>
 
-      {/* Results Column - scrollable independently */}
-      <div className="flex-1 min-w-0 overflow-y-auto p-4 lg:p-6">
+      {/* Results Column - scrollable independently on desktop */}
+      <div className="flex-1 min-w-0 lg:overflow-y-auto p-4 lg:p-6">
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
             <p className="text-red-700">{error.message}</p>
@@ -93,10 +104,10 @@ export function IdeaTesterTab({ tab, onUpdate }: IdeaTesterTabProps) {
         {hasSubmitted && (
           <div className="bg-white border rounded-lg p-4 shadow-sm">
             {displayResult ? (
-              <IdeaTesterResults report={displayResult} isStreaming={isLoading} />
+              <IdeaTesterResults report={displayResult} isStreaming={isLoading} timing={timing} />
             ) : isLoading ? (
               <div className="text-center py-8 text-gray-500">
-                <div className="animate-spin h-8 w-8 border-2 border-orange-500 border-t-transparent rounded-full mx-auto mb-2" />
+                <Spinner className="size-8 text-orange-500 mx-auto mb-2" />
                 Running analysis...
               </div>
             ) : null}

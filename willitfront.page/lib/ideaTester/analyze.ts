@@ -5,39 +5,21 @@ import { analyzeTiming } from './analyzers/timing';
 import { analyzeType } from './analyzers/type';
 import { analyzePenalties } from './analyzers/penalties';
 
-// Weights for overall score
-const WEIGHTS = {
-  title: 0.35,
-  domain: 0.25,
-  timing: 0.20,
-  type: 0.20,
-};
-
-export function runRuleBasedAnalysis(input: IdeaTestInput) {
-  const titleScore = analyzeTitle(input.title);
-  const domainScore = analyzeDomain(input.url);
-  const timingScore = analyzeTiming(input.plannedTime);
-  const typeScore = analyzeType(input.type);
+// Gather metadata for AI to use in scoring
+// AI has full discretion to weigh these factors
+export function gatherMetadata(input: IdeaTestInput) {
+  const titleAnalysis = analyzeTitle(input.title);
+  const domainAnalysis = analyzeDomain(input.url);
+  const timingAnalysis = analyzeTiming(input.plannedTime);
+  const typeAnalysis = analyzeType(input.type);
   const penalties = analyzePenalties(input);
 
-  const overallScore =
-    titleScore.score * WEIGHTS.title +
-    domainScore.score * WEIGHTS.domain +
-    timingScore.score * WEIGHTS.timing +
-    typeScore.score * WEIGHTS.type;
-
-  // Apply base rate (only ~10% reach front page)
-  // Max probability capped at 30% even for perfect score
-  const frontPageProbability = Math.min(30, Math.round((overallScore / 100) * 30));
-
   return {
-    titleScore,
-    domainScore,
-    timingScore,
-    typeScore,
+    titleAnalysis,
+    domainAnalysis,
+    timingAnalysis,
+    typeAnalysis,
     penalties,
-    overallScore: Math.round(overallScore),
-    frontPageProbability,
   };
 }
 
@@ -79,12 +61,12 @@ export function buildAnalysisBundle(
   input: IdeaTestInput,
   similarPosts: SimilarPost[]
 ): AnalysisBundle {
-  const ruleBasedAnalysis = runRuleBasedAnalysis(input);
+  const metadata = gatherMetadata(input);
   const statisticalPrediction = calculateStatistics(similarPosts);
 
   return {
     input,
-    ruleBasedAnalysis,
+    metadata,
     similarPosts,
     statisticalPrediction,
   };

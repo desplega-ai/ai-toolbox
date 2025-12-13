@@ -1,16 +1,28 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ModelSelector } from '@/components/ModelSelector';
 
-const DEFAULT_SYNTHESIS_MODEL = 'anthropic/claude-3-5-haiku-latest';
+const DEFAULT_SYNTHESIS_MODEL = 'google/gemini-2.5-flash';
+
+type PostType = 'story' | 'show_hn' | 'ask_hn' | 'launch_hn';
+
+function detectTypeFromTitle(title: string): PostType | null {
+  const lower = title.toLowerCase().trim();
+  if (lower.startsWith('show hn:') || lower.startsWith('show hn ')) return 'show_hn';
+  if (lower.startsWith('ask hn:') || lower.startsWith('ask hn ')) return 'ask_hn';
+  if (lower.startsWith('launch hn:') || lower.startsWith('launch hn ')) return 'launch_hn';
+  return null;
+}
 
 interface IdeaTesterFormProps {
   onSubmit: (input: {
     title: string;
     url?: string;
-    type: 'story' | 'show_hn' | 'ask_hn';
+    text?: string;
+    type: PostType;
     plannedTime?: string;
     model?: string;
   }) => void;
@@ -18,7 +30,8 @@ interface IdeaTesterFormProps {
   initialValues?: {
     title: string;
     url?: string;
-    type: 'story' | 'show_hn' | 'ask_hn';
+    text?: string;
+    type: PostType;
     plannedTime?: string;
     model?: string;
   };
@@ -27,10 +40,19 @@ interface IdeaTesterFormProps {
 export function IdeaTesterForm({ onSubmit, isLoading, initialValues }: IdeaTesterFormProps) {
   const [title, setTitle] = useState(initialValues?.title || '');
   const [url, setUrl] = useState(initialValues?.url || '');
-  const [type, setType] = useState<'story' | 'show_hn' | 'ask_hn'>(initialValues?.type || 'story');
+  const [text, setText] = useState(initialValues?.text || '');
+  const [type, setType] = useState<PostType>(initialValues?.type || 'story');
   const [timeMode, setTimeMode] = useState<'now' | 'best' | 'custom'>('now');
   const [customTime, setCustomTime] = useState('');
   const [model, setModel] = useState(initialValues?.model || DEFAULT_SYNTHESIS_MODEL);
+
+  // Auto-detect type from title prefix
+  useEffect(() => {
+    const detected = detectTypeFromTitle(title);
+    if (detected) {
+      setType(detected);
+    }
+  }, [title]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,6 +68,7 @@ export function IdeaTesterForm({ onSubmit, isLoading, initialValues }: IdeaTeste
     onSubmit({
       title,
       url: url || undefined,
+      text: text || undefined,
       type,
       plannedTime,
       model,
@@ -86,6 +109,21 @@ export function IdeaTesterForm({ onSubmit, isLoading, initialValues }: IdeaTeste
         </div>
       </div>
 
+      {/* Text */}
+      <div>
+        <label className="block text-sm font-medium mb-1">Text (optional)</label>
+        <Textarea
+          value={text}
+          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setText(e.target.value)}
+          placeholder="Additional context, description, or body text for your post..."
+          rows={3}
+          maxLength={10000}
+        />
+        <div className="text-xs text-gray-500 mt-1">
+          Body text for Ask HN, or additional context for any post
+        </div>
+      </div>
+
       {/* Type */}
       <div>
         <label className="block text-sm font-medium mb-1">Post Type</label>
@@ -97,6 +135,7 @@ export function IdeaTesterForm({ onSubmit, isLoading, initialValues }: IdeaTeste
             <SelectItem value="story">Story</SelectItem>
             <SelectItem value="show_hn">Show HN</SelectItem>
             <SelectItem value="ask_hn">Ask HN</SelectItem>
+            <SelectItem value="launch_hn">Launch HN</SelectItem>
           </SelectContent>
         </Select>
       </div>

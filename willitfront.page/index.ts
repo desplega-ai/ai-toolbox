@@ -8,10 +8,12 @@ import {
   handleDashboard,
   handleStatsTypes,
   handleAnalyzeIdea,
+  handleGenerateTitle,
 } from './src/server/handlers';
 
 Bun.serve({
   port: process.env.PORT ? parseInt(process.env.PORT) : 5193,
+  idleTimeout: 120, // 2 minutes for streaming responses
   routes: {
     '/': index,
 
@@ -45,6 +47,10 @@ Bun.serve({
 
     '/api/analyze-idea': {
       POST: handleAnalyzeIdea,
+    },
+
+    '/api/generate-title': {
+      POST: handleGenerateTitle,
     },
 
     // Serve static files from public directory

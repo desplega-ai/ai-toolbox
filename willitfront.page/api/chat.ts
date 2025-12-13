@@ -4,6 +4,7 @@ import { DEFAULT_MODEL } from '../lib/constants';
 import { gateway, getAllowedModelIds } from '../lib/gateway';
 import { buildSystemPrompt, type SqlBlockInfo } from '../lib/systemPrompt';
 import { createQuerySqlTool } from '../lib/querySqlTool';
+import { createRenderChartTool } from '../lib/renderChartTool';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -28,6 +29,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const querySqlTool = createQuerySqlTool(sqlBlocks as SqlBlockInfo[] | undefined);
+  const renderChartTool = createRenderChartTool();
 
   const result = streamText({
     model: gateway(requestedModel),
@@ -35,6 +37,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     messages: convertToModelMessages(messages),
     tools: {
       querySql: querySqlTool,
+      renderChart: renderChartTool,
     },
     stopWhen: stepCountIs(10),
     providerOptions: {

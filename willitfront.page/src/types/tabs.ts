@@ -38,6 +38,22 @@ export interface QuerySqlToolOutput {
   isTruncated?: boolean;
 }
 
+export interface RenderChartToolOutput {
+  success: boolean;
+  error?: string;
+  chartType?: 'bar' | 'line' | 'pie' | 'metric';
+  title?: string;
+  xAxisLabel?: string;
+  yAxisLabel?: string;
+  data?: {
+    columns: string[];
+    rows: unknown[][];
+    row_count: number;
+  };
+  wasTruncated?: boolean;
+  originalRowCount?: number;
+}
+
 // SQL block stored in tab state (without result data to keep localStorage small)
 export interface StoredSqlBlock {
   id: string;
@@ -63,7 +79,8 @@ export interface Tab {
   ideaTesterInput?: {
     title: string;
     url?: string;
-    type: 'story' | 'show_hn' | 'ask_hn';
+    text?: string;
+    type: 'story' | 'show_hn' | 'ask_hn' | 'launch_hn';
     plannedTime?: string;
     model?: string;
   };

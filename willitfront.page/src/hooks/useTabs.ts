@@ -12,6 +12,15 @@ export function useTabs() {
   });
 
   const createTab = useCallback((type: TabType, title?: string, dashboardId?: string) => {
+    // For dashboard, reuse existing tab if one exists
+    if (type === 'dashboard') {
+      const existingDashboard = state.tabs.find(t => t.type === 'dashboard');
+      if (existingDashboard) {
+        setState((prev) => ({ ...prev, activeTabId: existingDashboard.id }));
+        return existingDashboard.id;
+      }
+    }
+
     const newTab: Tab = {
       id: generateId(),
       type,
@@ -30,7 +39,7 @@ export function useTabs() {
       activeTabId: newTab.id,
     }));
     return newTab.id;
-  }, [setState]);
+  }, [setState, state.tabs]);
 
   const closeTab = useCallback((tabId: string) => {
     setState((prev) => {

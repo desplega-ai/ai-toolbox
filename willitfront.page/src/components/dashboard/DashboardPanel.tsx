@@ -4,7 +4,7 @@ import type { QueryResponse, MetricResponse, DashboardTableResponse, DashboardCh
 import type { DashboardQuery, DashboardEndpoint } from '@/types/dashboard';
 import { ResultsGrid } from '@/components/grid/ResultsGrid';
 import { BarChartViz, LineChartViz, MetricCard } from './Charts';
-import { Loader2 } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 
 interface DashboardPanelProps {
   query: DashboardQuery;
@@ -108,7 +108,7 @@ export function DashboardPanel({ query }: DashboardPanelProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-32">
-        <Loader2 className="animate-spin" />
+        <Spinner className="size-6" />
       </div>
     );
   }

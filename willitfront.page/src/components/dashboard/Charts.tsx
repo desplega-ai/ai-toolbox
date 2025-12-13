@@ -1,9 +1,23 @@
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend } from 'recharts';
 import type { QueryResponse } from '@/types/api';
 
 interface ChartProps {
   data: QueryResponse;
+  title?: string;
+  xAxisLabel?: string;
+  yAxisLabel?: string;
 }
+
+const PIE_COLORS = [
+  'var(--hn-orange)',
+  '#2563eb', // blue
+  '#16a34a', // green
+  '#dc2626', // red
+  '#9333ea', // purple
+  '#ca8a04', // yellow
+  '#0891b2', // cyan
+  '#be185d', // pink
+];
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -21,7 +35,7 @@ function formatCompact(value: number): string {
   return value.toString();
 }
 
-export function BarChartViz({ data }: ChartProps) {
+export function BarChartViz({ data, title, xAxisLabel, yAxisLabel }: ChartProps) {
   const columns = data?.columns ?? [];
   const rows = data?.rows ?? [];
 
@@ -47,18 +61,27 @@ export function BarChartViz({ data }: ChartProps) {
   });
 
   return (
-    <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={chartData}>
-        <XAxis dataKey={labelKey} />
-        <YAxis tickFormatter={(v) => formatCompact(v)} />
-        <Tooltip formatter={(v: number) => v.toLocaleString()} />
-        <Bar dataKey={valueKey} fill="var(--hn-orange)" />
-      </BarChart>
-    </ResponsiveContainer>
+    <div className="w-full">
+      {title && <div className="text-sm font-medium text-gray-700 mb-2 text-center">{title}</div>}
+      <ResponsiveContainer width="100%" height={300}>
+        <BarChart data={chartData}>
+          <XAxis
+            dataKey={labelKey}
+            label={xAxisLabel ? { value: xAxisLabel, position: 'bottom', offset: -5 } : undefined}
+          />
+          <YAxis
+            tickFormatter={(v) => formatCompact(v)}
+            label={yAxisLabel ? { value: yAxisLabel, angle: -90, position: 'insideLeft' } : undefined}
+          />
+          <Tooltip formatter={(v: number) => v.toLocaleString()} />
+          <Bar dataKey={valueKey} fill="var(--hn-orange)" />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
-export function LineChartViz({ data }: ChartProps) {
+export function LineChartViz({ data, title, xAxisLabel, yAxisLabel }: ChartProps) {
   const columns = data?.columns ?? [];
   const rows = data?.rows ?? [];
 
@@ -86,18 +109,31 @@ export function LineChartViz({ data }: ChartProps) {
   const yKey = columns[1] ?? 'y';
 
   return (
-    <ResponsiveContainer width="100%" height={300}>
-      <LineChart data={chartData}>
-        <XAxis dataKey={xKey} tick={{ fontSize: 10 }} angle={-45} textAnchor="end" height={60} />
-        <YAxis tickFormatter={(v) => formatCompact(v)} />
-        <Tooltip formatter={(v: number) => v.toLocaleString()} />
-        <Line type="monotone" dataKey={yKey} stroke="var(--hn-orange)" dot={false} />
-      </LineChart>
-    </ResponsiveContainer>
+    <div className="w-full">
+      {title && <div className="text-sm font-medium text-gray-700 mb-2 text-center">{title}</div>}
+      <ResponsiveContainer width="100%" height={300}>
+        <LineChart data={chartData}>
+          <XAxis
+            dataKey={xKey}
+            tick={{ fontSize: 10 }}
+            angle={-45}
+            textAnchor="end"
+            height={60}
+            label={xAxisLabel ? { value: xAxisLabel, position: 'bottom', offset: 40 } : undefined}
+          />
+          <YAxis
+            tickFormatter={(v) => formatCompact(v)}
+            label={yAxisLabel ? { value: yAxisLabel, angle: -90, position: 'insideLeft' } : undefined}
+          />
+          <Tooltip formatter={(v: number) => v.toLocaleString()} />
+          <Line type="monotone" dataKey={yKey} stroke="var(--hn-orange)" dot={false} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
-export function MetricCard({ data, label }: ChartProps & { label?: string }) {
+export function MetricCard({ data, label, title }: ChartProps & { label?: string }) {
   const rows = data?.rows ?? [];
   const value = rows[0]?.[0] ?? 0;
 
@@ -118,12 +154,61 @@ export function MetricCard({ data, label }: ChartProps & { label?: string }) {
     displayValue = String(value);
   }
 
+  const displayLabel = title || label;
+
   return (
     <div className="bg-white p-6 rounded-lg border text-center h-full flex flex-col justify-center">
       <div className={`font-bold text-[var(--hn-orange)] ${isDate ? 'text-lg' : 'text-4xl'}`}>
         {displayValue}
       </div>
-      {label && <div className="text-gray-500 mt-1">{label}</div>}
+      {displayLabel && <div className="text-gray-500 mt-1">{displayLabel}</div>}
+    </div>
+  );
+}
+
+export function PieChartViz({ data, title }: ChartProps) {
+  const columns = data?.columns ?? [];
+  const rows = data?.rows ?? [];
+
+  if (columns.length < 2 || rows.length === 0) {
+    return <div className="h-[300px] flex items-center justify-center text-gray-400">No data</div>;
+  }
+
+  const chartData = rows.map((row, idx) => ({
+    name: String(row[0] ?? ''),
+    value: Number(row[1] ?? 0),
+    fill: PIE_COLORS[idx % PIE_COLORS.length],
+  }));
+
+  const total = chartData.reduce((sum, d) => sum + d.value, 0);
+
+  return (
+    <div className="w-full">
+      {title && <div className="text-sm font-medium text-gray-700 mb-2 text-center">{title}</div>}
+      <ResponsiveContainer width="100%" height={300}>
+        <PieChart>
+          <Pie
+            data={chartData}
+            cx="50%"
+            cy="50%"
+            labelLine={false}
+            label={({ name, percent }) => `${name}: ${((percent ?? 0) * 100).toFixed(0)}%`}
+            outerRadius={100}
+            dataKey="value"
+          >
+            {chartData.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={entry.fill} />
+            ))}
+          </Pie>
+          <Tooltip
+            formatter={(value: number) => [
+              `${value.toLocaleString()} (${((value / total) * 100).toFixed(1)}%)`,
+              ''
+            ]}
+          />
+          <Legend />
+        </PieChart>
+      </ResponsiveContainer>
     </div>
   );
 }

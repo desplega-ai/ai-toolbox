@@ -1,13 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { streamObject } from 'ai';
-import { gateway } from '../lib/gateway';
+import { gateway, getAllowedModelIds } from '../lib/gateway';
 import { ideaTestInputSchema, ideaTestReportSchema, type IdeaTestInput } from '../lib/ideaTester/types';
 import { buildAnalysisBundle } from '../lib/ideaTester/analyze';
 import { findSimilarPosts } from '../lib/ideaTester/findSimilarPosts';
 import { SYNTHESIS_SYSTEM_PROMPT } from '../lib/ideaTester/synthesisPrompt';
 
-// Use a fast, cheap model for synthesis
-const SYNTHESIS_MODEL = 'anthropic/claude-3-5-haiku-latest';
+const DEFAULT_SYNTHESIS_MODEL = 'google/gemini-2.5-flash';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -20,8 +19,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
+  const { model: requestedModel, ...inputData } = req.body;
+
   // Validate input
-  const parseResult = ideaTestInputSchema.safeParse(req.body);
+  const parseResult = ideaTestInputSchema.safeParse(inputData);
   if (!parseResult.success) {
     return res.status(400).json({
       error: 'Invalid input',
@@ -30,6 +31,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const input: IdeaTestInput = parseResult.data;
+  const model = requestedModel || DEFAULT_SYNTHESIS_MODEL;
+
+  // Check if model is allowed
+  const allowedModelIds = await getAllowedModelIds();
+  if (!allowedModelIds.has(model)) {
+    return res.status(403).json({
+      error: `Model "${model}" is not allowed. Please select an approved model.`,
+    });
+  }
 
   try {
     // Run deterministic analysis in parallel with similar posts query
@@ -38,7 +48,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Stream structured response from LLM
     const result = streamObject({
-      model: gateway(SYNTHESIS_MODEL),
+      model: gateway(model),
       schema: ideaTestReportSchema,
       system: SYNTHESIS_SYSTEM_PROMPT,
       prompt: `Analyze this HN post idea and generate a structured report:
@@ -46,14 +56,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 ## Input
 Title: "${input.title}"
 URL: ${input.url || '(none - Ask HN style)'}
+Text: ${input.text || '(none)'}
 Type: ${input.type}
 Planned Time: ${input.plannedTime || 'not specified'}
 
-## Analysis Data
+## Metadata & Similar Posts
 ${JSON.stringify(bundle, null, 2)}
 
 Generate a report evaluating this post's potential on Hacker News.
-Use the analysis data to support your assessments.`,
+You have full scoring responsibility - determine the front page probability and expected score range based on your analysis.`,
     });
 
     // Stream response

@@ -27,6 +27,7 @@ export function TabBar({ tabs, activeTabId, onTabSelect, onTabClose, onTabRename
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [tabToClose, setTabToClose] = useState<Tab | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -59,6 +60,22 @@ export function TabBar({ tabs, activeTabId, onTabSelect, onTabClose, onTabRename
   const handleReset = () => {
     onReset();
     setShowResetConfirm(false);
+  };
+
+  const handleCloseClick = (e: React.MouseEvent, tab: Tab) => {
+    e.stopPropagation();
+    if (tab.type === 'dashboard') {
+      onTabClose(tab.id);
+    } else {
+      setTabToClose(tab);
+    }
+  };
+
+  const handleConfirmClose = () => {
+    if (tabToClose) {
+      onTabClose(tabToClose.id);
+      setTabToClose(null);
+    }
   };
 
   return (
@@ -103,7 +120,7 @@ export function TabBar({ tabs, activeTabId, onTabSelect, onTabClose, onTabRename
               )}
               <button
                 className="ml-1 sm:ml-2 hover:bg-gray-200 rounded p-0.5"
-                onClick={(e) => { e.stopPropagation(); onTabClose(tab.id); }}
+                onClick={(e) => handleCloseClick(e, tab)}
               >
                 <X size={12} className="sm:hidden" />
                 <X size={14} className="hidden sm:block" />
@@ -146,6 +163,26 @@ export function TabBar({ tabs, activeTabId, onTabSelect, onTabClose, onTabRename
             </Button>
             <Button variant="destructive" onClick={handleReset}>
               Reset
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Close tab confirmation dialog */}
+      <Dialog open={tabToClose !== null} onOpenChange={(open) => !open && setTabToClose(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Close tab?</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to close "{tabToClose?.title}"? Your conversation and queries will be lost.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTabToClose(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmClose}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

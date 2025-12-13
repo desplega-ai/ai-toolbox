@@ -81,7 +81,7 @@ export async function findSimilarPosts(input: IdeaTestInput): Promise<SimilarPos
       AND score IS NOT NULL
       AND score > 0
       AND (${keywordConditions || '1=0'} ${domainCondition})
-    ORDER BY score DESC
+    ORDER BY RANDOM()
     LIMIT 20
   `;
 

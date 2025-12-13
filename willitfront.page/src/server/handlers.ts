@@ -1,5 +1,6 @@
 import { streamText, streamObject, stepCountIs, convertToModelMessages } from 'ai';
 import { createQuerySqlTool } from './tools/querySql';
+import { createRenderChartTool } from '../../lib/renderChartTool';
 import { buildSystemPrompt, type SqlBlockInfo } from './buildSystemPrompt';
 import { DEFAULT_MODEL } from '../lib/constants';
 import {
@@ -36,6 +37,7 @@ export async function handleChat(req: Request): Promise<Response> {
   }
 
   const querySqlTool = createQuerySqlTool(sqlBlocks as SqlBlockInfo[] | undefined);
+  const renderChartTool = createRenderChartTool();
 
   const result = streamText({
     model: gateway(requestedModel),
@@ -43,6 +45,7 @@ export async function handleChat(req: Request): Promise<Response> {
     messages: convertToModelMessages(messages),
     tools: {
       querySql: querySqlTool,
+      renderChart: renderChartTool,
     },
     stopWhen: stepCountIs(10),
     providerOptions: {
@@ -181,7 +184,36 @@ export async function handleStatsTypes(): Promise<Response> {
 }
 
 // Idea Tester handler
-const DEFAULT_SYNTHESIS_MODEL = 'anthropic/claude-3-5-haiku-latest';
+const DEFAULT_SYNTHESIS_MODEL = 'google/gemini-2.5-flash';
+const TITLE_MODEL = 'google/gemini-2.5-flash-lite';
+
+export async function handleGenerateTitle(req: Request): Promise<Response> {
+  if (!gateway) {
+    return Response.json(
+      { error: 'AI Gateway not configured' },
+      { status: 503 }
+    );
+  }
+
+  const { message } = await req.json();
+
+  if (!message || typeof message !== 'string') {
+    return Response.json({ error: 'Message is required' }, { status: 400 });
+  }
+
+  try {
+    const { generateText } = await import('ai');
+    const { text } = await generateText({
+      model: gateway(TITLE_MODEL),
+      prompt: `Generate a very short title (3-6 words max) for a chat that starts with this message. Just output the title, nothing else:\n\n${message}`,
+    });
+
+    return Response.json({ title: text.trim() });
+  } catch (error) {
+    console.error('Title generation error:', error);
+    return Response.json({ error: 'Failed to generate title' }, { status: 500 });
+  }
+}
 
 export async function handleAnalyzeIdea(req: Request): Promise<Response> {
   if (!gateway) {
@@ -206,6 +238,15 @@ export async function handleAnalyzeIdea(req: Request): Promise<Response> {
   const input: IdeaTestInput = parseResult.data;
   const model = requestedModel || DEFAULT_SYNTHESIS_MODEL;
 
+  // Check if model is allowed
+  const allowedModelIds = await getAllowedModelIds();
+  if (!allowedModelIds.has(model)) {
+    return Response.json(
+      { error: `Model "${model}" is not allowed. Please select an approved model.` },
+      { status: 403 }
+    );
+  }
+
   try {
     // Run deterministic analysis in parallel with similar posts query
     const similarPosts = await findSimilarPosts(input);
@@ -221,14 +262,15 @@ export async function handleAnalyzeIdea(req: Request): Promise<Response> {
 ## Input
 Title: "${input.title}"
 URL: ${input.url || '(none - Ask HN style)'}
+Text: ${input.text || '(none)'}
 Type: ${input.type}
 Planned Time: ${input.plannedTime || 'not specified'}
 
-## Analysis Data
+## Metadata & Similar Posts
 ${JSON.stringify(bundle, null, 2)}
 
 Generate a report evaluating this post's potential on Hacker News.
-Use the analysis data to support your assessments.`,
+You have full scoring responsibility - determine the front page probability and expected score range based on your analysis.`,
     });
 
     return result.toTextStreamResponse();

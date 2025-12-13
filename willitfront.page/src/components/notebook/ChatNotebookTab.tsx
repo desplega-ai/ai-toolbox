@@ -23,14 +23,13 @@ import {
   generateBlockName,
   type SqlBlock,
 } from '@/lib/notebook';
-import type { Tab, Message, QuerySqlToolOutput, StoredSqlBlock } from '@/types/tabs';
+import type { Tab, Message, QuerySqlToolOutput, RenderChartToolOutput, StoredSqlBlock } from '@/types/tabs';
+import { BarChartViz, LineChartViz, PieChartViz, MetricCard } from '@/components/dashboard/Charts';
 import {
   Send,
-  Loader2,
   Database,
   ChevronDown,
   ChevronRight,
-  ChevronUp,
   Plus,
   Play,
   Trash2,
@@ -48,19 +47,112 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   Brain,
+  BarChart3,
+  BookOpen,
 } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogClose,
 } from '@/components/ui/dialog';
 
 interface ChatNotebookTabProps {
   tab: Tab;
   onUpdate: (updates: Partial<Tab>) => void;
 }
+
+const EXAMPLE_QUERIES = [
+  {
+    title: 'Top 10 Stories Today',
+    description: 'Most popular stories from the last 24 hours',
+    sql: `SELECT title, score, url
+FROM hn
+WHERE type = 'story'
+  AND time >= now() - INTERVAL 1 DAY
+ORDER BY score DESC
+LIMIT 10`,
+  },
+  {
+    title: 'Most Active Users',
+    description: 'Users with the most submissions this month',
+    sql: `SELECT "by" AS username, COUNT(*) AS post_count
+FROM hn
+WHERE time >= now() - INTERVAL 30 DAY
+GROUP BY "by"
+ORDER BY post_count DESC
+LIMIT 20`,
+  },
+  {
+    title: 'Trending Domains',
+    description: 'Most submitted domains in the last week',
+    sql: `SELECT
+  regexp_extract(url, 'https?://([^/]+)', 1) AS domain,
+  COUNT(*) AS submissions,
+  ROUND(AVG(score), 1) AS avg_score
+FROM hn
+WHERE type = 'story'
+  AND url IS NOT NULL
+  AND time >= now() - INTERVAL 7 DAY
+GROUP BY domain
+ORDER BY submissions DESC
+LIMIT 15`,
+  },
+  {
+    title: 'Show HN Posts',
+    description: 'Recent Show HN submissions with high scores',
+    sql: `SELECT title, score, url, time
+FROM hn
+WHERE type = 'story'
+  AND title LIKE 'Show HN:%'
+  AND time >= now() - INTERVAL 30 DAY
+ORDER BY score DESC
+LIMIT 20`,
+  },
+  {
+    title: 'Ask HN Posts',
+    description: 'Popular Ask HN discussions',
+    sql: `SELECT title, score, descendants AS comments, time
+FROM hn
+WHERE type = 'story'
+  AND title LIKE 'Ask HN:%'
+  AND time >= now() - INTERVAL 30 DAY
+ORDER BY score DESC
+LIMIT 20`,
+  },
+  {
+    title: 'Hourly Submission Pattern',
+    description: 'When are stories typically submitted?',
+    sql: `SELECT
+  EXTRACT(HOUR FROM time) AS hour_utc,
+  COUNT(*) AS submissions,
+  ROUND(AVG(score), 1) AS avg_score
+FROM hn
+WHERE type = 'story'
+  AND time >= now() - INTERVAL 30 DAY
+GROUP BY hour_utc
+ORDER BY hour_utc`,
+  },
+  {
+    title: 'High-Engagement Stories',
+    description: 'Stories with most comments relative to score',
+    sql: `SELECT
+  title,
+  score,
+  descendants AS comments,
+  ROUND(descendants::FLOAT / NULLIF(score, 0), 2) AS comment_ratio
+FROM hn
+WHERE type = 'story'
+  AND score > 50
+  AND descendants > 10
+  AND time >= now() - INTERVAL 7 DAY
+ORDER BY comment_ratio DESC
+LIMIT 20`,
+  },
+];
 
 // Type for tool parts (from AI SDK)
 // The type can be 'dynamic-tool' or 'tool-{toolName}' format
@@ -131,56 +223,6 @@ function saveSqlBlockPositions(positions: SqlBlockPosition[]): StoredSqlBlock[] 
   }));
 }
 
-// Component for grouping failed tool calls
-interface FailedToolCallsGroupProps {
-  failedParts: Array<{ part: ToolPart; idx: number }>;
-}
-
-function FailedToolCallsGroup({ failedParts }: FailedToolCallsGroupProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const count = failedParts.length;
-
-  if (count === 0) return null;
-
-  return (
-    <div className="mt-3 border border-red-200 bg-red-50 rounded-lg overflow-hidden">
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center gap-2 w-full px-3 py-2 bg-red-100 hover:bg-red-200 text-left"
-      >
-        {isExpanded ? <ChevronDown size={14} className="text-red-600" /> : <ChevronRight size={14} className="text-red-600" />}
-        <XCircle size={14} className="text-red-600" />
-        <span className="text-sm font-medium text-red-800">
-          Failed {count} {count === 1 ? 'query' : 'queries'}
-        </span>
-      </button>
-      {isExpanded && (
-        <div className="divide-y divide-red-200">
-          {failedParts.map(({ part, idx }) => {
-            const result = part.output as QuerySqlToolOutput | undefined;
-            const input = part.input as { sql?: string } | undefined;
-            const errorMsg = result?.error || part.errorText || 'Unknown error';
-            const errorDetails = result?.errorDetails;
-            const sql = result?.sql || input?.sql || 'No SQL available';
-
-            return (
-              <div key={idx} className="p-3">
-                <p className="text-sm text-red-700 mb-1">{errorMsg}</p>
-                {errorDetails && (
-                  <p className="text-xs text-red-600 mb-2 font-mono bg-red-100 p-2 rounded whitespace-pre-wrap">{errorDetails}</p>
-                )}
-                <pre className="text-xs text-red-900 bg-red-100/50 p-2 rounded overflow-x-auto">
-                  {sql}
-                </pre>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // Component for displaying reasoning/thinking from models
 interface ReasoningBlockProps {
   reasoning: string;
@@ -215,70 +257,6 @@ function ReasoningBlock({ reasoning }: ReasoningBlockProps) {
             {reasoning}
           </pre>
         </div>
-      )}
-    </div>
-  );
-}
-
-// Collapsible text component for long AI messages
-interface CollapsibleTextProps {
-  children: React.ReactNode;
-  maxLines?: number;
-}
-
-function CollapsibleText({ children, maxLines = 3 }: CollapsibleTextProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [needsCollapse, setNeedsCollapse] = useState(false);
-  const contentRef = useRef<HTMLDivElement>(null);
-
-  // Use ResizeObserver to detect content changes instead of depending on children
-  // This avoids infinite loops since children is always a new reference
-  useEffect(() => {
-    const element = contentRef.current;
-    if (!element) return;
-
-    const checkCollapse = () => {
-      const lineHeight = parseInt(getComputedStyle(element).lineHeight) || 24;
-      const maxHeight = lineHeight * maxLines;
-      setNeedsCollapse(element.scrollHeight > maxHeight + 10);
-    };
-
-    // Initial check
-    checkCollapse();
-
-    // Watch for size changes
-    const observer = new ResizeObserver(checkCollapse);
-    observer.observe(element);
-
-    return () => observer.disconnect();
-  }, [maxLines]);
-
-  return (
-    <div className="relative">
-      <div
-        ref={contentRef}
-        className={!isExpanded && needsCollapse ? 'overflow-hidden' : ''}
-        style={!isExpanded && needsCollapse ? { maxHeight: `${maxLines * 1.5}rem` } : undefined}
-      >
-        {children}
-      </div>
-      {needsCollapse && (
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="mt-2 text-sm text-[var(--hn-orange)] hover:underline flex items-center gap-1"
-        >
-          {isExpanded ? (
-            <>
-              <ChevronUp size={14} />
-              Show less
-            </>
-          ) : (
-            <>
-              <ChevronDown size={14} />
-              Show more
-            </>
-          )}
-        </button>
       )}
     </div>
   );
@@ -475,14 +453,47 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
     prevMessageCountRef.current = messages.length;
   }, [messages.length, status]);
 
+  // Auto-expand chart results when they arrive
+  useEffect(() => {
+    messages.forEach(msg => {
+      msg.parts.forEach(part => {
+        if (isToolPart(part) && getToolName(part as ToolPart) === 'renderChart') {
+          const toolPart = part as ToolPart;
+          if (toolPart.state === 'output-available' && !expandedBlocks.has(toolPart.toolCallId)) {
+            setExpandedBlocks(prev => new Set([...prev, toolPart.toolCallId]));
+          }
+        }
+      });
+    });
+  }, [messages, expandedBlocks]);
+
   const handleChatSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatInput.trim() || status === 'streaming' || schemaLoading) return;
 
     const message = chatInput.trim();
+    const isFirstMessage = messages.length === 0;
     setChatInput('');
     await sendMessage({ text: message });
-  }, [chatInput, status, schemaLoading, sendMessage]);
+
+    // Generate AI title on first message (non-blocking)
+    if (isFirstMessage) {
+      fetch('/api/generate-title', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message }),
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.title) {
+            onUpdate({ title: data.title });
+          }
+        })
+        .catch(() => {
+          // Keep default title on error
+        });
+    }
+  }, [chatInput, status, schemaLoading, sendMessage, messages.length, onUpdate]);
 
   // Add a new SQL block at current position (after current messages)
   const addSqlBlock = useCallback(() => {
@@ -644,13 +655,120 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
       .replace(/&nbsp;/g, ' ');
   };
 
-  // Extract text content from message parts
-  const getTextContent = (message: UIMessage): string => {
-    const raw = message.parts
-      .filter(isTextUIPart)
-      .map(part => part.text)
-      .join('\n');
-    return preprocessText(raw);
+  // Markdown components configuration (shared between text parts)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const markdownComponents: any = {
+    // Wrap tables in scrollable container
+    table: ({ children }: { children?: React.ReactNode }) => (
+      <div className="overflow-x-auto -mx-4 px-4">
+        <table className="min-w-full">{children}</table>
+      </div>
+    ),
+    // Style table cells nicely
+    th: ({ children }: { children?: React.ReactNode }) => (
+      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 bg-gray-50 border-b">{children}</th>
+    ),
+    td: ({ children }: { children?: React.ReactNode }) => (
+      <td className="px-3 py-2 text-sm border-b border-gray-100 whitespace-nowrap">{children}</td>
+    ),
+    // Use Monaco for code blocks
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    code: (props: any) => {
+      const { className, children } = props;
+      const match = /language-(\w+)/.exec(className || '');
+      const code = String(children).replace(/\n$/, '');
+
+      // If it's a code block with language or multiline, use Monaco
+      if (match || code.includes('\n')) {
+        const language = match?.[1] || 'plaintext';
+        const lineCount = code.split('\n').length;
+        const height = Math.min(Math.max(lineCount * 19 + 10, 40), 240);
+
+        return (
+          <div className="rounded overflow-hidden border not-prose my-2">
+            <Editor
+              height={`${height}px`}
+              language={language === 'sql' ? 'sql' : language}
+              value={code}
+              theme="vs"
+              options={{
+                readOnly: true,
+                minimap: { enabled: false },
+                fontSize: 11,
+                lineNumbers: 'off',
+                scrollBeyondLastLine: false,
+                wordWrap: 'on',
+                automaticLayout: true,
+                scrollbar: {
+                  vertical: 'hidden',
+                  horizontal: 'auto',
+                },
+                overviewRulerLanes: 0,
+                hideCursorInOverviewRuler: true,
+                overviewRulerBorder: false,
+                renderLineHighlight: 'none',
+                contextmenu: false,
+                folding: true,
+                lineDecorationsWidth: 0.1,
+                lineNumbersMinChars: 3,
+              }}
+            />
+          </div>
+        );
+      }
+
+      // Inline code - don't spread unknown props
+      return (
+        <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm font-mono text-orange-600">
+          {children}
+        </code>
+      );
+    },
+  };
+
+  // Render a single message part inline
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const renderPart = (part: any, idx: number, isUser: boolean) => {
+    // Text part
+    if (isTextUIPart(part)) {
+      const text = preprocessText(part.text);
+      if (!text.trim()) return null;
+
+      if (isUser) {
+        return <div key={idx} className="whitespace-pre-wrap">{text}</div>;
+      }
+
+      return (
+        <div key={idx} className="prose prose-sm max-w-none [&>p]:mb-4 [&>ul]:mb-4 [&>ol]:mb-4 prose-pre:bg-transparent prose-pre:p-0 prose-pre:my-2 prose-code:text-orange-600 prose-code:before:content-none prose-code:after:content-none prose-table:my-0">
+          <Markdown
+            remarkPlugins={[remarkGfm, remarkBreaks]}
+            components={markdownComponents}
+          >
+            {text}
+          </Markdown>
+        </div>
+      );
+    }
+
+    // Reasoning part
+    if (typeof part === 'object' && part !== null && 'type' in part && (part as { type: string }).type === 'reasoning') {
+      const reasoningPart = part as { type: 'reasoning'; text: string };
+      return <ReasoningBlock key={idx} reasoning={reasoningPart.text} />;
+    }
+
+    // Tool part - always render inline so user sees when tool calls happen
+    if (isToolPart(part) && getToolName(part as ToolPart) === 'querySql') {
+      const toolPart = part as ToolPart;
+      return renderToolCall(toolPart, idx);
+    }
+
+    // Tool part - renderChart
+    if (isToolPart(part) && getToolName(part as ToolPart) === 'renderChart') {
+      const toolPart = part as ToolPart;
+      return renderChartToolCall(toolPart, idx);
+    }
+
+    return null;
   };
 
   // Get SQL blocks that appear before a given block (for CTE reference hints)
@@ -670,7 +788,7 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
           <div className="flex items-center gap-2 px-3 py-2 bg-blue-100 border-b border-blue-200">
             <Clock size={14} className="text-blue-600" />
             <span className="text-sm font-medium text-blue-800">Running SQL Query</span>
-            <Loader2 size={14} className="animate-spin text-blue-600 ml-auto" />
+            <Spinner className="size-3.5 text-blue-600 ml-auto" />
           </div>
           {input?.sql && (
             <div className="p-3">
@@ -686,20 +804,30 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
     // Error state
     if (part.state === 'output-error') {
       const input = part.input as { sql: string } | undefined;
+      const errorExpanded = expandedBlocks.has(`error-${part.toolCallId}`);
       return (
         <div key={idx} className="mt-3 border border-red-200 bg-red-50 rounded-lg overflow-hidden">
-          <div className="flex items-center gap-2 px-3 py-2 bg-red-100 border-b border-red-200">
+          <button
+            onClick={() => toggleBlockExpanded(`error-${part.toolCallId}`)}
+            className="flex items-center gap-2 w-full px-3 py-2 bg-red-100 hover:bg-red-200 text-left"
+          >
+            {errorExpanded ? <ChevronDown size={14} className="text-red-600" /> : <ChevronRight size={14} className="text-red-600" />}
             <XCircle size={14} className="text-red-600" />
             <span className="text-sm font-medium text-red-800">Query Failed</span>
-          </div>
-          <div className="p-3">
-            <p className="text-sm text-red-700 mb-2">{part.errorText}</p>
-            {input?.sql && (
-              <pre className="text-xs text-red-900 bg-red-100/50 p-2 rounded overflow-x-auto">
-                {input.sql}
-              </pre>
+            {!errorExpanded && part.errorText && (
+              <span className="text-xs text-red-600 truncate ml-auto max-w-[200px]">{part.errorText}</span>
             )}
-          </div>
+          </button>
+          {errorExpanded && (
+            <div className="p-3 border-t border-red-200">
+              <p className="text-sm text-red-700 mb-2">{part.errorText}</p>
+              {input?.sql && (
+                <pre className="text-xs text-red-900 bg-red-100/50 p-2 rounded overflow-x-auto">
+                  {input.sql}
+                </pre>
+              )}
+            </div>
+          )}
         </div>
       );
     }
@@ -709,21 +837,31 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
       const result = part.output as QuerySqlToolOutput;
 
       if (!result.success) {
+        const errorExpanded = expandedBlocks.has(`error-${part.toolCallId}`);
         return (
           <div key={idx} className="mt-3 border border-red-200 bg-red-50 rounded-lg overflow-hidden">
-            <div className="flex items-center gap-2 px-3 py-2 bg-red-100 border-b border-red-200">
+            <button
+              onClick={() => toggleBlockExpanded(`error-${part.toolCallId}`)}
+              className="flex items-center gap-2 w-full px-3 py-2 bg-red-100 hover:bg-red-200 text-left"
+            >
+              {errorExpanded ? <ChevronDown size={14} className="text-red-600" /> : <ChevronRight size={14} className="text-red-600" />}
               <XCircle size={14} className="text-red-600" />
               <span className="text-sm font-medium text-red-800">Query Error</span>
-            </div>
-            <div className="p-3">
-              <p className="text-sm text-red-700 mb-2">{result.error}</p>
-              {result.errorDetails && (
-                <p className="text-xs text-red-600 mb-2 font-mono bg-red-100 p-2 rounded">{result.errorDetails}</p>
+              {!errorExpanded && result.error && (
+                <span className="text-xs text-red-600 truncate ml-auto max-w-[200px]">{result.error}</span>
               )}
-              <pre className="text-xs text-red-900 bg-red-100/50 p-2 rounded overflow-x-auto">
-                {result.sql}
-              </pre>
-            </div>
+            </button>
+            {errorExpanded && (
+              <div className="p-3 border-t border-red-200">
+                <p className="text-sm text-red-700 mb-2">{result.error}</p>
+                {result.errorDetails && (
+                  <p className="text-xs text-red-600 mb-2 font-mono bg-red-100 p-2 rounded">{result.errorDetails}</p>
+                )}
+                <pre className="text-xs text-red-900 bg-red-100/50 p-2 rounded overflow-x-auto">
+                  {result.sql}
+                </pre>
+              </div>
+            )}
           </div>
         );
       }
@@ -809,38 +947,143 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
     );
   };
 
+  // Render a chart tool call with nice formatting
+  const renderChartToolCall = (part: ToolPart, idx: number) => {
+    const isExpanded = expandedBlocks.has(part.toolCallId);
+
+    // Running state
+    if (part.state === 'input-streaming' || part.state === 'input-available') {
+      return (
+        <div key={idx} className="mt-3 border border-blue-200 bg-blue-50 rounded-lg overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-2 bg-blue-100 border-b border-blue-200">
+            <BarChart3 size={14} className="text-blue-600" />
+            <span className="text-sm font-medium text-blue-800">Rendering Chart</span>
+            <Spinner className="size-3.5 text-blue-600 ml-auto" />
+          </div>
+        </div>
+      );
+    }
+
+    // Error state
+    if (part.state === 'output-error') {
+      return (
+        <div key={idx} className="mt-3 border border-red-200 bg-red-50 rounded-lg overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-2 bg-red-100">
+            <XCircle size={14} className="text-red-600" />
+            <span className="text-sm font-medium text-red-800">Chart Error</span>
+          </div>
+          <div className="p-3">
+            <p className="text-sm text-red-700">{part.errorText || 'Failed to render chart'}</p>
+          </div>
+        </div>
+      );
+    }
+
+    // Output available
+    if (part.state === 'output-available') {
+      const result = part.output as RenderChartToolOutput;
+
+      if (!result.success) {
+        return (
+          <div key={idx} className="mt-3 border border-red-200 bg-red-50 rounded-lg overflow-hidden">
+            <div className="flex items-center gap-2 px-3 py-2 bg-red-100">
+              <XCircle size={14} className="text-red-600" />
+              <span className="text-sm font-medium text-red-800">Chart Error</span>
+            </div>
+            <div className="p-3">
+              <p className="text-sm text-red-700">{result.error}</p>
+            </div>
+          </div>
+        );
+      }
+
+      // Success state - render chart
+      const chartData = {
+        columns: result.data?.columns || [],
+        rows: result.data?.rows || [],
+        row_count: result.data?.row_count || 0,
+        truncated: result.wasTruncated || false,
+        timing: { elapsed_seconds: 0, elapsed_formatted: '0ms' },
+      };
+
+      const chartTypeLabel = {
+        bar: 'Bar Chart',
+        line: 'Line Chart',
+        pie: 'Pie Chart',
+        metric: 'Metric',
+      }[result.chartType || 'bar'];
+
+      return (
+        <div key={idx} className="mt-3 border border-emerald-200 bg-emerald-50 rounded-lg overflow-hidden">
+          {/* Header */}
+          <button
+            onClick={() => toggleBlockExpanded(part.toolCallId)}
+            className="flex items-center gap-2 w-full px-3 py-2 bg-emerald-100 hover:bg-emerald-200 text-left"
+          >
+            {isExpanded ? <ChevronDown size={14} className="text-emerald-600" /> : <ChevronRight size={14} className="text-emerald-600" />}
+            <BarChart3 size={14} className="text-emerald-600" />
+            <span className="text-sm font-medium text-emerald-800">
+              {result.title || chartTypeLabel}
+            </span>
+            <span className="text-xs text-emerald-600 ml-auto">
+              {result.data?.row_count || 0} data points
+              {result.wasTruncated && ` (truncated from ${result.originalRowCount})`}
+            </span>
+          </button>
+
+          {/* Chart content */}
+          {isExpanded && (
+            <div className="p-4 bg-white">
+              {result.chartType === 'bar' && (
+                <BarChartViz
+                  data={chartData}
+                  title={result.title}
+                  xAxisLabel={result.xAxisLabel}
+                  yAxisLabel={result.yAxisLabel}
+                />
+              )}
+              {result.chartType === 'line' && (
+                <LineChartViz
+                  data={chartData}
+                  title={result.title}
+                  xAxisLabel={result.xAxisLabel}
+                  yAxisLabel={result.yAxisLabel}
+                />
+              )}
+              {result.chartType === 'pie' && (
+                <PieChartViz
+                  data={chartData}
+                  title={result.title}
+                />
+              )}
+              {result.chartType === 'metric' && (
+                <MetricCard
+                  data={chartData}
+                  title={result.title}
+                  label={result.title}
+                />
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Fallback
+    return (
+      <div key={idx} className="mt-3 border border-gray-200 bg-gray-50 rounded-lg overflow-hidden">
+        <div className="flex items-center gap-2 px-3 py-2 bg-gray-100">
+          <BarChart3 size={14} className="text-gray-600" />
+          <span className="text-sm font-medium text-gray-700">Chart</span>
+          <span className="text-xs text-gray-500 ml-auto">{part.state || 'unknown'}</span>
+        </div>
+      </div>
+    );
+  };
+
   // Render a chat message
   const renderMessage = (message: UIMessage) => {
-    const textContent = getTextContent(message);
     const isUser = message.role === 'user';
-
-    // Extract reasoning parts and combine them
-    const reasoningParts = message.parts.filter(
-      (part) => typeof part === 'object' && part !== null && 'type' in part && (part as { type: string }).type === 'reasoning'
-    ) as unknown as Array<{ type: 'reasoning'; text: string }>;
-    const combinedReasoning = reasoningParts.map(p => p.text).join('\n\n');
-
-    // Separate tool calls into successful, failed, and running
-    const toolParts = message.parts
-      .map((part, idx) => ({ part, idx }))
-      .filter(({ part }) => isToolPart(part) && getToolName(part as ToolPart) === 'querySql') as Array<{ part: ToolPart; idx: number }>;
-
-    const runningParts = toolParts.filter(({ part }) =>
-      part.state === 'input-streaming' || part.state === 'input-available'
-    );
-    const failedParts = toolParts.filter(({ part }) => {
-      if (part.state === 'output-error') return true;
-      if (part.state === 'output-available') {
-        const result = part.output as QuerySqlToolOutput;
-        return !result?.success;
-      }
-      return false;
-    });
-    const successParts = toolParts.filter(({ part }) => {
-      if (part.state !== 'output-available') return false;
-      const result = part.output as QuerySqlToolOutput;
-      return result?.success;
-    });
 
     // Get message timestamp for timing display (createdAt may exist at runtime)
     const createdAt = (message as unknown as { createdAt?: Date | string }).createdAt;
@@ -866,109 +1109,8 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
             </div>
           )}
 
-          {/* Reasoning block for thinking models */}
-          {!isUser && combinedReasoning && (
-            <ReasoningBlock reasoning={combinedReasoning} />
-          )}
-
-          {/* Text content with markdown for assistant */}
-          {textContent && (
-            isUser ? (
-              <div className="whitespace-pre-wrap">{textContent}</div>
-            ) : (
-              <CollapsibleText maxLines={3}>
-                <div className="prose prose-sm max-w-none [&>p]:mb-4 [&>ul]:mb-4 [&>ol]:mb-4 prose-pre:bg-transparent prose-pre:p-0 prose-pre:my-2 prose-code:text-orange-600 prose-code:before:content-none prose-code:after:content-none prose-table:my-0">
-                  <Markdown
-                    remarkPlugins={[remarkGfm, remarkBreaks]}
-                    components={{
-                      // Wrap tables in scrollable container
-                      table: ({ children }) => (
-                        <div className="overflow-x-auto -mx-4 px-4">
-                          <table className="min-w-full">{children}</table>
-                        </div>
-                      ),
-                      // Style table cells nicely
-                      th: ({ children }) => (
-                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 bg-gray-50 border-b">{children}</th>
-                      ),
-                      td: ({ children }) => (
-                        <td className="px-3 py-2 text-sm border-b border-gray-100 whitespace-nowrap">{children}</td>
-                      ),
-                      // Use Monaco for code blocks
-                      code: (props) => {
-                        const { className, children, node, ...rest } = props as { className?: string; children?: React.ReactNode; node?: unknown;[key: string]: unknown };
-                        const match = /language-(\w+)/.exec(className || '');
-                        const code = String(children).replace(/\n$/, '');
-
-                        // If it's a code block with language or multiline, use Monaco
-                        if (match || code.includes('\n')) {
-                          const language = match?.[1] || 'plaintext';
-                          const lineCount = code.split('\n').length;
-                          const height = Math.min(Math.max(lineCount * 19 + 10, 40), 240);
-
-                          return (
-                            <div className="rounded overflow-hidden border not-prose my-2">
-                              <Editor
-                                height={`${height}px`}
-                                language={language === 'sql' ? 'sql' : language}
-                                value={code}
-                                theme="vs"
-                                options={{
-                                  readOnly: true,
-                                  minimap: { enabled: false },
-                                  fontSize: 11,
-                                  lineNumbers: 'off',
-                                  scrollBeyondLastLine: false,
-                                  wordWrap: 'on',
-                                  automaticLayout: true,
-                                  scrollbar: {
-                                    vertical: 'hidden',
-                                    horizontal: 'auto',
-                                  },
-                                  overviewRulerLanes: 0,
-                                  hideCursorInOverviewRuler: true,
-                                  overviewRulerBorder: false,
-                                  renderLineHighlight: 'none',
-                                  contextmenu: false,
-                                  folding: true,
-                                  lineDecorationsWidth: 0.1,
-                                  lineNumbersMinChars: 3,
-                                }}
-                              />
-                            </div>
-                          );
-                        }
-
-                        // Inline code - don't spread unknown props
-                        return (
-                          <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm font-mono text-orange-600">
-                            {children}
-                          </code>
-                        );
-                      },
-                    }}
-                  >
-                    {textContent}
-                  </Markdown>
-                </div>
-              </CollapsibleText>
-            )
-          )}
-
-          {/* Running tool calls */}
-          {runningParts.map(({ part, idx }) => renderToolCall(part, idx))}
-
-          {/* Grouped failed tool calls */}
-          {failedParts.length > 0 && <FailedToolCallsGroup failedParts={failedParts} />}
-
-          {/* Successful tool calls (skip those converted to SQL blocks) */}
-          {successParts.map(({ part, idx }) => {
-            // Skip if this tool call was converted to a SQL block
-            if (convertedToolCallsRef.current.has(part.toolCallId)) {
-              return null;
-            }
-            return renderToolCall(part, idx);
-          })}
+          {/* Render all parts inline in order */}
+          {message.parts.map((part, idx) => renderPart(part, idx, isUser))}
         </div>
       </div>
     );
@@ -1047,7 +1189,7 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
                 title="Re-run query"
               >
                 {block.isLoading ? (
-                  <Loader2 size={14} className="animate-spin" />
+                  <Spinner className="size-3.5" />
                 ) : (
                   <Play size={14} />
                 )}
@@ -1056,6 +1198,37 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
             </>
           ) : (
             <>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2"
+                    title="Example queries"
+                  >
+                    <BookOpen size={14} className="mr-1" />
+                    <span className="text-xs">Examples</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-lg max-h-[70vh] overflow-auto">
+                  <DialogHeader>
+                    <DialogTitle>Example Queries</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-2 mt-2">
+                    {EXAMPLE_QUERIES.map((example, i) => (
+                      <DialogClose key={i} asChild>
+                        <button
+                          onClick={() => updateSqlBlock(block.id, example.sql)}
+                          className="w-full text-left p-3 border rounded-lg hover:border-[var(--hn-orange)] hover:bg-orange-50 transition-colors cursor-pointer"
+                        >
+                          <div className="font-medium text-sm">{example.title}</div>
+                          <div className="text-xs text-gray-500 mt-0.5">{example.description}</div>
+                        </button>
+                      </DialogClose>
+                    ))}
+                  </div>
+                </DialogContent>
+              </Dialog>
               <Button
                 variant="ghost"
                 size="sm"
@@ -1074,7 +1247,7 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
                 className="h-7 px-2"
               >
                 {block.isLoading ? (
-                  <Loader2 size={14} className="animate-spin" />
+                  <Spinner className="size-3.5" />
                 ) : (
                   <Play size={14} />
                 )}
@@ -1281,7 +1454,7 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
           {status === 'streaming' && (
             <div className="flex justify-start">
               <div className="bg-white border shadow-sm rounded-lg p-4">
-                <Loader2 size={16} className="animate-spin text-gray-400" />
+                <Spinner className="size-4 text-gray-400" />
               </div>
             </div>
           )}
@@ -1353,7 +1526,7 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
               className="shrink-0 h-[42px]"
             >
               {status === 'streaming' ? (
-                <Loader2 size={16} className="animate-spin" />
+                <Spinner className="size-4" />
               ) : (
                 <Send size={16} />
               )}

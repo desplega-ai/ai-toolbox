@@ -1,4 +1,5 @@
 import { AlertTriangle, CheckCircle, Clock, Lightbulb, TrendingUp } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 
 // Using a flexible type since streaming returns deeply partial objects
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -7,6 +8,7 @@ type DeepPartialReport = Record<string, any>;
 interface IdeaTesterResultsProps {
   report: DeepPartialReport;
   isStreaming: boolean;
+  timing?: { startTime: Date; endTime?: Date } | null;
 }
 
 const VERDICT_CONFIG = {
@@ -15,14 +17,28 @@ const VERDICT_CONFIG = {
   challenging: { color: 'text-red-600', bg: 'bg-red-50', icon: '🔴' },
 };
 
-export function IdeaTesterResults({ report, isStreaming }: IdeaTesterResultsProps) {
+export function IdeaTesterResults({ report, isStreaming, timing }: IdeaTesterResultsProps) {
   const level = report.verdict?.level as 'strong' | 'moderate' | 'challenging' | undefined;
   const verdictConfig = level ? VERDICT_CONFIG[level] : null;
 
+  // Check if verdict has meaningful content (not just empty object from streaming)
+  // Require level, summary, AND frontPageProbability to consider verdict complete
+  const hasVerdictContent = report.verdict?.level &&
+    report.verdict?.summary &&
+    typeof report.verdict?.frontPageProbability === 'number';
+
   return (
     <div className="space-y-6">
-      {/* Verdict */}
-      {report.verdict && (
+      {/* Analyzing indicator - always at top while streaming */}
+      {isStreaming && (
+        <div className="flex items-center justify-center gap-2 py-2 text-gray-400">
+          <Spinner className="size-3.5" />
+          <span className="text-sm">Generating analysis...</span>
+        </div>
+      )}
+
+      {/* Verdict - show when we have actual content */}
+      {hasVerdictContent && (
         <div className={`p-4 rounded-lg ${verdictConfig?.bg || 'bg-gray-50'}`}>
           <div className="flex items-center gap-2 mb-2">
             <span className="text-2xl">{verdictConfig?.icon}</span>
@@ -31,20 +47,37 @@ export function IdeaTesterResults({ report, isStreaming }: IdeaTesterResultsProp
             </h2>
           </div>
           <p className="text-gray-700">{report.verdict.summary}</p>
-          <div className="mt-3 flex gap-4 text-sm">
-            <div>
-              <span className="font-medium">Front page:</span>{' '}
-              <span className={verdictConfig?.color}>{report.verdict.frontPageProbability}%</span>
+
+          {/* Front Page Probability */}
+          <div className="mt-4 p-3 bg-white/50 rounded-md">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="font-medium">Front page probability:</span>
+              <span className={`font-bold ${verdictConfig?.color}`}>{report.verdict.frontPageProbability}%</span>
             </div>
-            {report.verdict.expectedScoreRange && (
-              <div>
-                <span className="font-medium">Expected score:</span>{' '}
-                {report.verdict.expectedScoreRange.low === report.verdict.expectedScoreRange.high
-                  ? `~${report.verdict.expectedScoreRange.median ?? report.verdict.expectedScoreRange.low}`
-                  : `${report.verdict.expectedScoreRange.low} - ${report.verdict.expectedScoreRange.high}`}
-              </div>
+            {report.verdict.frontPageReasoning && (
+              <p className="text-sm text-gray-600">{report.verdict.frontPageReasoning}</p>
             )}
           </div>
+
+          {/* Expected Score */}
+          {report.verdict.expectedScoreRange && (
+            <div className="mt-3 p-3 bg-white/50 rounded-md">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="font-medium">Expected score:</span>
+                <span className="font-bold text-gray-700">
+                  {report.verdict.expectedScoreRange.low === report.verdict.expectedScoreRange.high
+                    ? `~${report.verdict.expectedScoreRange.median ?? report.verdict.expectedScoreRange.low}`
+                    : `${report.verdict.expectedScoreRange.low} - ${report.verdict.expectedScoreRange.high}`}
+                </span>
+                {report.verdict.expectedScoreRange.median && (
+                  <span className="text-sm text-gray-500">(median: {report.verdict.expectedScoreRange.median})</span>
+                )}
+              </div>
+              {report.verdict.expectedScoreReasoning && (
+                <p className="text-sm text-gray-600">{report.verdict.expectedScoreReasoning}</p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -186,12 +219,16 @@ export function IdeaTesterResults({ report, isStreaming }: IdeaTesterResultsProp
         </div>
       )}
 
-      {/* Loading indicator */}
-      {isStreaming && (
-        <div className="text-center text-gray-500 text-sm">
-          <span className="animate-pulse">Analyzing...</span>
+      {/* Generation timing info */}
+      {timing && !isStreaming && (
+        <div className="text-xs text-gray-400 text-center pt-4 border-t border-gray-100">
+          Generated at {timing.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          {timing.endTime && (
+            <> · {((timing.endTime.getTime() - timing.startTime.getTime()) / 1000).toFixed(1)}s</>
+          )}
         </div>
       )}
+
     </div>
   );
 }

@@ -83,7 +83,27 @@ Format your responses using Markdown for readability:
 - Use \`inline code\` for column names, table names, or SQL snippets
 - Use code blocks with \`\`\`sql for multi-line SQL examples
 - Avoid using headings (##, ###) unless the response covers multiple distinct topics
-- Keep responses concise and well-structured`;
+- Keep responses concise and well-structured
+
+## Chart Visualization (MANDATORY FOR AGGREGATE DATA!)
+**You MUST call renderChart after querySql** when the data contains aggregations (GROUP BY, COUNT, SUM, AVG) or time-series data. This is not optional.
+
+**Workflow - ALWAYS follow these steps:**
+1. Call querySql to get data
+2. If query has GROUP BY or aggregation → IMMEDIATELY call renderChart (don't skip this!)
+3. Then provide brief text summary
+
+**When querySql returns, extract columns and fullData.rows to pass to renderChart:**
+- querySql returns: { columns: ["type", "count"], fullData: { rows: [["story", 100], ["comment", 200]] } }
+- You then call: renderChart({ data: { columns: ["type", "count"], rows: [["story", 100], ["comment", 200]] }, chartType: "bar", title: "Posts by Type" })
+
+**Chart type selection:**
+- **bar**: Any GROUP BY with counts/sums (e.g., posts by type, users by karma)
+- **line**: Data ordered by date/time (e.g., posts per day, monthly trends)
+- **pie**: Small categorical breakdowns (2-8 categories, good for distributions)
+- **metric**: Single value results (total count, average)
+
+**CRITICAL: After ANY query with GROUP BY, COUNT, SUM, or AVG - you MUST call renderChart. Do not just list the numbers in text.**`;
 
   if (sqlBlocks && sqlBlocks.length > 0) {
     // Show full SQL for each block so LLM can understand and reuse them
