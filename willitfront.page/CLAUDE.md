@@ -109,3 +109,31 @@ bun --hot ./index.ts
 ```
 
 For more information, read the Bun API docs in `node_modules/bun-types/docs/**.md`.
+
+## Vercel Serverless Functions
+
+This project deploys to Vercel with serverless functions in the `api/` folder.
+
+**Important:** Serverless functions in `api/*.ts` CANNOT import from `src/` - Vercel bundles them separately and module resolution fails at runtime.
+
+Use `api/_lib/` for shared code between API routes:
+- Files with `_` prefix are NOT exposed as routes
+- They ARE bundled with the route files that import them
+- Import with relative paths: `import { foo } from './_lib/foo'`
+
+Structure:
+```
+api/
+  _lib/           # Shared code (not routes)
+    constants.ts
+    gateway.ts
+    systemPrompt.ts
+    querySqlTool.ts
+  chat.ts         # Route: POST /api/chat
+  models.ts       # Route: GET /api/models
+  query.ts        # Route: POST /api/query
+  schema.ts       # Route: GET /api/schema
+  health.ts       # Route: GET /api/health
+```
+
+The local dev server (`index.ts`) uses `src/server/` for handlers - that's fine because Bun resolves imports differently. But the Vercel functions must be self-contained within `api/`.

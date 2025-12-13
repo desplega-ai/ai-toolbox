@@ -1,10 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import {
-  gateway,
-  isModelAllowed,
-  updateAllowedModelIds,
-  type GatewayModel,
-} from '../src/server/gateway';
+import { gateway, isModelAllowed, type GatewayModel } from './_lib/gateway';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -27,8 +22,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const filteredModels = result.models.filter((model: GatewayModel) =>
       showAll || isModelAllowed(model)
     );
-
-    updateAllowedModelIds(result.models);
 
     const models = filteredModels.map((model: GatewayModel) => {
       const inputPriceMTok = model.pricing
