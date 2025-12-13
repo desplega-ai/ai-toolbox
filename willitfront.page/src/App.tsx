@@ -4,13 +4,15 @@ import { TabBar } from '@/components/tabs/TabBar';
 import { ChatNotebookTab } from '@/components/notebook/ChatNotebookTab';
 import { DashboardTab } from '@/components/tabs/DashboardTab';
 import { IdeaTesterTab } from '@/components/tabs/IdeaTesterTab';
+import { ApiDocsTab } from '@/components/tabs/ApiDocsTab';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { MessageSquare, BarChart3, Lightbulb, Shield, Github, Database } from 'lucide-react';
+import { MessageSquare, BarChart3, Lightbulb, Shield, Github, Database, FileCode } from 'lucide-react';
 
 const QUICK_ACTIONS = [
   { type: 'notebook' as const, title: 'Chat Analysis', description: 'Ask questions about HN data using natural language', icon: MessageSquare, disabled: false },
   { type: 'dashboard' as const, title: 'Analytics', description: 'Dashboards with key metrics and insights', icon: BarChart3, disabled: false },
   { type: 'idea-tester' as const, title: 'Post Tester', description: 'Test your post titles before submitting', icon: Lightbulb, disabled: false },
+  { type: 'api-docs' as const, title: 'API Docs', description: 'View available API endpoints and usage examples', icon: FileCode, disabled: false },
 ];
 
 function App() {
@@ -18,8 +20,8 @@ function App() {
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      // Only confirm if there are tabs with user data (not dashboard)
-      const hasDataTabs = tabs.some(t => t.type !== 'dashboard');
+      // Only confirm if there are tabs with user data (not singleton tabs like dashboard/api-docs)
+      const hasDataTabs = tabs.some(t => t.type !== 'dashboard' && t.type !== 'api-docs');
       if (hasDataTabs) {
         e.preventDefault();
         return '';
@@ -46,6 +48,8 @@ function App() {
             <ChatNotebookTab key={activeTab.id} tab={activeTab} onUpdate={(u) => updateTab(activeTab.id, u)} />
           ) : activeTab.type === 'dashboard' ? (
             <DashboardTab />
+          ) : activeTab.type === 'api-docs' ? (
+            <ApiDocsTab />
           ) : (
             <IdeaTesterTab key={activeTab.id} tab={activeTab} onUpdate={(u) => updateTab(activeTab.id, u)} />
           )
@@ -53,7 +57,7 @@ function App() {
           <div className="flex flex-col items-center justify-center p-4 sm:p-8 py-8 min-h-full">
             <h1 className="text-3xl sm:text-4xl font-bold mb-2 text-center">Will it front page?</h1>
             <p className="text-gray-500 mb-6 sm:mb-8 text-center text-sm sm:text-base max-w-lg">Analyze what makes content go viral. Currently featuring Hacker News data, with Product Hunt and more coming soon.</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 max-w-4xl w-full">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 max-w-5xl w-full">
               {QUICK_ACTIONS.map((action) => (
                 <Card
                   key={action.title}

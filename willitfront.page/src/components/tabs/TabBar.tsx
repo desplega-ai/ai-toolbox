@@ -73,7 +73,8 @@ export function TabBar({ tabs, activeTabId, onTabSelect, onTabClose, onTabRename
 
   const handleCloseClick = (e: React.MouseEvent, tab: Tab) => {
     e.stopPropagation();
-    if (tab.type === 'dashboard') {
+    // Singleton tabs (dashboard, api-docs) close without confirmation since they have no user data
+    if (tab.type === 'dashboard' || tab.type === 'api-docs') {
       onTabClose(tab.id);
     } else {
       setTabToClose(tab);

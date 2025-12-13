@@ -10,6 +10,7 @@ import {
   handleAnalyzeIdea,
   handleGenerateTitle,
   handleFeedback,
+  handleOpenApi,
 } from './src/server/handlers';
 
 Bun.serve({
@@ -56,6 +57,10 @@ Bun.serve({
 
     '/api/feedback': {
       POST: handleFeedback,
+    },
+
+    '/api/openapi': {
+      GET: handleOpenApi,
     },
 
     // Serve static files from public directory

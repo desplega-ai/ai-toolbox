@@ -190,6 +190,17 @@ export async function handleStatsTypes(): Promise<Response> {
   }
 }
 
+// OpenAPI spec proxy handler
+export async function handleOpenApi(): Promise<Response> {
+  try {
+    const response = await fetch(`${HN_SQL_API}/openapi.json`);
+    return Response.json(await response.json());
+  } catch (error) {
+    console.error('OpenAPI spec error:', error);
+    return Response.json({ error: 'Failed to fetch OpenAPI spec' }, { status: 500 });
+  }
+}
+
 // Idea Tester handler
 const DEFAULT_SYNTHESIS_MODEL = 'google/gemini-2.5-flash';
 const TITLE_MODEL = 'google/gemini-2.5-flash-lite';

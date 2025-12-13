@@ -12,12 +12,12 @@ export function useTabs() {
   });
 
   const createTab = useCallback((type: TabType, title?: string, dashboardId?: string) => {
-    // For dashboard, reuse existing tab if one exists
-    if (type === 'dashboard') {
-      const existingDashboard = state.tabs.find(t => t.type === 'dashboard');
-      if (existingDashboard) {
-        setState((prev) => ({ ...prev, activeTabId: existingDashboard.id }));
-        return existingDashboard.id;
+    // For singleton tabs (dashboard, api-docs), reuse existing tab if one exists
+    if (type === 'dashboard' || type === 'api-docs') {
+      const existing = state.tabs.find(t => t.type === type);
+      if (existing) {
+        setState((prev) => ({ ...prev, activeTabId: existing.id }));
+        return existing.id;
       }
     }
 
@@ -27,6 +27,7 @@ export function useTabs() {
       title: title || (
         type === 'notebook' ? 'New Chat' :
         type === 'dashboard' ? 'Dashboard' :
+        type === 'api-docs' ? 'API Docs' :
         'Post Tester'
       ),
       defaultModel: type === 'notebook' ? DEFAULT_MODEL : undefined,

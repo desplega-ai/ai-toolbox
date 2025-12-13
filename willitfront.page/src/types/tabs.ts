@@ -1,4 +1,4 @@
-export type TabType = 'notebook' | 'dashboard' | 'idea-tester';
+export type TabType = 'notebook' | 'dashboard' | 'idea-tester' | 'api-docs';
 
 // Message type that matches UIMessage from @ai-sdk/react
 // We store messages in UIMessage format to avoid conversion issues
