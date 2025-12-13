@@ -1,8 +1,77 @@
-import { handleChat } from '../src/server/handlers';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { streamText, stepCountIs, convertToModelMessages } from 'ai';
+import { createQuerySqlTool } from '../src/server/tools/querySql';
+import { buildSystemPrompt, type SqlBlockInfo } from '../src/server/buildSystemPrompt';
+import { DEFAULT_MODEL } from '../src/lib/constants';
+import {
+  gateway,
+  getAllowedModelIds,
+} from '../src/server/gateway';
 
-export default async function handler(req: Request): Promise<Response> {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 });
+    return res.status(405).send('Method not allowed');
   }
-  return handleChat(req);
+
+  if (!gateway) {
+    return res.status(503).json({
+      error: 'AI Gateway not configured. Set AI_GATEWAY_API_KEY environment variable.',
+    });
+  }
+
+  const { messages, model, schema, userId, sqlBlocks } = req.body;
+  const requestedModel = model || DEFAULT_MODEL;
+
+  const allowedModelIds = await getAllowedModelIds();
+
+  if (!allowedModelIds.has(requestedModel)) {
+    return res.status(403).json({
+      error: `Model "${requestedModel}" is not allowed. Please select an approved model.`,
+    });
+  }
+
+  const querySqlTool = createQuerySqlTool(sqlBlocks as SqlBlockInfo[] | undefined);
+
+  const result = streamText({
+    model: gateway(requestedModel),
+    system: buildSystemPrompt({ schema, sqlBlocks: sqlBlocks as SqlBlockInfo[] | undefined }),
+    messages: convertToModelMessages(messages),
+    tools: {
+      querySql: querySqlTool,
+    },
+    stopWhen: stepCountIs(10),
+    providerOptions: {
+      gateway: {
+        user: userId,
+      },
+    },
+  });
+
+  // Get the streaming response and pipe it
+  const response = result.toUIMessageStreamResponse({
+    sendReasoning: true,
+  });
+
+  // Set headers for streaming
+  res.setHeader('Content-Type', response.headers.get('Content-Type') || 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  // Stream the response body
+  const reader = response.body?.getReader();
+  if (!reader) {
+    return res.status(500).json({ error: 'Failed to create stream' });
+  }
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(value);
+    }
+    res.end();
+  } catch (error) {
+    console.error('Stream error:', error);
+    res.end();
+  }
 }

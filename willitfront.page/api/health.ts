@@ -1,8 +1,9 @@
-import { handleHealth } from '../src/server/handlers';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-export default function handler(req: Request): Response {
+export default function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
-    return new Response('Method not allowed', { status: 405 });
+    return res.status(405).send('Method not allowed');
   }
-  return handleHealth();
+
+  return res.json({ status: 'ok' });
 }
