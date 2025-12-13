@@ -50,7 +50,7 @@ function App() {
             <IdeaTesterTab key={activeTab.id} tab={activeTab} onUpdate={(u) => updateTab(activeTab.id, u)} />
           )
         ) : (
-          <div className="flex flex-col items-center p-4 sm:p-8 py-8 my-auto">
+          <div className="flex flex-col items-center justify-center p-4 sm:p-8 py-8 min-h-full">
             <h1 className="text-3xl sm:text-4xl font-bold mb-2 text-center">Will it front page?</h1>
             <p className="text-gray-500 mb-6 sm:mb-8 text-center text-sm sm:text-base max-w-lg">Analyze what makes content go viral. Currently featuring Hacker News data, with Product Hunt and more coming soon.</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 max-w-4xl w-full">
