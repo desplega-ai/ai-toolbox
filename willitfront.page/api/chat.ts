@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { streamText, stepCountIs, convertToModelMessages } from 'ai';
-import { DEFAULT_MODEL } from './_lib/constants';
-import { gateway, getAllowedModelIds } from './_lib/gateway';
-import { buildSystemPrompt, type SqlBlockInfo } from './_lib/systemPrompt';
-import { createQuerySqlTool } from './_lib/querySqlTool';
+import { DEFAULT_MODEL } from '../lib/constants';
+import { gateway, getAllowedModelIds } from '../lib/gateway';
+import { buildSystemPrompt, type SqlBlockInfo } from '../lib/systemPrompt';
+import { createQuerySqlTool } from '../lib/querySqlTool';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {

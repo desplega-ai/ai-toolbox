@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { gateway, isModelAllowed, type GatewayModel } from './_lib/gateway';
+import { gateway, isModelAllowed, type GatewayModel } from '../lib/gateway';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {

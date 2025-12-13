@@ -3,17 +3,8 @@
   "installCommand": "bun install",
   "outputDirectory": "dist",
   "functions": {
-    "api/chat.ts": {
-      "includeFiles": "api/_lib/**"
-    },
-    "api/models.ts": {
-      "includeFiles": "api/_lib/**"
-    },
-    "api/query.ts": {
-      "includeFiles": "api/_lib/**"
-    },
-    "api/schema.ts": {
-      "includeFiles": "api/_lib/**"
+    "api/*.ts": {
+      "includeFiles": "lib/**"
     }
   },
   "rewrites": [
