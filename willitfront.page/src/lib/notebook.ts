@@ -1,18 +1,26 @@
-import type { NotebookBlock, Tab } from '@/types/tabs';
+// SQL Block utilities for the notebook
 
-export const generateBlockId = () => Math.random().toString(36).substr(2, 9);
-
-export function createBlock(type: 'sql' = 'sql', content = '', name = ''): NotebookBlock {
-  return {
-    id: generateBlockId(),
-    type,
-    content,
-    name,
-    collapsed: false,
+export interface SqlBlock {
+  id: string;
+  name: string; // e.g., q1, q2, etc.
+  sql: string;
+  createdAt: number; // timestamp for ordering in message flow
+  result?: {
+    columns: string[];
+    rows: unknown[][];
+    row_count: number;
+    timing: { elapsed_seconds: number; elapsed_formatted: string };
+    truncated: boolean;
   };
+  error?: string;
+  isLoading?: boolean;
+  readonly?: boolean; // AI-generated blocks are read-only
+  fromToolCallId?: string; // Link to the original tool call
 }
 
-export function generateBlockName(existingBlocks: NotebookBlock[]): string {
+export const generateBlockId = () => crypto.randomUUID();
+
+export function generateBlockName(existingBlocks: SqlBlock[]): string {
   // Find the highest existing number
   let maxNum = 0;
   for (const block of existingBlocks) {
@@ -24,6 +32,15 @@ export function generateBlockName(existingBlocks: NotebookBlock[]): string {
   return `q${maxNum + 1}`;
 }
 
+export function createBlock(existingBlocks: SqlBlock[], sql = ''): SqlBlock {
+  return {
+    id: generateBlockId(),
+    name: generateBlockName(existingBlocks),
+    sql,
+    createdAt: Date.now(),
+  };
+}
+
 /**
  * Build a SQL query with previous blocks as CTEs so they can be referenced.
  * For example, if block q1 has "SELECT * FROM users" and block q2 wants to
@@ -32,7 +49,7 @@ export function generateBlockName(existingBlocks: NotebookBlock[]): string {
  */
 export function buildQueryWithCTEs(
   currentBlockIndex: number,
-  blocks: NotebookBlock[]
+  blocks: SqlBlock[]
 ): string {
   const currentBlock = blocks[currentBlockIndex];
   if (!currentBlock) return '';
@@ -40,10 +57,10 @@ export function buildQueryWithCTEs(
   // Get all previous blocks with content
   const previousBlocks = blocks
     .slice(0, currentBlockIndex)
-    .filter((b) => b.type === 'sql' && b.content.trim());
+    .filter((b) => b.sql.trim());
 
   if (previousBlocks.length === 0) {
-    return currentBlock.content;
+    return currentBlock.sql;
   }
 
   // Check if current query references any previous block names
@@ -52,48 +69,44 @@ export function buildQueryWithCTEs(
     if (!b.name || b.name.trim() === '') return false;
     // Simple check: does the current SQL contain the block name as a word?
     const regex = new RegExp(`\\b${b.name}\\b`, 'i');
-    return regex.test(currentBlock.content);
+    return regex.test(currentBlock.sql);
   });
 
   if (referencedBlocks.length === 0) {
-    return currentBlock.content;
+    return currentBlock.sql;
   }
 
   // Build CTEs for referenced blocks
   const ctes = referencedBlocks
-    .map((b) => `${b.name} AS (${b.content.trim().replace(/;$/, '')})`)
+    .map((b) => `${b.name} AS (${b.sql.trim().replace(/;$/, '')})`)
     .join(',\n');
 
-  return `WITH ${ctes}\n${currentBlock.content}`;
+  return `WITH ${ctes}\n${currentBlock.sql}`;
 }
 
-export function migrateTabToNotebook(tab: Tab): Tab {
-  // If tab already has blocks, ensure they all have names
-  if (tab.blocks && tab.blocks.length > 0) {
-    const blocksWithNames = tab.blocks.map((block, index) => {
-      if (block.name) return block;
-      return { ...block, name: `q${index + 1}` };
-    });
-    return { ...tab, blocks: blocksWithNames };
-  }
+/**
+ * Format SQL blocks for inclusion in AI chat context.
+ * This helps the AI understand what queries have been run and their results.
+ */
+export function formatBlocksForContext(blocks: SqlBlock[]): string {
+  if (blocks.length === 0) return '';
 
-  // Migrate legacy sql field to blocks
-  if (tab.sql) {
-    return {
-      ...tab,
-      blocks: [createBlock('sql', tab.sql, 'q1')],
-      sql: undefined,
-    };
-  }
+  const blockDescriptions = blocks.map((block) => {
+    let desc = `[${block.name}]: ${block.sql.trim()}`;
+    if (block.result) {
+      desc += `\n  → ${block.result.row_count} rows`;
+      // Include first few rows as preview
+      if (block.result.rows.length > 0) {
+        const previewRows = block.result.rows.slice(0, 3);
+        const columns = block.result.columns;
+        desc += `\n  Columns: ${columns.join(', ')}`;
+        desc += `\n  Preview: ${JSON.stringify(previewRows)}`;
+      }
+    } else if (block.error) {
+      desc += `\n  → Error: ${block.error}`;
+    }
+    return desc;
+  });
 
-  // New tab with empty block
-  return {
-    ...tab,
-    blocks: [createBlock('sql', '', 'q1')],
-  };
-}
-
-export function getTabBlocks(tab: Tab): NotebookBlock[] {
-  const migrated = migrateTabToNotebook(tab);
-  return migrated.blocks || [createBlock('sql', '', 'q1')];
+  return `\n\nSQL Blocks in this notebook:\n${blockDescriptions.join('\n\n')}`;
 }

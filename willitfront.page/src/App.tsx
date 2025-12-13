@@ -1,12 +1,12 @@
 import { useTabs } from '@/hooks/useTabs';
 import { TabBar } from '@/components/tabs/TabBar';
-import { NotebookQueryTab } from '@/components/notebook/NotebookQueryTab';
+import { ChatNotebookTab } from '@/components/notebook/ChatNotebookTab';
 import { DashboardTab } from '@/components/tabs/DashboardTab';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Database, BarChart3, Lightbulb } from 'lucide-react';
+import { MessageSquare, BarChart3, Lightbulb } from 'lucide-react';
 
 const QUICK_ACTIONS = [
-  { type: 'query' as const, title: 'Notebook', description: 'Interactive analysis with SQL (more languages coming soon)', icon: Database, disabled: false },
+  { type: 'notebook' as const, title: 'Chat Analysis', description: 'Ask questions about HN data using natural language', icon: MessageSquare, disabled: false },
   { type: 'dashboard' as const, title: 'Analytics', description: 'Dashboards with key metrics and insights', icon: BarChart3, disabled: false },
   { type: null, title: 'Post Tester', description: 'Test your post titles before submitting', icon: Lightbulb, disabled: true },
 ];
@@ -27,8 +27,8 @@ function App() {
 
       <main className="flex-1 overflow-hidden">
         {activeTab ? (
-          activeTab.type === 'query' ? (
-            <NotebookQueryTab key={activeTab.id} tab={activeTab} onUpdate={(u) => updateTab(activeTab.id, u)} />
+          activeTab.type === 'notebook' ? (
+            <ChatNotebookTab key={activeTab.id} tab={activeTab} onUpdate={(u) => updateTab(activeTab.id, u)} />
           ) : (
             <DashboardTab />
           )

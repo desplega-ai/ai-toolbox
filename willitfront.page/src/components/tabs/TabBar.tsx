@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { Plus, X, RotateCcw } from 'lucide-react';
-import faviconUrl from '../../../public/favicon-32x32.png';
+
+// Served via static route in index.ts
+const faviconUrl = '/public/favicon-32x32.png';
 import {
   Dialog,
   DialogContent,

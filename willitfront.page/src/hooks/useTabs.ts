@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useLocalStorage } from './useLocalStorage';
+import { DEFAULT_MODEL } from '@/lib/constants';
 import type { Tab, TabsState, TabType } from '@/types/tabs';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -14,8 +15,9 @@ export function useTabs() {
     const newTab: Tab = {
       id: generateId(),
       type,
-      title: title || (type === 'query' ? 'New Query' : 'Dashboard'),
-      sql: type === 'query' ? '' : undefined,
+      title: title || (type === 'notebook' ? 'New Chat' : 'Dashboard'),
+      defaultModel: type === 'notebook' ? DEFAULT_MODEL : undefined,
+      messages: type === 'notebook' ? [] : undefined,
       dashboardId: type === 'dashboard' ? dashboardId : undefined,
     };
     setState((prev) => ({
@@ -47,7 +49,16 @@ export function useTabs() {
   }, [setState]);
 
   const resetTabs = useCallback(() => {
+    // Clear tabs state
     setState({ tabs: [], activeTabId: null });
+
+    // Clear all app-related localStorage
+    const keysToRemove = Object.keys(localStorage).filter(key =>
+      key.startsWith('hn-') ||
+      key.startsWith('ai-gateway:') ||
+      key.startsWith('queryResults:')
+    );
+    keysToRemove.forEach(key => localStorage.removeItem(key));
   }, [setState]);
 
   return {

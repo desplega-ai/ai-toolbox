@@ -44,3 +44,49 @@ export interface StatsTypesResponse {
 export interface StatsUsersResponse {
   users: Array<{ by: string; count: number }>;
 }
+
+// Chat types
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  model?: string;
+  toolCalls?: ToolCall[];
+}
+
+export interface ToolCall {
+  id: string;
+  toolName: string;
+  input: unknown;
+  output?: unknown;
+  blockId?: string;
+}
+
+export interface QuerySqlToolResult {
+  success: boolean;
+  error?: string;
+  blockId?: string;
+  sql: string;
+  columns?: string[];
+  preview?: {
+    rows: unknown[][];
+    rowCount: number;
+  };
+  fullData?: {
+    rows: unknown[][];
+    rowCount: number;
+  };
+  timing?: {
+    elapsed_seconds: number;
+    elapsed_formatted: string;
+  };
+  isTruncated?: boolean;
+}
+
+export interface Model {
+  id: string;
+  name: string;
+  description?: string;
+  provider: string;
+}
