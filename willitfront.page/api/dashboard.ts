@@ -1,14 +1,16 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { HN_SQL_API } from '../../lib/constants';
+import { HN_SQL_API } from '../lib/constants';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
     return res.status(405).send('Method not allowed');
   }
 
-  // Get the path segments after /api/dashboard/
-  const pathSegments = req.query.path;
-  const path = Array.isArray(pathSegments) ? pathSegments.join('/') : pathSegments || '';
+  // Get the subpath from query param (e.g., ?path=overview/total-stories)
+  const subpath = req.query.path;
+  if (!subpath || typeof subpath !== 'string') {
+    return res.status(400).json({ error: 'Missing path parameter' });
+  }
 
   // Build query string from remaining query params
   const queryParams = new URLSearchParams();
@@ -18,7 +20,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
   const queryString = queryParams.toString();
-  const url = `${HN_SQL_API}/dashboard/${path}${queryString ? `?${queryString}` : ''}`;
+  const url = `${HN_SQL_API}/dashboard/${subpath}${queryString ? `?${queryString}` : ''}`;
 
   try {
     const response = await fetch(url, {

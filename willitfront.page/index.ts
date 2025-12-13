@@ -38,7 +38,7 @@ Bun.serve({
       GET: handleStatsTypes,
     },
 
-    '/api/dashboard/*': {
+    '/api/dashboard': {
       GET: handleDashboard,
     },
 

@@ -58,41 +58,41 @@ export const api = {
   health: (): Promise<{ status: string }> =>
     request<{ status: string }>('/health'),
 
-  // Dashboard endpoints (proxied through /api/dashboard/*)
+  // Dashboard endpoints (proxied through /api/dashboard?path=...)
   dashboard: {
     // Overview metrics
     totalStories: (): Promise<MetricResponse> =>
-      dashboardRequest<MetricResponse>('/dashboard/overview/total-stories'),
+      dashboardRequest<MetricResponse>('/dashboard?path=overview/total-stories'),
     totalComments: (): Promise<MetricResponse> =>
-      dashboardRequest<MetricResponse>('/dashboard/overview/total-comments'),
+      dashboardRequest<MetricResponse>('/dashboard?path=overview/total-comments'),
     uniqueUsers: (): Promise<MetricResponse> =>
-      dashboardRequest<MetricResponse>('/dashboard/overview/unique-users'),
+      dashboardRequest<MetricResponse>('/dashboard?path=overview/unique-users'),
     lastSynced: (): Promise<MetricResponse> =>
-      dashboardRequest<MetricResponse>('/dashboard/overview/last-synced'),
+      dashboardRequest<MetricResponse>('/dashboard?path=overview/last-synced'),
 
     // Content
     mostDiscussed: (limit = 20): Promise<DashboardTableResponse> =>
-      dashboardRequest<DashboardTableResponse>(`/dashboard/content/most-discussed?limit=${limit}`),
+      dashboardRequest<DashboardTableResponse>(`/dashboard?path=content/most-discussed&limit=${limit}`),
 
     // Users
     topAuthors: (limit = 20): Promise<DashboardTableResponse> =>
-      dashboardRequest<DashboardTableResponse>(`/dashboard/users/top-authors?limit=${limit}`),
+      dashboardRequest<DashboardTableResponse>(`/dashboard?path=users/top-authors&limit=${limit}`),
     activeCommenters: (limit = 20): Promise<DashboardChartResponse> =>
-      dashboardRequest<DashboardChartResponse>(`/dashboard/users/active-commenters?limit=${limit}`),
+      dashboardRequest<DashboardChartResponse>(`/dashboard?path=users/active-commenters&limit=${limit}`),
 
     // Domains
     topDomains: (limit = 20): Promise<DashboardTableResponse> =>
-      dashboardRequest<DashboardTableResponse>(`/dashboard/domains/top-domains?limit=${limit}`),
+      dashboardRequest<DashboardTableResponse>(`/dashboard?path=domains/top-domains&limit=${limit}`),
     bestDomains: (limit = 20, minPosts = 3): Promise<DashboardChartResponse> =>
-      dashboardRequest<DashboardChartResponse>(`/dashboard/domains/best-domains?limit=${limit}&min_posts=${minPosts}`),
+      dashboardRequest<DashboardChartResponse>(`/dashboard?path=domains/best-domains&limit=${limit}&min_posts=${minPosts}`),
 
     // Activity
     postsByHour: (): Promise<DashboardChartResponse> =>
-      dashboardRequest<DashboardChartResponse>('/dashboard/activity/posts-by-hour'),
+      dashboardRequest<DashboardChartResponse>('/dashboard?path=activity/posts-by-hour'),
     postsByDay: (): Promise<DashboardChartResponse> =>
-      dashboardRequest<DashboardChartResponse>('/dashboard/activity/posts-by-day'),
+      dashboardRequest<DashboardChartResponse>('/dashboard?path=activity/posts-by-day'),
     timeline: (): Promise<DashboardChartResponse> =>
-      dashboardRequest<DashboardChartResponse>('/dashboard/activity/timeline'),
+      dashboardRequest<DashboardChartResponse>('/dashboard?path=activity/timeline'),
 
     // Stats (existing endpoint)
     itemsByType: (): Promise<DashboardChartResponse> =>

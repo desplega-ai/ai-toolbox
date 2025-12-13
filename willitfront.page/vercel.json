@@ -4,7 +4,7 @@
   "outputDirectory": "dist",
   "bunVersion": "1.x",
   "functions": {
-    "api/**/*.ts": {
+    "api/**": {
       "includeFiles": "lib/**"
     }
   },

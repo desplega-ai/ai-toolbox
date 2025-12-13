@@ -126,12 +126,24 @@ export function handleHealth(): Response {
   return Response.json({ status: 'ok' });
 }
 
-// Dashboard proxy handler - proxies /api/dashboard/* to HN_SQL_API/dashboard/*
+// Dashboard proxy handler - proxies /api/dashboard?path=... to HN_SQL_API/dashboard/...
 export async function handleDashboard(req: Request): Promise<Response> {
   const url = new URL(req.url);
-  // Extract path after /api/dashboard/
-  const dashboardPath = url.pathname.replace('/api/dashboard/', '');
-  const targetUrl = `${HN_SQL_API}/dashboard/${dashboardPath}${url.search}`;
+  const subpath = url.searchParams.get('path');
+
+  if (!subpath) {
+    return Response.json({ error: 'Missing path parameter' }, { status: 400 });
+  }
+
+  // Build query string from remaining params (excluding 'path')
+  const queryParams = new URLSearchParams();
+  for (const [key, value] of url.searchParams.entries()) {
+    if (key !== 'path') {
+      queryParams.set(key, value);
+    }
+  }
+  const queryString = queryParams.toString();
+  const targetUrl = `${HN_SQL_API}/dashboard/${subpath}${queryString ? `?${queryString}` : ''}`;
 
   try {
     const response = await fetch(targetUrl, {
