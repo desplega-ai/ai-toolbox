@@ -45,6 +45,7 @@
     "react-dom": "^19.2.3",
     "react-markdown": "^10.1.0",
     "recharts": "^3.5.1",
+    "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
     "sql-formatter": "^15.6.11",
     "tailwind-merge": "^3.4.0",

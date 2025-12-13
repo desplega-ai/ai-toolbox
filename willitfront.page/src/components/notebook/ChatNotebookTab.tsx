@@ -4,6 +4,7 @@ import { DefaultChatTransport, isTextUIPart } from 'ai';
 import { format } from 'sql-formatter';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 import Editor from '@monaco-editor/react';
 import { Button } from '@/components/ui/button';
 import { ModelSelector } from '@/components/ModelSelector';
@@ -489,6 +490,11 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
       createdAt: Date.now(),
     };
     setSqlBlockPositions(prev => [...prev, { block: newBlock, afterMessageCount: currentMessageCount }]);
+
+    // Scroll to bottom after the new block is added
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
   }, [sqlBlockPositions]);
 
   const toggleBlockExpanded = useCallback((blockId: string) => {
@@ -538,12 +544,35 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
     onUpdate({ defaultModel: model });
   }, [onUpdate]);
 
+  // Preprocess text to handle escaped newlines and HTML
+  const preprocessText = (text: string): string => {
+    return text
+      // Convert literal \n to actual newlines
+      .replace(/\\n/g, '\n')
+      // Convert <p> tags to double newlines
+      .replace(/<p>/gi, '\n\n')
+      .replace(/<\/p>/gi, '')
+      // Convert <br> tags to newlines
+      .replace(/<br\s*\/?>/gi, '\n')
+      // Convert <a> tags to markdown links
+      .replace(/<a[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/gi, '[$2]($1)')
+      // Decode common HTML entities
+      .replace(/&quot;/g, '"')
+      .replace(/&#x27;/g, "'")
+      .replace(/&#39;/g, "'")
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&nbsp;/g, ' ');
+  };
+
   // Extract text content from message parts
   const getTextContent = (message: UIMessage): string => {
-    return message.parts
+    const raw = message.parts
       .filter(isTextUIPart)
       .map(part => part.text)
       .join('');
+    return preprocessText(raw);
   };
 
   // Get SQL blocks that appear before a given block (for CTE reference hints)
@@ -772,7 +801,7 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
             ) : (
               <div className="prose prose-sm max-w-none prose-pre:bg-transparent prose-pre:p-0 prose-pre:my-2 prose-code:text-orange-600 prose-code:before:content-none prose-code:after:content-none prose-table:my-0">
                 <Markdown
-                  remarkPlugins={[remarkGfm]}
+                  remarkPlugins={[remarkGfm, remarkBreaks]}
                   components={{
                     // Wrap tables in scrollable container
                     table: ({ children }) => (
@@ -947,15 +976,6 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
                   <Play size={14} />
                 )}
                 <span className="ml-1">Re-run</span>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => deleteSqlBlock(block.id)}
-                className="h-7 px-2 text-gray-400 hover:text-red-500"
-                title="Remove block"
-              >
-                <Trash2 size={14} />
               </Button>
             </>
           ) : (
