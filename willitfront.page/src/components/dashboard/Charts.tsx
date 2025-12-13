@@ -133,7 +133,7 @@ export function LineChartViz({ data, title, xAxisLabel, yAxisLabel }: ChartProps
   );
 }
 
-export function MetricCard({ data, label, title }: ChartProps & { label?: string }) {
+export function MetricCard({ data, label, title, showTiming }: ChartProps & { label?: string; showTiming?: boolean }) {
   const rows = data?.rows ?? [];
   const value = rows[0]?.[0] ?? 0;
 
@@ -157,11 +157,16 @@ export function MetricCard({ data, label, title }: ChartProps & { label?: string
   const displayLabel = title || label;
 
   return (
-    <div className="bg-white p-6 rounded-lg border text-center h-full flex flex-col justify-center">
-      <div className={`font-bold text-[var(--hn-orange)] ${isDate ? 'text-lg' : 'text-4xl'}`}>
+    <div className="bg-white p-4 sm:p-6 rounded-lg border text-center h-full flex flex-col justify-center relative">
+      <div className={`font-bold text-[var(--hn-orange)] ${isDate ? 'text-base sm:text-lg' : 'text-2xl sm:text-4xl'}`}>
         {displayValue}
       </div>
-      {displayLabel && <div className="text-gray-500 mt-1">{displayLabel}</div>}
+      {displayLabel && <div className="text-gray-500 mt-1 text-sm sm:text-base">{displayLabel}</div>}
+      {showTiming && data.timing && (
+        <div className="absolute bottom-1 right-2 text-[10px] text-gray-400">
+          {data.timing.elapsed_formatted}
+        </div>
+      )}
     </div>
   );
 }

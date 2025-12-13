@@ -3,6 +3,13 @@ import { dashboards, getDashboard } from '@/lib/dashboards';
 import { DashboardPanel } from '@/components/dashboard/DashboardPanel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart3, Users, Globe, Activity, TrendingUp } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const DASHBOARD_ICONS: Record<string, typeof BarChart3> = {
   'overview': BarChart3,
@@ -26,22 +33,36 @@ export function DashboardTab() {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Internal tab bar */}
-      <div className="flex items-center border-b bg-gray-50 px-2 sm:px-4 overflow-x-auto scrollbar-hide">
+      {/* Mobile: Dropdown selector */}
+      <div className="sm:hidden border-b bg-gray-50 px-3 py-2">
+        <Select value={activeDashboardId} onValueChange={setActiveDashboardId}>
+          <SelectTrigger className="w-full bg-white">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {dashboards.map(d => (
+              <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Desktop: Internal tab bar */}
+      <div className="hidden sm:flex items-center border-b bg-gray-50 px-4 overflow-x-auto scrollbar-hide">
         {dashboards.map(d => {
           const Icon = DASHBOARD_ICONS[d.id] || BarChart3;
           return (
             <button
               key={d.id}
               onClick={() => setActiveDashboardId(d.id)}
-              className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
                 d.id === activeDashboardId
                   ? 'border-[var(--hn-orange)] text-[var(--hn-orange)]'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              <Icon size={14} className="sm:w-4 sm:h-4" />
-              <span className="hidden xs:inline sm:inline">{d.name}</span>
+              <Icon size={16} />
+              <span>{d.name}</span>
             </button>
           );
         })}

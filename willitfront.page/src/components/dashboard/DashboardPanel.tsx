@@ -123,6 +123,8 @@ export function DashboardPanel({ query }: DashboardPanelProps) {
 
   if (!data) return null;
 
+  const isMetric = query.visualization === 'metric';
+
   return (
     <div>
       {query.visualization === 'table' && (
@@ -132,8 +134,8 @@ export function DashboardPanel({ query }: DashboardPanelProps) {
       )}
       {query.visualization === 'bar' && <BarChartViz data={data} />}
       {query.visualization === 'line' && <LineChartViz data={data} />}
-      {query.visualization === 'metric' && <MetricCard data={data} label={query.metricLabel} />}
-      {data.timing && (
+      {isMetric && <MetricCard data={data} label={query.metricLabel} showTiming />}
+      {!isMetric && data.timing && (
         <div className="text-xs text-gray-400 mt-2 text-right">
           {data.timing.elapsed_formatted}
         </div>

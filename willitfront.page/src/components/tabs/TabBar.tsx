@@ -12,6 +12,13 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import type { Tab } from '@/types/tabs';
 
 interface TabBarProps {
@@ -93,12 +100,43 @@ export function TabBar({ tabs, activeTabId, onTabSelect, onTabClose, onTabRename
 
         <div className="w-px h-6 bg-orange-400 mr-2 shrink-0" />
 
-        {/* Scrollable tabs container */}
-        <div className="flex-1 flex items-center overflow-x-auto scrollbar-hide min-w-0">
+        {/* Mobile: Dropdown selector */}
+        {tabs.length > 0 && (
+          <div className="sm:hidden flex-1 min-w-0 flex items-center gap-1">
+            <Select
+              value={activeTabId || ''}
+              onValueChange={(value) => onTabSelect(value || null)}
+            >
+              <SelectTrigger className="h-7 flex-1 min-w-0 bg-orange-200 border-0 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {tabs.map(tab => (
+                  <SelectItem key={tab.id} value={tab.id}>{tab.title}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {activeTabId && (
+              <button
+                className="p-1 hover:bg-orange-600 rounded"
+                onClick={(e) => {
+                  const tab = tabs.find(t => t.id === activeTabId);
+                  if (tab) handleCloseClick(e, tab);
+                }}
+                title="Close tab"
+              >
+                <X size={14} className="text-white" />
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Desktop: Scrollable tabs container */}
+        <div className="hidden sm:flex flex-1 items-center overflow-x-auto scrollbar-hide min-w-0">
           {tabs.map(tab => (
             <div
               key={tab.id}
-              className={`flex items-center px-2 sm:px-3 py-1 mr-1 cursor-pointer rounded-t shrink-0 ${
+              className={`flex items-center px-3 py-1 mr-1 cursor-pointer rounded-t shrink-0 ${
                 tab.id === activeTabId ? 'bg-[var(--hn-bg)]' : 'bg-orange-200 hover:bg-orange-100'
               }`}
               onClick={() => onTabSelect(tab.id)}
@@ -113,17 +151,16 @@ export function TabBar({ tabs, activeTabId, onTabSelect, onTabClose, onTabRename
                   onBlur={handleSave}
                   onKeyDown={handleKeyDown}
                   onClick={(e) => e.stopPropagation()}
-                  className="text-sm w-20 sm:w-24 px-1 rounded border border-gray-300 outline-none"
+                  className="text-sm w-24 px-1 rounded border border-gray-300 outline-none"
                 />
               ) : (
-                <span className="text-xs sm:text-sm truncate max-w-20 sm:max-w-32">{tab.title}</span>
+                <span className="text-sm truncate max-w-32">{tab.title}</span>
               )}
               <button
-                className="ml-1 sm:ml-2 hover:bg-gray-200 rounded p-0.5"
+                className="ml-2 hover:bg-gray-200 rounded p-0.5"
                 onClick={(e) => handleCloseClick(e, tab)}
               >
-                <X size={12} className="sm:hidden" />
-                <X size={14} className="hidden sm:block" />
+                <X size={14} />
               </button>
             </div>
           ))}

@@ -77,17 +77,17 @@ export function ModelSelector({
 
   if (loading) {
     return (
-      <Button variant="outline" className={cn("w-full sm:w-[280px] justify-between bg-white shrink-0", className)} disabled>
-        <span className="text-muted-foreground">Loading...</span>
-        <Spinner className="size-4" />
+      <Button variant="outline" size="sm" className={cn("flex-1 sm:flex-none sm:w-[280px] sm:max-w-[280px] justify-between bg-white", className)} disabled>
+        <span className="text-muted-foreground text-xs sm:text-sm truncate">Loading...</span>
+        <Spinner className="size-3 sm:size-4 shrink-0" />
       </Button>
     );
   }
 
   if (error && models.length === 0) {
     return (
-      <Button variant="outline" className={cn("w-full sm:w-[280px] justify-between bg-white shrink-0", className)} disabled>
-        <span className="text-muted-foreground">Error loading</span>
+      <Button variant="outline" size="sm" className={cn("flex-1 sm:flex-none sm:w-[280px] sm:max-w-[280px] justify-between bg-white", className)} disabled>
+        <span className="text-muted-foreground text-xs sm:text-sm">Error</span>
       </Button>
     );
   }
@@ -97,13 +97,14 @@ export function ModelSelector({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
+          size="sm"
           role="combobox"
           aria-expanded={open}
-          className={cn("w-full sm:w-[280px] justify-between bg-white shrink-0", className)}
+          className={cn("flex-1 sm:flex-none sm:w-[280px] sm:max-w-[280px] justify-between bg-white", className)}
           disabled={disabled}
         >
-          <span className="truncate">{displayValue}</span>
-          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <span className="truncate text-xs sm:text-sm">{displayValue}</span>
+          <ChevronDown className="ml-1 sm:ml-2 h-3 w-3 sm:h-4 sm:w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[calc(100vw-2rem)] sm:w-[400px] p-0 bg-white" align="start">

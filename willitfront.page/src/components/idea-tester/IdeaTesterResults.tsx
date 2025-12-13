@@ -145,24 +145,26 @@ export function IdeaTesterResults({ report, isStreaming, timing }: IdeaTesterRes
             Similar Posts
           </h3>
           {report.similarPosts.posts && report.similarPosts.posts.length > 0 && (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-1">Title</th>
-                  <th className="text-right py-1 w-20">Score</th>
-                  <th className="text-right py-1 w-24">Comments</th>
-                </tr>
-              </thead>
-              <tbody>
-                {report.similarPosts.posts.map((p: { title?: string; score?: number; comments?: number; similarityReason?: string }, i: number) => (
-                  <tr key={i} className="border-b border-gray-100">
-                    <td className="py-1 truncate max-w-xs" title={p.title}>{p.title}</td>
-                    <td className="text-right py-1 text-orange-600">{p.score}</td>
-                    <td className="text-right py-1 text-gray-500">{p.comments}</td>
+            <div className="overflow-x-auto -mx-2 px-2">
+              <table className="w-full text-sm min-w-[320px]">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-1">Title</th>
+                    <th className="text-right py-1 w-16 sm:w-20">Score</th>
+                    <th className="text-right py-1 w-16 sm:w-24">Comments</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {report.similarPosts.posts.map((p: { title?: string; score?: number; comments?: number; similarityReason?: string }, i: number) => (
+                    <tr key={i} className="border-b border-gray-100">
+                      <td className="py-1 pr-2 break-words" title={p.title}>{p.title}</td>
+                      <td className="text-right py-1 text-orange-600">{p.score}</td>
+                      <td className="text-right py-1 text-gray-500">{p.comments}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
           {report.similarPosts.insight && (
             <p className="text-sm text-gray-600 mt-2 italic">{report.similarPosts.insight}</p>

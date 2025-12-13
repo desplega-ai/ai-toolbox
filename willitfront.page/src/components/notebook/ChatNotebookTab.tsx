@@ -453,19 +453,23 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
     prevMessageCountRef.current = messages.length;
   }, [messages.length, status]);
 
-  // Auto-expand chart results when they arrive
+  // Track which charts have been auto-expanded (to avoid re-expanding after user collapses)
+  const autoExpandedChartsRef = useRef<Set<string>>(new Set());
+
+  // Auto-expand chart results when they arrive (only once per chart)
   useEffect(() => {
     messages.forEach(msg => {
       msg.parts.forEach(part => {
         if (isToolPart(part) && getToolName(part as ToolPart) === 'renderChart') {
           const toolPart = part as ToolPart;
-          if (toolPart.state === 'output-available' && !expandedBlocks.has(toolPart.toolCallId)) {
+          if (toolPart.state === 'output-available' && !autoExpandedChartsRef.current.has(toolPart.toolCallId)) {
+            autoExpandedChartsRef.current.add(toolPart.toolCallId);
             setExpandedBlocks(prev => new Set([...prev, toolPart.toolCallId]));
           }
         }
       });
     });
-  }, [messages, expandedBlocks]);
+  }, [messages]);
 
   const handleChatSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -784,7 +788,7 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
     if (part.state === 'input-streaming' || part.state === 'input-available') {
       const input = part.input as { sql: string } | undefined;
       return (
-        <div key={idx} className="mt-3 border border-blue-200 bg-blue-50 rounded-lg overflow-hidden">
+        <div key={idx} className="my-3 border border-blue-200 bg-blue-50 rounded-lg overflow-hidden">
           <div className="flex items-center gap-2 px-3 py-2 bg-blue-100 border-b border-blue-200">
             <Clock size={14} className="text-blue-600" />
             <span className="text-sm font-medium text-blue-800">Running SQL Query</span>
@@ -806,7 +810,7 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
       const input = part.input as { sql: string } | undefined;
       const errorExpanded = expandedBlocks.has(`error-${part.toolCallId}`);
       return (
-        <div key={idx} className="mt-3 border border-red-200 bg-red-50 rounded-lg overflow-hidden">
+        <div key={idx} className="my-3 border border-red-200 bg-red-50 rounded-lg overflow-hidden">
           <button
             onClick={() => toggleBlockExpanded(`error-${part.toolCallId}`)}
             className="flex items-center gap-2 w-full px-3 py-2 bg-red-100 hover:bg-red-200 text-left"
@@ -839,7 +843,7 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
       if (!result.success) {
         const errorExpanded = expandedBlocks.has(`error-${part.toolCallId}`);
         return (
-          <div key={idx} className="mt-3 border border-red-200 bg-red-50 rounded-lg overflow-hidden">
+          <div key={idx} className="my-3 border border-red-200 bg-red-50 rounded-lg overflow-hidden">
             <button
               onClick={() => toggleBlockExpanded(`error-${part.toolCallId}`)}
               className="flex items-center gap-2 w-full px-3 py-2 bg-red-100 hover:bg-red-200 text-left"
@@ -873,11 +877,13 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
         : { columns: result.columns || [], rows: result.preview?.rows || [] };
 
       return (
-        <div key={idx} className="mt-3 border border-green-200 bg-green-50 rounded-lg overflow-hidden">
+        <div key={idx} className="my-3 border border-green-200 bg-green-50 rounded-lg overflow-hidden">
           {/* Header */}
-          <div className="flex items-center gap-2 px-3 py-2 bg-green-100 border-b border-green-200">
-            <CheckCircle size={14} className="text-green-600" />
-            <span className="text-sm font-medium text-green-800">SQL Query</span>
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 bg-green-100 border-b border-green-200">
+            <div className="flex items-center gap-2">
+              <CheckCircle size={14} className="text-green-600" />
+              <span className="text-sm font-medium text-green-800">SQL Query</span>
+            </div>
             {result.timing && (
               <span className="text-xs text-green-600 ml-auto">
                 {result.timing.elapsed_formatted}
@@ -927,7 +933,7 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
     const output = part.output as QuerySqlToolOutput | undefined;
 
     return (
-      <div key={idx} className="mt-3 border border-gray-200 bg-gray-50 rounded-lg overflow-hidden">
+      <div key={idx} className="my-3 border border-gray-200 bg-gray-50 rounded-lg overflow-hidden">
         <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 border-b border-gray-200">
           <Database size={14} className="text-gray-600" />
           <span className="text-sm font-medium text-gray-700">SQL Query</span>
@@ -954,7 +960,7 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
     // Running state
     if (part.state === 'input-streaming' || part.state === 'input-available') {
       return (
-        <div key={idx} className="mt-3 border border-blue-200 bg-blue-50 rounded-lg overflow-hidden">
+        <div key={idx} className="my-3 border border-blue-200 bg-blue-50 rounded-lg overflow-hidden">
           <div className="flex items-center gap-2 px-3 py-2 bg-blue-100 border-b border-blue-200">
             <BarChart3 size={14} className="text-blue-600" />
             <span className="text-sm font-medium text-blue-800">Rendering Chart</span>
@@ -967,7 +973,7 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
     // Error state
     if (part.state === 'output-error') {
       return (
-        <div key={idx} className="mt-3 border border-red-200 bg-red-50 rounded-lg overflow-hidden">
+        <div key={idx} className="my-3 border border-red-200 bg-red-50 rounded-lg overflow-hidden">
           <div className="flex items-center gap-2 px-3 py-2 bg-red-100">
             <XCircle size={14} className="text-red-600" />
             <span className="text-sm font-medium text-red-800">Chart Error</span>
@@ -985,7 +991,7 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
 
       if (!result.success) {
         return (
-          <div key={idx} className="mt-3 border border-red-200 bg-red-50 rounded-lg overflow-hidden">
+          <div key={idx} className="my-3 border border-red-200 bg-red-50 rounded-lg overflow-hidden">
             <div className="flex items-center gap-2 px-3 py-2 bg-red-100">
               <XCircle size={14} className="text-red-600" />
               <span className="text-sm font-medium text-red-800">Chart Error</span>
@@ -1014,7 +1020,7 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
       }[result.chartType || 'bar'];
 
       return (
-        <div key={idx} className="mt-3 border border-emerald-200 bg-emerald-50 rounded-lg overflow-hidden">
+        <div key={idx} className="my-3 border border-emerald-200 bg-emerald-50 rounded-lg overflow-hidden">
           {/* Header */}
           <button
             onClick={() => toggleBlockExpanded(part.toolCallId)}
@@ -1071,7 +1077,7 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
 
     // Fallback
     return (
-      <div key={idx} className="mt-3 border border-gray-200 bg-gray-50 rounded-lg overflow-hidden">
+      <div key={idx} className="my-3 border border-gray-200 bg-gray-50 rounded-lg overflow-hidden">
         <div className="flex items-center gap-2 px-3 py-2 bg-gray-100">
           <BarChart3 size={14} className="text-gray-600" />
           <span className="text-sm font-medium text-gray-700">Chart</span>
@@ -1133,136 +1139,144 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
           }`}
       >
         {/* Block header */}
-        <div className={`flex items-center gap-2 px-3 py-2 border-b ${isReadonly ? 'bg-purple-100/50 border-purple-200' : 'bg-gray-50'
+        <div className={`flex flex-wrap items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 border-b ${isReadonly ? 'bg-purple-100/50 border-purple-200' : 'bg-gray-50'
           }`}>
-          <span className={`text-xs font-medium font-mono px-2 py-0.5 rounded ${isReadonly ? 'text-purple-700 bg-purple-100' : 'text-blue-600 bg-blue-50'
-            }`}>
-            {block.name}
-          </span>
-          {isReadonly && (
-            <span className="flex items-center gap-1 text-xs text-purple-600 bg-purple-100 px-2 py-0.5 rounded">
-              <Sparkles size={10} />
-              AI Generated
+          {/* Row 1: Labels */}
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+            <span className={`text-xs font-medium font-mono px-2 py-0.5 rounded ${isReadonly ? 'text-purple-700 bg-purple-100' : 'text-blue-600 bg-blue-50'
+              }`}>
+              {block.name}
             </span>
-          )}
-          <span className="text-xs text-gray-400">SQL</span>
-          {!isReadonly && previousBlocks.length > 0 && (
-            <span className="text-xs text-gray-400">
-              (can reference: {previousBlocks.map(b => b.name).join(', ')})
-            </span>
-          )}
-          <div className="flex-1" />
+            {isReadonly && (
+              <span className="flex items-center gap-1 text-xs text-purple-600 bg-purple-100 px-2 py-0.5 rounded">
+                <Sparkles size={10} />
+                <span className="hidden sm:inline">AI Generated</span>
+                <span className="sm:hidden">AI</span>
+              </span>
+            )}
+            <span className="text-xs text-gray-400">SQL</span>
+            {!isReadonly && previousBlocks.length > 0 && (
+              <span className="text-xs text-gray-400 hidden sm:inline">
+                (can reference: {previousBlocks.map(b => b.name).join(', ')})
+              </span>
+            )}
+          </div>
 
-          {/* Show expanded query button */}
-          {hasExpandedQuery && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => toggleExpandedQuery(block.id)}
-              className="h-7 px-2"
-              title={isShowingExpanded ? 'Hide expanded query' : 'Show full query with CTEs'}
-            >
-              {isShowingExpanded ? <EyeOff size={14} /> : <Eye size={14} />}
-              <span className="ml-1 text-xs">{isShowingExpanded ? 'Hide CTEs' : 'Show CTEs'}</span>
-            </Button>
-          )}
+          <div className="flex-1 min-w-[2rem]" />
 
-          {isReadonly ? (
-            <>
-              {/* Copy to editable button for read-only blocks */}
+          {/* Row 2: Action buttons */}
+          <div className="flex items-center gap-1 flex-wrap">
+            {/* Show expanded query button */}
+            {hasExpandedQuery && (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => copyToEditable(block.id)}
-                className="h-7 px-2"
-                title="Copy to new editable block"
+                onClick={() => toggleExpandedQuery(block.id)}
+                className="h-7 px-1.5 sm:px-2"
+                title={isShowingExpanded ? 'Hide expanded query' : 'Show full query with CTEs'}
               >
-                <Copy size={14} className="mr-1" />
-                <span className="text-xs">Copy to Edit</span>
+                {isShowingExpanded ? <EyeOff size={14} /> : <Eye size={14} />}
+                <span className="ml-1 text-xs hidden sm:inline">{isShowingExpanded ? 'Hide CTEs' : 'Show CTEs'}</span>
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => executeSqlBlock(block.id)}
-                disabled={block.isLoading || !block.sql.trim()}
-                className="h-7 px-2"
-                title="Re-run query"
-              >
-                {block.isLoading ? (
-                  <Spinner className="size-3.5" />
-                ) : (
-                  <Play size={14} />
-                )}
-                <span className="ml-1">Re-run</span>
-              </Button>
-            </>
-          ) : (
-            <>
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2"
-                    title="Example queries"
-                  >
-                    <BookOpen size={14} className="mr-1" />
-                    <span className="text-xs">Examples</span>
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-lg max-h-[70vh] overflow-auto">
-                  <DialogHeader>
-                    <DialogTitle>Example Queries</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-2 mt-2">
-                    {EXAMPLE_QUERIES.map((example, i) => (
-                      <DialogClose key={i} asChild>
-                        <button
-                          onClick={() => updateSqlBlock(block.id, example.sql)}
-                          className="w-full text-left p-3 border rounded-lg hover:border-[var(--hn-orange)] hover:bg-orange-50 transition-colors cursor-pointer"
-                        >
-                          <div className="font-medium text-sm">{example.title}</div>
-                          <div className="text-xs text-gray-500 mt-0.5">{example.description}</div>
-                        </button>
-                      </DialogClose>
-                    ))}
-                  </div>
-                </DialogContent>
-              </Dialog>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => formatSqlBlock(block.id)}
-                disabled={!block.sql.trim()}
-                className="h-7 px-2"
-                title="Format SQL"
-              >
-                <Wand2 size={14} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => executeSqlBlock(block.id)}
-                disabled={block.isLoading || !block.sql.trim()}
-                className="h-7 px-2"
-              >
-                {block.isLoading ? (
-                  <Spinner className="size-3.5" />
-                ) : (
-                  <Play size={14} />
-                )}
-                <span className="ml-1">Run</span>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => deleteSqlBlock(block.id)}
-                className="h-7 px-2 text-gray-400 hover:text-red-500"
-              >
-                <Trash2 size={14} />
-              </Button>
-            </>
-          )}
+            )}
+
+            {isReadonly ? (
+              <>
+                {/* Copy to editable button for read-only blocks */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => copyToEditable(block.id)}
+                  className="h-7 px-1.5 sm:px-2"
+                  title="Copy to new editable block"
+                >
+                  <Copy size={14} />
+                  <span className="text-xs ml-1 hidden sm:inline">Copy to Edit</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => executeSqlBlock(block.id)}
+                  disabled={block.isLoading || !block.sql.trim()}
+                  className="h-7 px-1.5 sm:px-2"
+                  title="Re-run query"
+                >
+                  {block.isLoading ? (
+                    <Spinner className="size-3.5" />
+                  ) : (
+                    <Play size={14} />
+                  )}
+                  <span className="ml-1 hidden sm:inline">Re-run</span>
+                </Button>
+              </>
+            ) : (
+              <>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-1.5 sm:px-2"
+                      title="Example queries"
+                    >
+                      <BookOpen size={14} />
+                      <span className="text-xs ml-1 hidden sm:inline">Examples</span>
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-lg max-h-[70vh] overflow-auto">
+                    <DialogHeader>
+                      <DialogTitle>Example Queries</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-2 mt-2">
+                      {EXAMPLE_QUERIES.map((example, i) => (
+                        <DialogClose key={i} asChild>
+                          <button
+                            onClick={() => updateSqlBlock(block.id, example.sql)}
+                            className="w-full text-left p-3 border rounded-lg hover:border-[var(--hn-orange)] hover:bg-orange-50 transition-colors cursor-pointer"
+                          >
+                            <div className="font-medium text-sm">{example.title}</div>
+                            <div className="text-xs text-gray-500 mt-0.5">{example.description}</div>
+                          </button>
+                        </DialogClose>
+                      ))}
+                    </div>
+                  </DialogContent>
+                </Dialog>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => formatSqlBlock(block.id)}
+                  disabled={!block.sql.trim()}
+                  className="h-7 px-1.5 sm:px-2"
+                  title="Format SQL"
+                >
+                  <Wand2 size={14} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => executeSqlBlock(block.id)}
+                  disabled={block.isLoading || !block.sql.trim()}
+                  className="h-7 px-1.5 sm:px-2"
+                >
+                  {block.isLoading ? (
+                    <Spinner className="size-3.5" />
+                  ) : (
+                    <Play size={14} />
+                  )}
+                  <span className="ml-1 hidden sm:inline">Run</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => deleteSqlBlock(block.id)}
+                  className="h-7 px-1.5 sm:px-2 text-gray-400 hover:text-red-500"
+                >
+                  <Trash2 size={14} />
+                </Button>
+              </>
+            )}
+          </div>
         </div>
 
         {/* SQL content - Monaco Editor for editable, code block for read-only */}
@@ -1328,101 +1342,91 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center gap-1 sm:gap-2 p-2 sm:p-3 border-b bg-gray-50 overflow-x-auto">
+      <div className="flex items-center justify-between gap-2 p-2 sm:p-3 border-b bg-gray-50">
         <ModelSelector
           value={defaultModel}
           onChange={handleModelChange}
           disabled={status === 'streaming'}
         />
 
-        <Button variant="outline" size="sm" onClick={addSqlBlock} className="shrink-0">
-          <Plus size={16} className="sm:mr-1" />
-          <span className="hidden sm:inline">Add SQL</span>
-        </Button>
-
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button variant="outline" size="sm" className="shrink-0">
-              <Database size={16} className="sm:mr-1" />
-              <span className="hidden sm:inline">Schema</span>
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
-            <DialogHeader>
-              <DialogTitle>Database Schema</DialogTitle>
-            </DialogHeader>
-            {schema?.tables.map((table) => (
-              <div key={table.name} className="mb-4">
-                <h3 className="font-bold text-lg text-[var(--hn-orange)] mb-2">
-                  {table.name}
-                </h3>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-1 pr-4">Column</th>
-                      <th className="text-left py-1 pr-4">Type</th>
-                      <th className="text-left py-1">Description</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {table.columns.map((col) => (
-                      <tr key={col.name} className="border-b border-gray-100">
-                        <td className="py-1 pr-4 font-mono">{col.name}</td>
-                        <td className="py-1 pr-4 text-gray-500">
-                          {col.type}{col.nullable ? '?' : ''}
-                        </td>
-                        <td className="py-1 text-gray-600">{col.description}</td>
+        <div className="flex items-center gap-1 sm:gap-2">
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 px-2 sm:px-3">
+                <Database size={14} className="sm:size-4" />
+                <span className="hidden sm:inline sm:ml-1">Schema</span>
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
+              <DialogHeader>
+                <DialogTitle>Database Schema</DialogTitle>
+              </DialogHeader>
+              {schema?.tables.map((table) => (
+                <div key={table.name} className="mb-4">
+                  <h3 className="font-bold text-lg text-[var(--hn-orange)] mb-2">
+                    {table.name}
+                  </h3>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-1 pr-4">Column</th>
+                        <th className="text-left py-1 pr-4">Type</th>
+                        <th className="text-left py-1">Description</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ))}
-          </DialogContent>
-        </Dialog>
+                    </thead>
+                    <tbody>
+                      {table.columns.map((col) => (
+                        <tr key={col.name} className="border-b border-gray-100">
+                          <td className="py-1 pr-4 font-mono">{col.name}</td>
+                          <td className="py-1 pr-4 text-gray-500">
+                            {col.type}{col.nullable ? '?' : ''}
+                          </td>
+                          <td className="py-1 text-gray-600">{col.description}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </DialogContent>
+          </Dialog>
 
-        {/* SQL block actions - only show when there are blocks */}
-        {sqlBlocks.length > 0 && (
-          <>
-            <div className="hidden sm:block w-px h-6 bg-gray-300 mx-1" />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={runAllBlocks}
-              disabled={status === 'streaming'}
-              title="Run all SQL blocks"
-              className="shrink-0"
-            >
-              <PlayCircle size={16} className="sm:mr-1" />
-              <span className="hidden sm:inline">Run All</span>
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={expandAll}
-              title="Expand all results"
-              className="shrink-0"
-            >
-              <ChevronsUpDown size={16} className="sm:mr-1" />
-              <span className="hidden sm:inline">Expand</span>
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={collapseAll}
-              title="Collapse all results"
-              className="shrink-0"
-            >
-              <ChevronsDownUp size={16} className="sm:mr-1" />
-              <span className="hidden sm:inline">Collapse</span>
-            </Button>
-          </>
-        )}
-
-        <span className="text-xs sm:text-sm text-gray-500 ml-auto whitespace-nowrap">
-          {messages.length} msg{messages.length !== 1 ? 's' : ''}
-          {sqlBlocks.length > 0 && ` · ${sqlBlocks.length} SQL`}
-        </span>
+          {sqlBlocks.length > 0 && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={runAllBlocks}
+                disabled={status === 'streaming'}
+                title="Run all SQL blocks"
+                className="h-8 px-2 sm:px-3"
+              >
+                <PlayCircle size={14} className="sm:size-4" />
+                <span className="hidden sm:inline sm:ml-1">Run All</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={expandAll}
+                title="Expand all results"
+                className="h-8 px-2 hidden sm:flex"
+              >
+                <ChevronsUpDown size={16} />
+                <span className="ml-1">Expand</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={collapseAll}
+                title="Collapse all results"
+                className="h-8 px-2 hidden sm:flex"
+              >
+                <ChevronsDownUp size={16} />
+                <span className="ml-1">Collapse</span>
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Content - Unified Timeline */}
@@ -1492,7 +1496,7 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
       {/* Input area */}
       <div className="border-t bg-gray-50">
         <form onSubmit={handleChatSubmit} className="max-w-4xl mx-auto p-2 sm:p-4">
-          <div className="flex gap-2 items-end">
+          <div className="flex gap-2 items-center">
             <div className="flex-1 relative">
               <textarea
                 value={chatInput}
@@ -1513,17 +1517,14 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
                 placeholder={schemaLoading ? 'Loading schema...' : 'Ask about HN data...'}
                 disabled={status === 'streaming' || schemaLoading}
                 rows={1}
-                className="w-full px-3 sm:px-4 py-2 pb-6 sm:pb-6 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--hn-orange)] focus:border-transparent resize-none overflow-y-auto placeholder:text-gray-400 text-sm sm:text-base"
-                style={{ minHeight: '42px', maxHeight: '120px' }}
+                className="w-full px-3 sm:px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--hn-orange)] focus:border-transparent resize-none overflow-y-auto placeholder:text-gray-400 text-sm sm:text-base"
+                style={{ minHeight: '40px', maxHeight: '120px' }}
               />
-              <span className="absolute bottom-1.5 sm:bottom-2 right-2 sm:right-3 text-[9px] sm:text-[10px] text-gray-400 pointer-events-none hidden sm:block">
-                Enter to send · Shift+Enter for new line
-              </span>
             </div>
             <Button
               type="submit"
               disabled={!chatInput.trim() || status === 'streaming' || schemaLoading}
-              className="shrink-0 h-[42px]"
+              className="shrink-0 h-10 w-10 p-0 sm:h-10 sm:w-auto sm:px-4"
             >
               {status === 'streaming' ? (
                 <Spinner className="size-4" />
@@ -1536,10 +1537,10 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
               variant="outline"
               onClick={addSqlBlock}
               title="Add SQL block"
-              className="shrink-0 h-[42px] hidden sm:flex"
+              className="shrink-0 h-10 w-10 p-0 sm:h-10 sm:w-auto sm:px-3"
             >
-              <Database size={14} className="sm:mr-1" />
-              <span className="hidden sm:inline text-xs">+ SQL</span>
+              <Plus size={16} />
+              <span className="hidden sm:inline sm:ml-1 text-xs">SQL</span>
             </Button>
           </div>
         </form>
