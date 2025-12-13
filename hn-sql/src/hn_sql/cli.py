@@ -20,6 +20,7 @@ console = Console()
 
 # Default data path
 DATA_PATH = "data/items/**/*.parquet"
+DB_PATH = Path("data/hn.duckdb")
 
 
 @click.group()
@@ -657,6 +658,10 @@ def migrate(swap: bool, dry_run: bool, yes: bool):
             if updates_dir.exists() and update_files:
                 shutil.rmtree(updates_dir)
                 console.print(f"[green]✓ Updates directory deleted (merged into main file)[/green]")
+
+            # Rebuild persistent DuckDB for fast queries
+            console.print()
+            rebuild_db()
         except Exception as e:
             console.print(f"[red]Error swapping directories:[/red] {e}")
             return
@@ -707,12 +712,108 @@ def _configure_duckdb(conn: duckdb.DuckDBPyConnection) -> None:
     conn.execute(f"SET threads={cpu_count}")
 
 
-def _get_connection(data_path: str, updates_path: str = "data/updates/**/*.parquet") -> duckdb.DuckDBPyConnection:
-    """Create a DuckDB connection with the HN data as a view.
+def rebuild_db(data_path: str = DATA_PATH, updates_path: str = "data/updates/**/*.parquet") -> None:
+    """Rebuild the persistent DuckDB database from parquet files.
 
-    Automatically deduplicates items, preferring updates over original data.
-    Also auto-configures memory and threads based on system resources.
+    Creates a single deduplicated 'hn' table in data/hn.duckdb for fast queries.
+    Called after migrate --swap to materialize the data.
     """
+    import shutil
+
+    # Remove old DB if exists
+    if DB_PATH.exists():
+        DB_PATH.unlink()
+    wal_path = DB_PATH.with_suffix(".duckdb.wal")
+    if wal_path.exists():
+        wal_path.unlink()
+
+    # Check for data
+    items_dir = Path("data/items")
+    updates_dir = Path("data/updates")
+
+    hive_files = list(items_dir.glob("year=*/month=*/*.parquet")) if items_dir.exists() else []
+    flat_files = list(items_dir.glob("*.parquet")) if items_dir.exists() else []
+    update_files = list(updates_dir.glob("**/*.parquet")) if updates_dir.exists() else []
+
+    if not hive_files and not flat_files:
+        console.print("[yellow]No data to build DB from[/yellow]")
+        return
+
+    console.print(f"[bold]Building persistent DuckDB...[/bold]")
+    start_time = time.time()
+
+    # Create persistent DB
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = duckdb.connect(str(DB_PATH))
+    _configure_duckdb(conn)
+
+    # Build source query
+    sources = []
+    if hive_files:
+        sources.append("""
+            SELECT *, 0 as _source EXCLUDE (year, month)
+            FROM read_parquet('data/items/year=*/month=*/*.parquet', hive_partitioning=true)
+        """)
+    if flat_files:
+        sources.append("""
+            SELECT *, 0 as _source FROM read_parquet('data/items/*.parquet')
+        """)
+    if update_files:
+        sources.append("""
+            SELECT *, 1 as _source FROM read_parquet('data/updates/**/*.parquet', union_by_name=true)
+        """)
+
+    union_query = " UNION ALL ".join(sources)
+
+    # Wrap with deduplication if we have updates
+    if update_files:
+        select_query = f"""
+            WITH all_data AS ({union_query}),
+            deduped AS (
+                SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY _source DESC) as _rn
+                FROM all_data
+            )
+            SELECT id, type, "by", time, text, url, title, score, descendants,
+                   parent, kids, dead, deleted, poll, parts
+            FROM deduped WHERE _rn = 1
+            ORDER BY id
+        """
+    else:
+        select_query = f"""
+            SELECT id, type, "by", time, text, url, title, score, descendants,
+                   parent, kids, dead, deleted, poll, parts
+            FROM ({union_query})
+            ORDER BY id
+        """
+
+    # Create table from query
+    conn.execute(f"CREATE TABLE hn AS {select_query}")
+
+    # Get stats
+    result = conn.execute("SELECT count(*) FROM hn").fetchone()
+    count = result[0]
+    conn.close()
+
+    elapsed = time.time() - start_time
+    size_mb = DB_PATH.stat().st_size / (1024 * 1024)
+    console.print(f"[green]✓ DuckDB built in {_format_time(elapsed)}[/green]")
+    console.print(f"  Items: {count:,}")
+    console.print(f"  Size: {size_mb:.1f} MB")
+
+
+def _get_connection(data_path: str = DATA_PATH, updates_path: str = "data/updates/**/*.parquet") -> duckdb.DuckDBPyConnection:
+    """Create a DuckDB connection with the HN data.
+
+    Uses persistent DuckDB file if available (fastest), otherwise falls back to
+    parquet files with auto-deduplication of updates.
+    """
+    # Check for persistent DB (fastest path)
+    if DB_PATH.exists():
+        conn = duckdb.connect(str(DB_PATH), read_only=True)
+        _configure_duckdb(conn)
+        return conn
+
+    # Fall back to parquet with view
     conn = duckdb.connect()
     _configure_duckdb(conn)
 

@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 DEFAULT_LIMIT = 1000
 MAX_LIMIT = 10000
 DATA_PATH = "data/items/**/*.parquet"
+DB_PATH = Path("data/hn.duckdb")
 
 app = FastAPI(
     title="HN-SQL API",
@@ -170,11 +171,18 @@ def _configure_duckdb(conn: duckdb.DuckDBPyConnection) -> None:
 
 
 def _get_connection(data_path: str = DATA_PATH, updates_path: str = "data/updates/**/*.parquet") -> duckdb.DuckDBPyConnection:
-    """Create a DuckDB connection with the HN data as a view.
+    """Create a DuckDB connection with the HN data.
 
-    Automatically deduplicates items, preferring updates over original data.
-    Also auto-configures memory and threads based on system resources.
+    Uses persistent DuckDB file if available (fastest), otherwise falls back to
+    parquet files with auto-deduplication of updates.
     """
+    # Check for persistent DB (fastest path)
+    if DB_PATH.exists():
+        conn = duckdb.connect(str(DB_PATH), read_only=True)
+        _configure_duckdb(conn)
+        return conn
+
+    # Fall back to parquet with view
     conn = duckdb.connect()
     _configure_duckdb(conn)
 

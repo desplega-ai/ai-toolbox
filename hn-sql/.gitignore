@@ -2,3 +2,5 @@ data/
 __pycache__/
 *.parquet
 checkpoint.json
+*.duckdb
+*.duckdb.wal
