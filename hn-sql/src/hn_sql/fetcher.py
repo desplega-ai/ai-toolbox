@@ -11,7 +11,7 @@ HN_API_BASE = "https://hacker-news.firebaseio.com/v0"
 class HNFetcher:
     """Async fetcher for Hacker News API."""
 
-    def __init__(self, concurrency: int = 35, timeout: float = 30.0, shutdown_event: asyncio.Event | None = None):
+    def __init__(self, concurrency: int = 100, timeout: float = 30.0, shutdown_event: asyncio.Event | None = None):
         self.concurrency = concurrency
         self.timeout = timeout
         self.semaphore = asyncio.Semaphore(concurrency)

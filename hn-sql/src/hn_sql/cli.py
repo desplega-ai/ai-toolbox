@@ -28,7 +28,7 @@ def main():
 
 
 @main.command()
-@click.option("--concurrency", "-c", default=35, help="Number of concurrent requests (default: 35, optimal for HN API)")
+@click.option("--concurrency", "-c", default=100, help="Number of concurrent requests")
 @click.option("--batch-size", "-b", default=10000, help="Items per batch")
 @click.option("--resume/--no-resume", default=True, help="Resume from checkpoint")
 @click.option("--output", "-o", default="data/items", help="Output directory")
