@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun --hot index.ts",
-    "build": "bun run typecheck && bun build ./index.html --outdir=./dist --minify",
+    "build": "bun run typecheck && bun run build.ts",
     "typecheck": "tsc --noEmit",
     "start": "bun index.ts"
   },
