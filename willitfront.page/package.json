@@ -47,6 +47,7 @@
     "recharts": "^3.5.1",
     "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
+    "resend": "^6.6.0",
     "sql-formatter": "^15.6.11",
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",

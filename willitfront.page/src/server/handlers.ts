@@ -15,6 +15,13 @@ import { ideaTestInputSchema, ideaTestReportSchema, type IdeaTestInput } from '.
 import { buildAnalysisBundle } from '../../lib/ideaTester/analyze';
 import { findSimilarPosts } from '../../lib/ideaTester/findSimilarPosts';
 import { SYNTHESIS_SYSTEM_PROMPT } from '../../lib/ideaTester/synthesisPrompt';
+import { Resend } from 'resend';
+import { z } from 'zod';
+
+const feedbackSchema = z.object({
+  email: z.string().email(),
+  message: z.string().min(1).max(5000),
+});
 
 export async function handleChat(req: Request): Promise<Response> {
   if (!gateway) {
@@ -280,5 +287,43 @@ You have full scoring responsibility - determine the front page probability and 
       { error: error instanceof Error ? error.message : 'Analysis failed' },
       { status: 500 }
     );
+  }
+}
+
+export async function handleFeedback(req: Request): Promise<Response> {
+  const apiKey = process.env.RESEND_API_KEY;
+  const toEmail = process.env.FEEDBACK_EMAIL;
+
+  if (!apiKey || !toEmail) {
+    return Response.json({ error: 'Feedback not configured' }, { status: 503 });
+  }
+
+  const body = await req.json();
+  const parseResult = feedbackSchema.safeParse(body);
+
+  if (!parseResult.success) {
+    return Response.json(
+      { error: 'Invalid input', details: parseResult.error.issues },
+      { status: 400 }
+    );
+  }
+
+  const { email, message } = parseResult.data;
+
+  try {
+    const resend = new Resend(apiKey);
+    await resend.emails.send({
+      from: toEmail,
+      to: toEmail,
+      cc: email,
+      replyTo: email,
+      subject: `[WIFP Feedback] from ${email}`,
+      text: `From: ${email}\n\n${message}`,
+    });
+
+    return Response.json({ success: true });
+  } catch (error) {
+    console.error('Feedback send error:', error);
+    return Response.json({ error: 'Failed to send feedback' }, { status: 500 });
   }
 }

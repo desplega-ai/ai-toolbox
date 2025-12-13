@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, X, RotateCcw } from 'lucide-react';
+import { Plus, X, RotateCcw, MessageSquare } from 'lucide-react';
+import { FeedbackModal } from '@/components/FeedbackModal';
 
 // Served via static route in index.ts
 const faviconUrl = '/public/favicon-32x32.png';
@@ -35,6 +36,7 @@ export function TabBar({ tabs, activeTabId, onTabSelect, onTabClose, onTabRename
   const [editValue, setEditValue] = useState('');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [tabToClose, setTabToClose] = useState<Tab | null>(null);
+  const [showFeedback, setShowFeedback] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -174,6 +176,16 @@ export function TabBar({ tabs, activeTabId, onTabSelect, onTabClose, onTabRename
           <Plus size={18} className="text-white" />
         </button>
 
+        {/* Feedback button */}
+        <button
+          className="p-1.5 hover:bg-orange-600 rounded cursor-pointer transition-colors flex items-center gap-1 text-white text-xs shrink-0"
+          onClick={() => setShowFeedback(true)}
+          title="Send feedback"
+        >
+          <MessageSquare size={14} />
+          <span className="hidden sm:inline">Feedback</span>
+        </button>
+
         {/* Reset button */}
         <button
           className="p-1.5 hover:bg-orange-600 rounded cursor-pointer transition-colors flex items-center gap-1 text-white text-xs shrink-0"
@@ -224,6 +236,9 @@ export function TabBar({ tabs, activeTabId, onTabSelect, onTabClose, onTabRename
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Feedback modal */}
+      <FeedbackModal open={showFeedback} onOpenChange={setShowFeedback} />
     </>
   );
 }
