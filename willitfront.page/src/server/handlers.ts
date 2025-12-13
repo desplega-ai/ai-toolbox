@@ -125,3 +125,33 @@ export async function handleQuery(req: Request): Promise<Response> {
 export function handleHealth(): Response {
   return Response.json({ status: 'ok' });
 }
+
+// Dashboard proxy handler - proxies /api/dashboard/* to HN_SQL_API/dashboard/*
+export async function handleDashboard(req: Request): Promise<Response> {
+  const url = new URL(req.url);
+  // Extract path after /api/dashboard/
+  const dashboardPath = url.pathname.replace('/api/dashboard/', '');
+  const targetUrl = `${HN_SQL_API}/dashboard/${dashboardPath}${url.search}`;
+
+  try {
+    const response = await fetch(targetUrl, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return Response.json(await response.json());
+  } catch (error) {
+    console.error('Dashboard proxy error:', error);
+    return Response.json({ error: 'Failed to fetch dashboard data' }, { status: 500 });
+  }
+}
+
+// Stats proxy handler
+export async function handleStatsTypes(): Promise<Response> {
+  try {
+    const response = await fetch(`${HN_SQL_API}/stats/types`);
+    return Response.json(await response.json());
+  } catch (error) {
+    console.error('Stats types error:', error);
+    return Response.json({ error: 'Failed to fetch stats' }, { status: 500 });
+  }
+}

@@ -5,6 +5,8 @@ import {
   handleSchema,
   handleQuery,
   handleHealth,
+  handleDashboard,
+  handleStatsTypes,
 } from './src/server/handlers';
 
 Bun.serve({
@@ -30,6 +32,14 @@ Bun.serve({
 
     '/api/health': {
       GET: handleHealth,
+    },
+
+    '/api/stats/types': {
+      GET: handleStatsTypes,
+    },
+
+    '/api/dashboard/*': {
+      GET: handleDashboard,
     },
 
     // Serve static files from public directory

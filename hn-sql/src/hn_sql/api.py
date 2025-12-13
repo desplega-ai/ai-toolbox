@@ -10,6 +10,8 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from .cache import clear_cache, get_cache_stats, ttl_cache
+
 # Default configuration
 DEFAULT_LIMIT = 1000
 MAX_LIMIT = 10000
@@ -128,6 +130,30 @@ class SchemaResponse(BaseModel):
     tables: list[TableInfo] = Field(..., description="Available tables")
     keywords: list[str] = Field(..., description="SQL keywords")
     functions: list[str] = Field(..., description="Available SQL functions")
+
+
+# --- Dashboard Response Models ---
+
+class MetricResponse(BaseModel):
+    """Single metric value response for dashboard widgets."""
+    value: int | float | str = Field(..., description="Metric value")
+    label: str = Field(..., description="Human-readable label")
+    timing: TimingInfo
+
+
+class DashboardTableResponse(BaseModel):
+    """Table data response for dashboard tables."""
+    columns: list[str] = Field(..., description="Column names")
+    rows: list[dict[str, Any]] = Field(..., description="Result rows as dicts")
+    row_count: int = Field(..., description="Number of rows returned")
+    timing: TimingInfo
+
+
+class DashboardChartResponse(BaseModel):
+    """Chart data response for dashboard charts."""
+    data: list[dict[str, Any]] = Field(..., description="Chart data points")
+    count: int = Field(..., description="Number of data points")
+    timing: TimingInfo
 
 
 # --- Helper Functions ---
@@ -672,3 +698,286 @@ def top_stories(
             elapsed_formatted=_format_time(elapsed),
         ),
     )
+
+
+# --- Dashboard Endpoints (Cached) ---
+
+def _execute_dashboard_query(sql: str) -> tuple[list[str], list[tuple], float]:
+    """Execute a dashboard query and return columns, rows, elapsed time."""
+    conn = _get_connection()
+    start_time = time.perf_counter()
+    try:
+        result = conn.execute(sql)
+        columns = [col[0] for col in result.description]
+        rows = result.fetchall()
+    except duckdb.Error as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        conn.close()
+    elapsed = time.perf_counter() - start_time
+    return columns, rows, elapsed
+
+
+# Overview Metrics
+
+@app.get("/dashboard/overview/total-stories", response_model=MetricResponse)
+@ttl_cache(ttl_seconds=900)
+def dashboard_total_stories() -> MetricResponse:
+    """Get total number of stories (cached 15 min)."""
+    sql = "SELECT COUNT(*) as count FROM hn WHERE type = 'story'"
+    _, rows, elapsed = _execute_dashboard_query(sql)
+    value = rows[0][0] if rows else 0
+    return MetricResponse(
+        value=value,
+        label="Stories",
+        timing=TimingInfo(elapsed_seconds=elapsed, elapsed_formatted=_format_time(elapsed)),
+    )
+
+
+@app.get("/dashboard/overview/total-comments", response_model=MetricResponse)
+@ttl_cache(ttl_seconds=900)
+def dashboard_total_comments() -> MetricResponse:
+    """Get total number of comments (cached 15 min)."""
+    sql = "SELECT COUNT(*) as count FROM hn WHERE type = 'comment'"
+    _, rows, elapsed = _execute_dashboard_query(sql)
+    value = rows[0][0] if rows else 0
+    return MetricResponse(
+        value=value,
+        label="Comments",
+        timing=TimingInfo(elapsed_seconds=elapsed, elapsed_formatted=_format_time(elapsed)),
+    )
+
+
+@app.get("/dashboard/overview/unique-users", response_model=MetricResponse)
+@ttl_cache(ttl_seconds=900)
+def dashboard_unique_users() -> MetricResponse:
+    """Get count of unique users (cached 15 min)."""
+    sql = 'SELECT COUNT(DISTINCT "by") as count FROM hn WHERE "by" IS NOT NULL'
+    _, rows, elapsed = _execute_dashboard_query(sql)
+    value = rows[0][0] if rows else 0
+    return MetricResponse(
+        value=value,
+        label="Users",
+        timing=TimingInfo(elapsed_seconds=elapsed, elapsed_formatted=_format_time(elapsed)),
+    )
+
+
+@app.get("/dashboard/overview/last-synced", response_model=MetricResponse)
+@ttl_cache(ttl_seconds=300)
+def dashboard_last_synced() -> MetricResponse:
+    """Get timestamp of most recent item (cached 5 min)."""
+    sql = "SELECT MAX(time) as last_sync FROM hn"
+    _, rows, elapsed = _execute_dashboard_query(sql)
+    value = str(rows[0][0]) if rows and rows[0][0] else "Unknown"
+    return MetricResponse(
+        value=value,
+        label="Latest item timestamp",
+        timing=TimingInfo(elapsed_seconds=elapsed, elapsed_formatted=_format_time(elapsed)),
+    )
+
+
+# Content
+
+@app.get("/dashboard/content/most-discussed", response_model=DashboardTableResponse)
+@ttl_cache(ttl_seconds=600)
+def dashboard_most_discussed(
+    limit: int = Query(20, ge=1, le=100, description="Number of stories to return"),
+) -> DashboardTableResponse:
+    """Get stories with most comments (cached 10 min)."""
+    sql = f"""
+        SELECT title, descendants as comments, score, "by"
+        FROM hn
+        WHERE type = 'story' AND descendants IS NOT NULL
+        ORDER BY descendants DESC
+        LIMIT {limit}
+    """
+    columns, rows, elapsed = _execute_dashboard_query(sql)
+    rows_as_dicts = [{col: val for col, val in zip(columns, row)} for row in rows]
+    return DashboardTableResponse(
+        columns=columns,
+        rows=rows_as_dicts,
+        row_count=len(rows_as_dicts),
+        timing=TimingInfo(elapsed_seconds=elapsed, elapsed_formatted=_format_time(elapsed)),
+    )
+
+
+# User Analytics
+
+@app.get("/dashboard/users/top-authors", response_model=DashboardTableResponse)
+@ttl_cache(ttl_seconds=600)
+def dashboard_top_authors(
+    limit: int = Query(20, ge=1, le=100, description="Number of authors to return"),
+) -> DashboardTableResponse:
+    """Get top story authors by total score (cached 10 min)."""
+    sql = f"""
+        SELECT "by", COUNT(*) as stories, SUM(score) as total_score
+        FROM hn
+        WHERE type = 'story' AND "by" IS NOT NULL
+        GROUP BY "by"
+        ORDER BY total_score DESC
+        LIMIT {limit}
+    """
+    columns, rows, elapsed = _execute_dashboard_query(sql)
+    rows_as_dicts = [{col: val for col, val in zip(columns, row)} for row in rows]
+    return DashboardTableResponse(
+        columns=columns,
+        rows=rows_as_dicts,
+        row_count=len(rows_as_dicts),
+        timing=TimingInfo(elapsed_seconds=elapsed, elapsed_formatted=_format_time(elapsed)),
+    )
+
+
+@app.get("/dashboard/users/active-commenters", response_model=DashboardChartResponse)
+@ttl_cache(ttl_seconds=600)
+def dashboard_active_commenters(
+    limit: int = Query(20, ge=1, le=100, description="Number of users to return"),
+) -> DashboardChartResponse:
+    """Get most active commenters (cached 10 min)."""
+    sql = f"""
+        SELECT "by", COUNT(*) as comments
+        FROM hn
+        WHERE type = 'comment' AND "by" IS NOT NULL
+        GROUP BY "by"
+        ORDER BY comments DESC
+        LIMIT {limit}
+    """
+    columns, rows, elapsed = _execute_dashboard_query(sql)
+    data = [{col: val for col, val in zip(columns, row)} for row in rows]
+    return DashboardChartResponse(
+        data=data,
+        count=len(data),
+        timing=TimingInfo(elapsed_seconds=elapsed, elapsed_formatted=_format_time(elapsed)),
+    )
+
+
+# Domain Analysis
+
+@app.get("/dashboard/domains/top-domains", response_model=DashboardTableResponse)
+@ttl_cache(ttl_seconds=900)
+def dashboard_top_domains(
+    limit: int = Query(20, ge=1, le=100, description="Number of domains to return"),
+) -> DashboardTableResponse:
+    """Get most posted domains (cached 15 min)."""
+    sql = f"""
+        SELECT REGEXP_EXTRACT(url, 'https?://([^/]+)', 1) as domain,
+               COUNT(*) as posts,
+               ROUND(AVG(score), 1) as avg_score
+        FROM hn
+        WHERE type = 'story' AND url IS NOT NULL
+        GROUP BY domain
+        HAVING domain IS NOT NULL
+        ORDER BY posts DESC
+        LIMIT {limit}
+    """
+    columns, rows, elapsed = _execute_dashboard_query(sql)
+    rows_as_dicts = [{col: val for col, val in zip(columns, row)} for row in rows]
+    return DashboardTableResponse(
+        columns=columns,
+        rows=rows_as_dicts,
+        row_count=len(rows_as_dicts),
+        timing=TimingInfo(elapsed_seconds=elapsed, elapsed_formatted=_format_time(elapsed)),
+    )
+
+
+@app.get("/dashboard/domains/best-domains", response_model=DashboardChartResponse)
+@ttl_cache(ttl_seconds=900)
+def dashboard_best_domains(
+    limit: int = Query(20, ge=1, le=100, description="Number of domains to return"),
+    min_posts: int = Query(3, ge=1, description="Minimum posts to qualify"),
+) -> DashboardChartResponse:
+    """Get domains with highest average score (cached 15 min)."""
+    sql = f"""
+        SELECT REGEXP_EXTRACT(url, 'https?://([^/]+)', 1) as domain,
+               COUNT(*) as posts,
+               ROUND(AVG(score), 1) as avg_score
+        FROM hn
+        WHERE type = 'story' AND url IS NOT NULL
+        GROUP BY domain
+        HAVING domain IS NOT NULL AND posts >= {min_posts}
+        ORDER BY avg_score DESC
+        LIMIT {limit}
+    """
+    columns, rows, elapsed = _execute_dashboard_query(sql)
+    data = [{col: val for col, val in zip(columns, row)} for row in rows]
+    return DashboardChartResponse(
+        data=data,
+        count=len(data),
+        timing=TimingInfo(elapsed_seconds=elapsed, elapsed_formatted=_format_time(elapsed)),
+    )
+
+
+# Activity Timeline
+
+@app.get("/dashboard/activity/posts-by-hour", response_model=DashboardChartResponse)
+@ttl_cache(ttl_seconds=900)
+def dashboard_posts_by_hour() -> DashboardChartResponse:
+    """Get story posts by hour of day UTC (cached 15 min)."""
+    sql = """
+        SELECT HOUR(time) as hour, COUNT(*) as posts
+        FROM hn
+        WHERE type = 'story'
+        GROUP BY hour
+        ORDER BY hour
+    """
+    columns, rows, elapsed = _execute_dashboard_query(sql)
+    data = [{col: val for col, val in zip(columns, row)} for row in rows]
+    return DashboardChartResponse(
+        data=data,
+        count=len(data),
+        timing=TimingInfo(elapsed_seconds=elapsed, elapsed_formatted=_format_time(elapsed)),
+    )
+
+
+@app.get("/dashboard/activity/posts-by-day", response_model=DashboardChartResponse)
+@ttl_cache(ttl_seconds=900)
+def dashboard_posts_by_day() -> DashboardChartResponse:
+    """Get story posts by day of week (cached 15 min)."""
+    sql = """
+        SELECT DAYOFWEEK(time) as day, COUNT(*) as posts
+        FROM hn
+        WHERE type = 'story'
+        GROUP BY day
+        ORDER BY day
+    """
+    columns, rows, elapsed = _execute_dashboard_query(sql)
+    data = [{col: val for col, val in zip(columns, row)} for row in rows]
+    return DashboardChartResponse(
+        data=data,
+        count=len(data),
+        timing=TimingInfo(elapsed_seconds=elapsed, elapsed_formatted=_format_time(elapsed)),
+    )
+
+
+@app.get("/dashboard/activity/timeline", response_model=DashboardChartResponse)
+@ttl_cache(ttl_seconds=900)
+def dashboard_activity_timeline() -> DashboardChartResponse:
+    """Get activity over time, monthly (cached 15 min)."""
+    sql = """
+        SELECT DATE_TRUNC('month', time) as month, COUNT(*) as items
+        FROM hn
+        GROUP BY month
+        ORDER BY month
+    """
+    columns, rows, elapsed = _execute_dashboard_query(sql)
+    # Convert timestamps to strings for JSON serialization
+    data = [{col: (str(val) if col == 'month' else val) for col, val in zip(columns, row)} for row in rows]
+    return DashboardChartResponse(
+        data=data,
+        count=len(data),
+        timing=TimingInfo(elapsed_seconds=elapsed, elapsed_formatted=_format_time(elapsed)),
+    )
+
+
+# Cache Management
+
+@app.get("/admin/cache/stats")
+def cache_stats() -> dict[str, Any]:
+    """Get cache statistics for monitoring."""
+    return get_cache_stats()
+
+
+@app.post("/admin/cache/clear")
+def cache_clear() -> dict[str, Any]:
+    """Clear all cached data."""
+    count = clear_cache()
+    return {"status": "ok", "entries_cleared": count}

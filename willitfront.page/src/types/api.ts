@@ -90,3 +90,28 @@ export interface Model {
   description?: string;
   provider: string;
 }
+
+// Dashboard API response types
+export interface TimingInfo {
+  elapsed_seconds: number;
+  elapsed_formatted: string;
+}
+
+export interface MetricResponse {
+  value: number | string;
+  label: string;
+  timing: TimingInfo;
+}
+
+export interface DashboardTableResponse {
+  columns: string[];
+  rows: Record<string, unknown>[];
+  row_count: number;
+  timing: TimingInfo;
+}
+
+export interface DashboardChartResponse {
+  data: Record<string, unknown>[];
+  count: number;
+  timing: TimingInfo;
+}
