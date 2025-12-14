@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useLocalStorage } from './useLocalStorage';
 import { DEFAULT_MODEL } from '@/lib/constants';
+import { track } from '@/lib/analytics';
 import type { Tab, TabsState, TabType } from '@/types/tabs';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -39,10 +40,12 @@ export function useTabs() {
       tabs: [...prev.tabs, newTab],
       activeTabId: newTab.id,
     }));
+    track.tabCreated(type);
     return newTab.id;
   }, [setState, state.tabs]);
 
   const closeTab = useCallback((tabId: string) => {
+    const closingTab = state.tabs.find(t => t.id === tabId);
     setState((prev) => {
       const newTabs = prev.tabs.filter(t => t.id !== tabId);
       const newActiveId = prev.activeTabId === tabId
@@ -50,7 +53,10 @@ export function useTabs() {
         : prev.activeTabId;
       return { tabs: newTabs, activeTabId: newActiveId };
     });
-  }, [setState]);
+    if (closingTab) {
+      track.tabClosed(closingTab.type);
+    }
+  }, [setState, state.tabs]);
 
   const setActiveTab = useCallback((tabId: string | null) => {
     setState((prev) => ({ ...prev, activeTabId: tabId }));
@@ -64,6 +70,7 @@ export function useTabs() {
   }, [setState]);
 
   const resetTabs = useCallback(() => {
+    track.reset(state.tabs.length);
     // Clear tabs state
     setState({ tabs: [], activeTabId: null });
 
@@ -74,7 +81,7 @@ export function useTabs() {
       key.startsWith('queryResults:')
     );
     keysToRemove.forEach(key => localStorage.removeItem(key));
-  }, [setState]);
+  }, [setState, state.tabs.length]);
 
   return {
     tabs: state.tabs,

@@ -3,6 +3,7 @@ import { useChat, type UIMessage } from '@ai-sdk/react';
 import { DefaultChatTransport, isTextUIPart } from 'ai';
 import { format } from 'sql-formatter';
 import Markdown from 'react-markdown';
+import { track } from '@/lib/analytics';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import Editor from '@monaco-editor/react';
@@ -480,6 +481,12 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
     setChatInput('');
     await sendMessage({ text: message });
 
+    // Track analytics
+    track.messageSent(defaultModel);
+    if (isFirstMessage) {
+      track.chatCreated(defaultModel);
+    }
+
     // Generate AI title on first message (non-blocking)
     if (isFirstMessage) {
       fetch('/api/generate-title', {
@@ -497,7 +504,7 @@ export function ChatNotebookTab({ tab, onUpdate }: ChatNotebookTabProps) {
           // Keep default title on error
         });
     }
-  }, [chatInput, status, schemaLoading, sendMessage, messages.length, onUpdate]);
+  }, [chatInput, status, schemaLoading, sendMessage, messages.length, onUpdate, defaultModel]);
 
   // Add a new SQL block at current position (after current messages)
   const addSqlBlock = useCallback(() => {

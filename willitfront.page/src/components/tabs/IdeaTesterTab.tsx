@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { experimental_useObject as useObject } from '@ai-sdk/react';
 import type { Tab } from '@/types/tabs';
 import { ideaTestReportSchema } from '@/../lib/ideaTester/types';
+import { track } from '@/lib/analytics';
 import { IdeaTesterForm } from '@/components/idea-tester/IdeaTesterForm';
 import { IdeaTesterResults } from '@/components/idea-tester/IdeaTesterResults';
 import { Spinner } from '@/components/ui/spinner';
@@ -65,6 +66,7 @@ export function IdeaTesterTab({ tab, onUpdate }: IdeaTesterTabProps) {
     persistedResult.current = null;
     setTiming({ startTime: new Date() }); // Track start time
     submit(input);
+    track.ideaTesterSubmit(input.type);
 
     const newTitle = generateTabTitle(input);
     onUpdate({
