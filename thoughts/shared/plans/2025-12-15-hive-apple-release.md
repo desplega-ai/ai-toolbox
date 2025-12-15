@@ -249,12 +249,12 @@ export default config;
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] Dependencies installed: `pnpm list @electron-forge/publisher-github`
-- [ ] TypeScript compiles: `cd hive && pnpm exec tsc --noEmit`
+- [x] Dependencies installed: `pnpm list @electron-forge/publisher-github`
+- [x] TypeScript compiles: `cd hive && pnpm exec tsc --noEmit`
 
 #### Manual Verification:
-- [ ] `forge.config.ts` contains `osxSign` and `osxNotarize` configuration
-- [ ] `publishers` array configured with GitHub repository
+- [x] `forge.config.ts` contains `osxSign` and `osxNotarize` configuration
+- [x] `publishers` array configured with GitHub repository
 
 ---
 
@@ -389,12 +389,12 @@ jobs:
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] Workflow file exists: `ls .github/workflows/hive-release.yml`
-- [ ] YAML syntax valid: `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/hive-release.yml'))"`
+- [x] Workflow file exists: `ls .github/workflows/hive-release.yml`
+- [x] YAML syntax valid: `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/hive-release.yml'))"`
 
 #### Manual Verification:
-- [ ] Workflow file contains all required secrets references
-- [ ] Trigger configured for `hive-v*` tags
+- [x] Workflow file contains all required secrets references
+- [x] Trigger configured for `hive-v*` tags
 
 ---
 
@@ -476,8 +476,8 @@ That's it - `update-electron-app` automatically:
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] Package installed: `pnpm list update-electron-app`
-- [ ] TypeScript compiles: `cd hive && pnpm exec tsc --noEmit`
+- [x] Package installed: `pnpm list update-electron-app`
+- [x] TypeScript compiles: `cd hive && pnpm exec tsc --noEmit`
 
 #### Manual Verification:
 - [ ] App checks for updates on launch (visible in dev tools console)

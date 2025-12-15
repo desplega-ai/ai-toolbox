@@ -1,8 +1,15 @@
 import { app, BrowserWindow, Tray, Menu, nativeImage } from 'electron';
 import path from 'path';
 import windowStateKeeper from 'electron-window-state';
+import { updateElectronApp } from 'update-electron-app';
 import { registerIpcHandlers } from './ipc-handlers';
 import { database } from './database';
+
+// Check for updates (works with GitHub Releases)
+updateElectronApp({
+  updateInterval: '1 hour',
+  notifyUser: true,
+});
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
 declare const MAIN_WINDOW_VITE_NAME: string;
