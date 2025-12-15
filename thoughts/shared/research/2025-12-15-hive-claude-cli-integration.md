@@ -61,7 +61,9 @@ Spawn the `claude` CLI as a child process from Tauri's Rust backend, streaming J
 ---
 
 ## Current Implementation
+<!-- hive-comment(uQ_FLewPVV): wtf -->
 
+<!-- hive-comment(uQ_FLewPVV) -->
 ### Architecture
 
 ```

@@ -1,0 +1,61 @@
+import type { editor } from 'monaco-editor';
+
+export const solarizedLight: editor.IStandaloneThemeData = {
+  base: 'vs',
+  inherit: true,
+  rules: [
+    { token: 'comment', foreground: '93a1a1', fontStyle: 'italic' },
+    { token: 'keyword', foreground: '859900' },
+    { token: 'string', foreground: '2aa198' },
+    { token: 'number', foreground: 'd33682' },
+    { token: 'type', foreground: 'b58900' },
+    { token: 'function', foreground: '268bd2' },
+    { token: 'variable', foreground: '657b83' },
+    { token: 'constant', foreground: 'cb4b16' },
+    { token: 'heading', foreground: 'cb4b16', fontStyle: 'bold' },
+    { token: 'emphasis', fontStyle: 'italic' },
+    { token: 'strong', fontStyle: 'bold' },
+  ],
+  colors: {
+    'editor.background': '#fdf6e3',
+    'editor.foreground': '#657b83',
+    'editor.lineHighlightBackground': '#eee8d5',
+    'editor.selectionBackground': '#eee8d5',
+    'editorCursor.foreground': '#657b83',
+    'editorLineNumber.foreground': '#93a1a1',
+    'editorLineNumber.activeForeground': '#657b83',
+    'editor.wordHighlightBackground': '#eee8d550',
+    'editorBracketMatch.background': '#eee8d5',
+    'editorBracketMatch.border': '#93a1a1',
+  },
+};
+
+export const solarizedDark: editor.IStandaloneThemeData = {
+  base: 'vs-dark',
+  inherit: true,
+  rules: [
+    { token: 'comment', foreground: '586e75', fontStyle: 'italic' },
+    { token: 'keyword', foreground: '859900' },
+    { token: 'string', foreground: '2aa198' },
+    { token: 'number', foreground: 'd33682' },
+    { token: 'type', foreground: 'b58900' },
+    { token: 'function', foreground: '268bd2' },
+    { token: 'variable', foreground: '839496' },
+    { token: 'constant', foreground: 'cb4b16' },
+    { token: 'heading', foreground: 'cb4b16', fontStyle: 'bold' },
+    { token: 'emphasis', fontStyle: 'italic' },
+    { token: 'strong', fontStyle: 'bold' },
+  ],
+  colors: {
+    'editor.background': '#002b36',
+    'editor.foreground': '#839496',
+    'editor.lineHighlightBackground': '#073642',
+    'editor.selectionBackground': '#073642',
+    'editorCursor.foreground': '#839496',
+    'editorLineNumber.foreground': '#586e75',
+    'editorLineNumber.activeForeground': '#839496',
+    'editor.wordHighlightBackground': '#07364250',
+    'editorBracketMatch.background': '#073642',
+    'editorBracketMatch.border': '#586e75',
+  },
+};

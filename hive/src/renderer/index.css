@@ -1,0 +1,167 @@
+@import "tailwindcss";
+
+/* Geist fonts */
+@import "@fontsource/geist-sans/400.css";
+@import "@fontsource/geist-sans/500.css";
+@import "@fontsource/geist-sans/600.css";
+@import "@fontsource/geist-sans/700.css";
+@import "@fontsource/geist-mono/400.css";
+@import "@fontsource/geist-mono/700.css";
+
+/* Solarized theme colors */
+@theme {
+  /* Solarized base colors */
+  --color-sol-base03: #002b36;
+  --color-sol-base02: #073642;
+  --color-sol-base01: #586e75;
+  --color-sol-base00: #657b83;
+  --color-sol-base0: #839496;
+  --color-sol-base1: #93a1a1;
+  --color-sol-base2: #eee8d5;
+  --color-sol-base3: #fdf6e3;
+
+  /* Solarized accent colors */
+  --color-sol-yellow: #b58900;
+  --color-sol-orange: #cb4b16;
+  --color-sol-red: #dc322f;
+  --color-sol-magenta: #d33682;
+  --color-sol-violet: #6c71c4;
+  --color-sol-blue: #268bd2;
+  --color-sol-cyan: #2aa198;
+  --color-sol-green: #859900;
+
+  /* Font families */
+  --font-sans: "Geist Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Geist Mono", "Hack", "Fira Code", "SF Mono", Monaco, Consolas, monospace;
+}
+
+/* CSS custom properties for theming */
+:root {
+  /* Light mode semantic colors */
+  --background: var(--color-sol-base3);
+  --background-secondary: var(--color-sol-base2);
+  --foreground: var(--color-sol-base00);
+  --foreground-muted: var(--color-sol-base1);
+
+  --primary: var(--color-sol-blue);
+  --primary-foreground: var(--color-sol-base3);
+
+  --secondary: var(--color-sol-base2);
+  --secondary-foreground: var(--color-sol-base01);
+
+  --accent: var(--color-sol-cyan);
+  --accent-foreground: var(--color-sol-base3);
+
+  --destructive: var(--color-sol-red);
+  --destructive-foreground: var(--color-sol-base3);
+
+  --warning: var(--color-sol-orange);
+  --success: var(--color-sol-green);
+
+  --border: var(--color-sol-base2);
+  --ring: var(--color-sol-blue);
+
+  --sidebar: var(--color-sol-base2);
+  --sidebar-foreground: var(--color-sol-base00);
+  --sidebar-accent: var(--color-sol-base3);
+
+  --popover: var(--color-sol-base02);
+  --popover-foreground: var(--color-sol-base2);
+
+  --warning-foreground: var(--color-sol-base3);
+
+  --radius: 0.375rem;
+}
+
+/* Dark mode */
+.dark {
+  --background: var(--color-sol-base03);
+  --background-secondary: var(--color-sol-base02);
+  --foreground: var(--color-sol-base0);
+  --foreground-muted: var(--color-sol-base01);
+
+  --primary: var(--color-sol-blue);
+  --primary-foreground: var(--color-sol-base03);
+
+  --secondary: var(--color-sol-base02);
+  --secondary-foreground: var(--color-sol-base1);
+
+  --border: var(--color-sol-base02);
+
+  --sidebar: var(--color-sol-base02);
+  --sidebar-foreground: var(--color-sol-base0);
+  --sidebar-accent: var(--color-sol-base03);
+
+  --popover: var(--color-sol-base2);
+  --popover-foreground: var(--color-sol-base02);
+}
+
+/* Base styles */
+* {
+  border-color: var(--border);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: var(--background-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--foreground-muted);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--foreground);
+}
+
+/* Draggable regions for window */
+.draggable {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Comment indicator styles for Thoughts pane - subtle background only */
+.comment-indicator {
+  background-color: rgba(38, 139, 210, 0.12);
+  border-radius: 2px;
+}
+
+/* Active highlight when comment is clicked */
+.comment-highlight-active {
+  background-color: rgba(181, 137, 0, 0.3) !important;
+  border-radius: 2px;
+  animation: comment-pulse 2s ease-out;
+}
+
+@keyframes comment-pulse {
+  0% {
+    background-color: rgba(181, 137, 0, 0.5);
+  }
+  100% {
+    background-color: rgba(181, 137, 0, 0.3);
+  }
+}
+
+/* Markdown viewer styles */
+.markdown-viewer {
+  line-height: 1.7;
+}
+
+.markdown-viewer ::selection {
+  background-color: rgba(38, 139, 210, 0.3); /* Solarized blue at 30% */
+}
