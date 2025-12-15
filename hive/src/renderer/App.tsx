@@ -3,6 +3,7 @@ import { MainLayout, useTabContext } from '@/components/layout/MainLayout';
 import { StartView } from '@/components/views/StartView';
 import { ProjectView } from '@/components/views/ProjectView';
 import { SettingsModal } from '@/components/views/SettingsModal';
+import { GlobalAnalyticsModal } from '@/components/views/GlobalAnalyticsModal';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useAppStore, useSessionMessagesStore } from '@/lib/store';
 import { useAutocompleteStore } from '@/lib/autocomplete-store';
@@ -79,15 +80,21 @@ function useGlobalSessionStatusListener() {
 
 export function App() {
   const [showSettings, setShowSettings] = React.useState(false);
+  const [showAnalytics, setShowAnalytics] = React.useState(false);
 
   // Listen for global session events (messages + status)
   useGlobalSessionMessageListener();
   useGlobalSessionStatusListener();
 
   React.useEffect(() => {
-    const handler = () => setShowSettings(true);
-    window.addEventListener('open-settings', handler);
-    return () => window.removeEventListener('open-settings', handler);
+    const settingsHandler = () => setShowSettings(true);
+    const analyticsHandler = () => setShowAnalytics(true);
+    window.addEventListener('open-settings', settingsHandler);
+    window.addEventListener('open-analytics', analyticsHandler);
+    return () => {
+      window.removeEventListener('open-settings', settingsHandler);
+      window.removeEventListener('open-analytics', analyticsHandler);
+    };
   }, []);
 
   return (
@@ -96,6 +103,7 @@ export function App() {
         <AppContent />
       </MainLayout>
       <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
+      <GlobalAnalyticsModal isOpen={showAnalytics} onClose={() => setShowAnalytics(false)} />
     </TooltipProvider>
   );
 }

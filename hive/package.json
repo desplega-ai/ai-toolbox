@@ -20,7 +20,9 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "electron",
-      "electron-winstaller"
+      "electron-winstaller",
+      "macos-alias",
+      "fs-xattr"
     ]
   },
   "devDependencies": {
@@ -33,6 +35,7 @@
     "@electron-forge/plugin-auto-unpack-natives": "^7.10.2",
     "@electron-forge/plugin-fuses": "^7.10.2",
     "@electron-forge/plugin-vite": "^7.10.2",
+    "@electron-forge/publisher-github": "^7.10.2",
     "@electron/fuses": "^1.8.0",
     "@electron/rebuild": "^4.0.2",
     "@types/better-sqlite3": "^7.6.13",
@@ -89,6 +92,7 @@
     "textarea-caret": "^3.1.0",
     "unified": "^11.0.5",
     "unist-util-visit": "^5.0.0",
+    "update-electron-app": "^3.1.2",
     "zustand": "^5.0.9"
   }
 }

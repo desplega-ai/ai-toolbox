@@ -562,4 +562,13 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('db:thought-comments:delete', async (_, { id }: { id: string }) => {
     return database.thoughtComments.delete(id);
   });
+
+  // Global analytics
+  ipcMain.handle('analytics:get-global', (_, { sinceTimestamp }: { sinceTimestamp?: number }) => {
+    return database.sessionResults.getGlobalAnalytics(sinceTimestamp);
+  });
+
+  ipcMain.handle('analytics:get-by-project', (_, { sinceTimestamp }: { sinceTimestamp?: number }) => {
+    return database.sessionResults.getAnalyticsByProject(sinceTimestamp);
+  });
 }

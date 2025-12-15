@@ -408,7 +408,7 @@ export function MainLayout({ children }: MainLayoutProps) {
           editingTabId={editingTabId}
           onStartEditing={setEditingTabId}
           onSettings={() => window.dispatchEvent(new Event('open-settings'))}
-          onAnalytics={() => {/* TODO */}}
+          onAnalytics={() => window.dispatchEvent(new Event('open-analytics'))}
         />
 
         <div className="flex-1 overflow-hidden">

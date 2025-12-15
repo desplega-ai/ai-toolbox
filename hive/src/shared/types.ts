@@ -176,3 +176,32 @@ export interface GitStatus {
   changedFiles: FileDiff[];
   error?: string;
 }
+
+// Global Analytics Types
+export interface GlobalAnalytics {
+  sessionCount: number;
+  resultCount: number;
+  totalCost: number;
+  totalDuration: number;
+  totalApiDuration: number;
+  totalTurns: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+}
+
+export interface ProjectAnalytics {
+  projectId: string;
+  projectName: string;
+  sessionCount: number;
+  resultCount: number;
+  totalCost: number;
+  totalDuration: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+}
+
+export type AnalyticsTimeRange = 'all' | 'today' | '7days' | '30days';

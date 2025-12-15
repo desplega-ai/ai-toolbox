@@ -269,6 +269,59 @@ const statements = {
     SELECT * FROM session_results WHERE claude_session_id = ? ORDER BY created_at ASC
   `),
 
+  // Global analytics aggregation
+  getGlobalAnalytics: db.prepare(`
+    SELECT
+      COUNT(DISTINCT sr.session_id) as session_count,
+      COUNT(*) as result_count,
+      SUM(sr.total_cost_usd) as total_cost,
+      SUM(sr.duration_ms) as total_duration,
+      SUM(sr.duration_api_ms) as total_api_duration,
+      SUM(sr.num_turns) as total_turns,
+      SUM(json_extract(sr.usage_json, '$.input_tokens')) as input_tokens,
+      SUM(json_extract(sr.usage_json, '$.output_tokens')) as output_tokens,
+      SUM(json_extract(sr.usage_json, '$.cache_read_input_tokens')) as cache_read_tokens,
+      SUM(json_extract(sr.usage_json, '$.cache_creation_input_tokens')) as cache_write_tokens
+    FROM session_results sr
+    WHERE sr.subtype != 'interrupted'
+  `),
+  getGlobalAnalyticsByTimeRange: db.prepare(`
+    SELECT
+      COUNT(DISTINCT sr.session_id) as session_count,
+      COUNT(*) as result_count,
+      SUM(sr.total_cost_usd) as total_cost,
+      SUM(sr.duration_ms) as total_duration,
+      SUM(sr.duration_api_ms) as total_api_duration,
+      SUM(sr.num_turns) as total_turns,
+      SUM(json_extract(sr.usage_json, '$.input_tokens')) as input_tokens,
+      SUM(json_extract(sr.usage_json, '$.output_tokens')) as output_tokens,
+      SUM(json_extract(sr.usage_json, '$.cache_read_input_tokens')) as cache_read_tokens,
+      SUM(json_extract(sr.usage_json, '$.cache_creation_input_tokens')) as cache_write_tokens
+    FROM session_results sr
+    WHERE sr.subtype != 'interrupted'
+      AND sr.created_at >= ?
+  `),
+  getAnalyticsByProject: db.prepare(`
+    SELECT
+      s.project_id as project_id,
+      p.name as project_name,
+      COUNT(DISTINCT sr.session_id) as session_count,
+      COUNT(*) as result_count,
+      SUM(sr.total_cost_usd) as total_cost,
+      SUM(sr.duration_ms) as total_duration,
+      SUM(json_extract(sr.usage_json, '$.input_tokens')) as input_tokens,
+      SUM(json_extract(sr.usage_json, '$.output_tokens')) as output_tokens,
+      SUM(json_extract(sr.usage_json, '$.cache_read_input_tokens')) as cache_read_tokens,
+      SUM(json_extract(sr.usage_json, '$.cache_creation_input_tokens')) as cache_write_tokens
+    FROM session_results sr
+    JOIN sessions s ON sr.session_id = s.id
+    JOIN projects p ON s.project_id = p.id
+    WHERE sr.subtype != 'interrupted'
+      AND (? IS NULL OR sr.created_at >= ?)
+    GROUP BY s.project_id, p.name
+    ORDER BY total_cost DESC
+  `),
+
   // Thought Comments
   getCommentsByProject: db.prepare(`
     SELECT id, project_id as projectId, file_path as filePath, content,
@@ -362,6 +415,58 @@ interface SessionResultRow {
   num_turns: number | null;
   usage_json: string | null;
   created_at: number;
+}
+
+interface GlobalAnalyticsRow {
+  session_count: number | null;
+  result_count: number | null;
+  total_cost: number | null;
+  total_duration: number | null;
+  total_api_duration: number | null;
+  total_turns: number | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cache_read_tokens: number | null;
+  cache_write_tokens: number | null;
+}
+
+interface ProjectAnalyticsRow {
+  project_id: string;
+  project_name: string;
+  session_count: number | null;
+  result_count: number | null;
+  total_cost: number | null;
+  total_duration: number | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cache_read_tokens: number | null;
+  cache_write_tokens: number | null;
+}
+
+export interface GlobalAnalytics {
+  sessionCount: number;
+  resultCount: number;
+  totalCost: number;
+  totalDuration: number;
+  totalApiDuration: number;
+  totalTurns: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+}
+
+export interface ProjectAnalytics {
+  projectId: string;
+  projectName: string;
+  sessionCount: number;
+  resultCount: number;
+  totalCost: number;
+  totalDuration: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
 }
 
 interface ThoughtCommentRow {
@@ -603,6 +708,46 @@ export const database = {
         duration_api_ms: row.duration_api_ms || undefined,
         num_turns: row.num_turns || undefined,
         usage: row.usage_json ? JSON.parse(row.usage_json) : undefined,
+      }));
+    },
+
+    getGlobalAnalytics(sinceTimestamp?: number): GlobalAnalytics {
+      let row: GlobalAnalyticsRow;
+      if (sinceTimestamp) {
+        row = statements.getGlobalAnalyticsByTimeRange.get(sinceTimestamp) as GlobalAnalyticsRow;
+      } else {
+        row = statements.getGlobalAnalytics.get() as GlobalAnalyticsRow;
+      }
+      return {
+        sessionCount: row.session_count || 0,
+        resultCount: row.result_count || 0,
+        totalCost: row.total_cost || 0,
+        totalDuration: row.total_duration || 0,
+        totalApiDuration: row.total_api_duration || 0,
+        totalTurns: row.total_turns || 0,
+        inputTokens: row.input_tokens || 0,
+        outputTokens: row.output_tokens || 0,
+        cacheReadTokens: row.cache_read_tokens || 0,
+        cacheWriteTokens: row.cache_write_tokens || 0,
+      };
+    },
+
+    getAnalyticsByProject(sinceTimestamp?: number): ProjectAnalytics[] {
+      const rows = statements.getAnalyticsByProject.all(
+        sinceTimestamp ?? null,
+        sinceTimestamp ?? null
+      ) as ProjectAnalyticsRow[];
+      return rows.map(row => ({
+        projectId: row.project_id,
+        projectName: row.project_name,
+        sessionCount: row.session_count || 0,
+        resultCount: row.result_count || 0,
+        totalCost: row.total_cost || 0,
+        totalDuration: row.total_duration || 0,
+        inputTokens: row.input_tokens || 0,
+        outputTokens: row.output_tokens || 0,
+        cacheReadTokens: row.cache_read_tokens || 0,
+        cacheWriteTokens: row.cache_write_tokens || 0,
       }));
     },
   },

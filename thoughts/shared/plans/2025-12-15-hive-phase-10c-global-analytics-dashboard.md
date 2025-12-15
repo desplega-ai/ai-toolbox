@@ -273,7 +273,7 @@ export type AnalyticsTimeRange = 'all' | 'today' | '7days' | '30days';
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] TypeScript compiles: `cd hive && pnpm exec tsc --noEmit`
+- [x] TypeScript compiles: `cd hive && pnpm exec tsc --noEmit`
 - [ ] App starts without errors: `cd hive && pnpm start`
 
 #### Manual Verification:
@@ -635,7 +635,7 @@ Add modal to the JSX, just before the closing `</TabContext.Provider>` (around l
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] TypeScript compiles: `cd hive && pnpm exec tsc --noEmit`
+- [x] TypeScript compiles: `cd hive && pnpm exec tsc --noEmit`
 - [ ] App starts without errors: `cd hive && pnpm start`
 
 #### Manual Verification:

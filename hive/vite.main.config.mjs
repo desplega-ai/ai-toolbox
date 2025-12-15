@@ -10,12 +10,11 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
+      // Native modules must be external - they can't be bundled by Vite.
+      // See packageAfterPrune hook in forge.config.ts for how these get included.
       external: [
         'electron',
         'better-sqlite3',
-        'electron-store',
-        'electron-window-state',
-        '@anthropic-ai/claude-agent-sdk',
       ],
     },
   },
