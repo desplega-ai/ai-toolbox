@@ -6,10 +6,19 @@ branch: main
 repository: ai-toolbox
 topic: "Tauri Window Management Patterns for Hive"
 tags: [research, tauri, window-management, split-panes, keyboard-shortcuts, hive]
-status: complete
-last_updated: 2025-12-14
+status: superseded
+superseded_by: "2025-12-15-hive-electron-app-research.md"
+superseded_reason: "Hive is now using Electron instead of Tauri. Window management patterns differ."
+last_updated: 2025-12-15
 last_updated_by: Claude
+last_updated_note: "Marked as superseded - switching to Electron approach"
 ---
+
+> **SUPERSEDED**: This research has been superseded by [Hive Electron App Research](./2025-12-15-hive-electron-app-research.md).
+>
+> **Reason**: Hive is now being built with Electron instead of Tauri. Electron window management uses `BrowserWindow` API and `electron-window-state` instead of Tauri plugins. The split pane recommendation (`react-resizable-panels`) remains valid for the Electron approach.
+>
+> This document is preserved for historical context.
 
 # Research: Tauri Window Management Patterns for Hive
 

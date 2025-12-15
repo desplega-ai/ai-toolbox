@@ -6,11 +6,19 @@ branch: main
 repository: ai-toolbox
 topic: "Hive - macOS App for Managing AI CLI Agents"
 tags: [research, hive, tauri, claude-code, claude-cli, desktop-app]
-status: complete
+status: superseded
+superseded_by: "2025-12-15-hive-electron-app-research.md"
+superseded_reason: "Tauri WebView lacks Node.js runtime required for Claude Agent SDK. Switched to Electron approach."
 last_updated: 2025-12-15
 last_updated_by: Claude
-last_updated_note: "Updated to CLI-based approach (SDK not compatible with Tauri WebView)"
+last_updated_note: "Marked as superseded - switching to Electron approach"
 ---
+
+> **SUPERSEDED**: This research has been superseded by [Hive Electron App Research](./2025-12-15-hive-electron-app-research.md).
+>
+> **Reason**: Tauri's WebView environment lacks Node.js runtime, which is required by the Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`). The Electron approach allows direct SDK integration in the main process.
+>
+> This document is preserved for historical context.
 
 # Research: Hive - macOS App for Managing AI CLI Agents
 

@@ -6,11 +6,20 @@ branch: main
 repository: ai-toolbox
 topic: "Hive Claude CLI Integration (Supersedes SDK Approach)"
 tags: [research, hive, claude-cli, tauri, shell-plugin, streaming]
-status: complete
+status: superseded
+superseded_by: "2025-12-15-hive-electron-app-research.md"
+superseded_reason: "Hive is now using Electron instead of Tauri. CLI integration approach differs."
 last_updated: 2025-12-15
 last_updated_by: Claude
+last_updated_note: "Marked as superseded - switching to Electron approach"
 supersedes: thoughts/shared/research/2025-12-14-claude-agent-sdk-session-lifecycle.md
 ---
+
+> **SUPERSEDED**: This research has been superseded by [Hive Electron App Research](./2025-12-15-hive-electron-app-research.md).
+>
+> **Reason**: Hive is now being built with Electron instead of Tauri. The CLI integration approach (using Tauri's shell plugin) is no longer applicable. Electron uses Node.js child processes directly.
+>
+> This document is preserved for historical context.
 
 # Research: Hive Claude CLI Integration
 
