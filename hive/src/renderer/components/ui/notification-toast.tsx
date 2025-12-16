@@ -32,7 +32,7 @@ export function NotificationToast({ notification, onDismiss, onClick }: Notifica
   return (
     <div
       className={cn(
-        'w-80 bg-[var(--background)] border border-[var(--border)] rounded-lg shadow-lg',
+        'w-full bg-[var(--background)] border border-[var(--border)] shadow-lg',
         'border-l-4 cursor-pointer transition-all hover:shadow-xl hover:scale-[1.02]',
         colorMap[notification.type]
       )}
@@ -47,7 +47,7 @@ export function NotificationToast({ notification, onDismiss, onClick }: Notifica
           </p>
         </div>
         <button
-          className="flex-shrink-0 p-1 hover:bg-[var(--secondary)] rounded transition-colors"
+          className="flex-shrink-0 p-1 hover:bg-[var(--secondary)] transition-colors"
           onClick={(e) => {
             e.stopPropagation();
             onDismiss(notification.id);

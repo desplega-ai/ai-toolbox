@@ -8,8 +8,12 @@ import { AutocompleteDropdown } from './AutocompleteDropdown';
 
 // Line height in pixels (14px font * 1.5 line-height ≈ 21px)
 const LINE_HEIGHT = 21;
+const PADDING_Y = 16; // py-2 = 0.5rem * 2 = 16px
+const BORDER_Y = 2;   // border on top and bottom
 const MIN_LINES = 2;
 const MAX_LINES = 10;
+const MIN_HEIGHT = MIN_LINES * LINE_HEIGHT + PADDING_Y + BORDER_Y;
+const MAX_HEIGHT = MAX_LINES * LINE_HEIGHT + PADDING_Y + BORDER_Y;
 
 // Render highlighted text for commands, agents, and files
 function HighlightedText({ text }: { text: string }) {
@@ -251,17 +255,33 @@ export function MessageInput({ onSend, onInterrupt, isRunning, disabled, session
   };
 
   // Auto-resize textarea (min 2 lines, max 10 lines)
-  React.useEffect(() => {
-    if (textareaRef.current) {
-      const minHeight = MIN_LINES * LINE_HEIGHT;
-      const maxHeight = MAX_LINES * LINE_HEIGHT;
-      textareaRef.current.style.height = 'auto';
-      const scrollHeight = textareaRef.current.scrollHeight;
-      textareaRef.current.style.height = `${Math.max(minHeight, Math.min(scrollHeight, maxHeight))}px`;
-      // Also resize backdrop
+  React.useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    // For empty input, just use minimum height (no need to measure)
+    if (!input.trim()) {
+      textarea.style.height = `${MIN_HEIGHT}px`;
+      textarea.style.overflow = 'hidden';
       if (backdropRef.current) {
-        backdropRef.current.style.height = `${Math.max(minHeight, Math.min(scrollHeight, maxHeight))}px`;
+        backdropRef.current.style.height = `${MIN_HEIGHT}px`;
       }
+      return;
+    }
+
+    // For non-empty input, measure scrollHeight
+    const prevOverflow = textarea.style.overflow;
+    textarea.style.overflow = 'hidden';
+    textarea.style.height = `${MIN_HEIGHT}px`;
+
+    const scrollHeight = textarea.scrollHeight;
+    const newHeight = Math.max(MIN_HEIGHT, Math.min(scrollHeight, MAX_HEIGHT));
+
+    textarea.style.height = `${newHeight}px`;
+    textarea.style.overflow = newHeight >= MAX_HEIGHT ? 'auto' : prevOverflow;
+
+    if (backdropRef.current) {
+      backdropRef.current.style.height = `${newHeight}px`;
     }
   }, [input]);
 
@@ -279,8 +299,8 @@ export function MessageInput({ onSend, onInterrupt, isRunning, disabled, session
           {/* Highlight backdrop - renders colored tokens */}
           <div
             ref={backdropRef}
-            className="absolute inset-0 px-3 py-2 border border-transparent bg-[var(--background)] text-[var(--foreground)] font-mono text-sm leading-[21px] whitespace-pre-wrap break-words overflow-y-auto pointer-events-none scrollbar-none"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            className="absolute top-0 left-0 right-0 px-3 py-2 border border-transparent bg-[var(--background)] text-[var(--foreground)] font-mono text-sm leading-[21px] whitespace-pre-wrap break-words overflow-y-auto pointer-events-none scrollbar-none"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', height: MIN_HEIGHT }}
             aria-hidden="true"
           >
             <HighlightedText text={input} />
@@ -305,6 +325,7 @@ export function MessageInput({ onSend, onInterrupt, isRunning, disabled, session
             }
             disabled={disabled}
             rows={MIN_LINES}
+            style={{ height: MIN_HEIGHT }}
             className="relative w-full px-3 py-2 border border-[var(--border)] bg-transparent text-transparent caret-[var(--foreground)] placeholder:text-[var(--foreground-muted)] disabled:opacity-50 resize-none font-mono text-sm leading-[21px] selection:bg-[var(--primary)]/30 selection:text-transparent"
           />
         </div>

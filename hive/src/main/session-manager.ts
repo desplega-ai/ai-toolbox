@@ -1,4 +1,4 @@
-import { query, type Query, type PermissionResult, type HookCallback, type HookJSONOutput, type PermissionRequestHookInput } from '@anthropic-ai/claude-agent-sdk';
+import { query, type Query, type PermissionResult, type CanUseTool } from '@anthropic-ai/claude-agent-sdk';
 import { app, BrowserWindow, Notification } from 'electron';
 import path from 'path';
 import { execSync } from 'child_process';
@@ -139,89 +139,66 @@ export class SessionManager {
     const readOnlyTools = ['Read', 'Glob', 'Grep', 'WebSearch', 'WebFetch', 'TodoWrite', 'Task', 'TaskOutput'];
     const editTools = ['Edit', 'Write', 'NotebookEdit'];
 
-    console.log(`[Session] Creating query with PermissionRequest hook`);
+    console.log(`[Session] Creating query with canUseTool callback`);
 
     // Find the Claude Code CLI executable
     const claudeExecutable = findClaudeExecutable();
     console.log(`[Session] Using Claude executable: ${claudeExecutable}`);
 
-    // Create PermissionRequest hook that handles permissions via our UI
-    const permissionRequestHook: HookCallback = async (
-      input,
-      toolUseID,
-      options
-    ): Promise<HookJSONOutput> => {
-      const hookInput = input as PermissionRequestHookInput;
-      const toolName = hookInput.tool_name;
-      const toolInput = hookInput.tool_input as Record<string, unknown>;
-
+    // Create canUseTool callback that handles permissions via our UI
+    // This callback runs BEFORE SDK's internal permission checks
+    const canUseTool: CanUseTool = async (
+      toolName: string,
+      toolInput: Record<string, unknown>,
+      options: {
+        signal: AbortSignal;
+        suggestions?: unknown[];
+        toolUseID: string;
+      }
+    ): Promise<PermissionResult> => {
       const hash = hashToolCall(toolName, toolInput);
-      console.log(`[PermissionHook] Tool: ${toolName}, Hash: ${hash}, PermissionMode: ${effectivePermissionMode}`);
-      console.log(`[PermissionHook] ToolUseID: ${toolUseID}`);
-      console.log(`[PermissionHook] Input:`, JSON.stringify(toolInput).slice(0, 200));
+      console.log(`[canUseTool] Tool: ${toolName}, Hash: ${hash}, Mode: ${effectivePermissionMode}`);
+      console.log(`[canUseTool] ToolUseID: ${options.toolUseID}`);
+      console.log(`[canUseTool] Input:`, JSON.stringify(toolInput).slice(0, 200));
 
       // Apply permission mode logic
       if (effectivePermissionMode === 'bypassPermissions') {
-        console.log(`[PermissionHook] Bypass mode - auto-allowing ${toolName}`);
-        return {
-          hookSpecificOutput: {
-            hookEventName: 'PermissionRequest',
-            decision: { behavior: 'allow', updatedInput: toolInput }
-          }
-        };
+        console.log(`[canUseTool] Bypass mode - auto-allowing ${toolName}`);
+        return { behavior: 'allow', updatedInput: toolInput };
       }
 
       if (effectivePermissionMode === 'acceptEdits') {
         if (readOnlyTools.includes(toolName) || editTools.includes(toolName)) {
-          console.log(`[PermissionHook] AcceptEdits mode - auto-allowing ${toolName}`);
-          return {
-            hookSpecificOutput: {
-              hookEventName: 'PermissionRequest',
-              decision: { behavior: 'allow', updatedInput: toolInput }
-            }
-          };
+          console.log(`[canUseTool] AcceptEdits mode - auto-allowing ${toolName}`);
+          return { behavior: 'allow', updatedInput: toolInput };
         }
       }
 
       if (effectivePermissionMode === 'plan') {
         if (readOnlyTools.includes(toolName)) {
-          console.log(`[PermissionHook] Plan mode - auto-allowing read-only tool ${toolName}`);
-          return {
-            hookSpecificOutput: {
-              hookEventName: 'PermissionRequest',
-              decision: { behavior: 'allow', updatedInput: toolInput }
-            }
-          };
+          console.log(`[canUseTool] Plan mode - auto-allowing read-only tool ${toolName}`);
+          return { behavior: 'allow', updatedInput: toolInput };
         }
-        console.log(`[PermissionHook] Plan mode - denying write operation ${toolName}`);
-        return {
-          hookSpecificOutput: {
-            hookEventName: 'PermissionRequest',
-            decision: { behavior: 'deny', message: 'Write operations are not allowed in plan mode' }
-          }
-        };
+        console.log(`[canUseTool] Plan mode - denying write operation ${toolName}`);
+        return { behavior: 'deny', message: 'Write operations are not allowed in plan mode' };
       }
 
-      // Default mode - check pre-approvals or wait for user
+      // Default mode - check pre-approvals
       const approved = database.approvedToolCalls.findByHash(hiveSessionId, hash);
       if (approved) {
-        console.log(`[PermissionHook] Pre-approved hash found, allowing tool`);
+        console.log(`[canUseTool] Pre-approved hash found, allowing tool`);
         database.approvedToolCalls.delete(approved.id);
-        return {
-          hookSpecificOutput: {
-            hookEventName: 'PermissionRequest',
-            decision: { behavior: 'allow', updatedInput: toolInput }
-          }
-        };
+        return { behavior: 'allow', updatedInput: toolInput };
       }
 
-      // Not pre-approved - wait for user approval via Promise
-      console.log(`[PermissionHook] No pre-approval, waiting for user decision`);
+      // NOT pre-approved - store pending and DENY IMMEDIATELY
+      // Session will end, user approves via UI, then resumes
+      console.log(`[canUseTool] No pre-approval, storing pending and denying`);
 
-      // Store pending approval in database
+      // Store pending approval in database (persists across restarts)
       const pending = database.pendingApprovals.create({
         sessionId: hiveSessionId,
-        toolUseId: toolUseID || 'unknown',
+        toolUseId: options.toolUseID,
         toolName,
         toolInput,
         hash,
@@ -238,62 +215,24 @@ export class SessionManager {
       const request: PermissionRequest = {
         id: pending.id,
         sessionId: hiveSessionId,
-        toolUseId: toolUseID || 'unknown',
+        toolUseId: options.toolUseID,
         toolName,
         input: toolInput,
         timestamp: pending.createdAt,
         hash,
-        permissionSuggestions: hookInput.permission_suggestions as unknown[],
+        permissionSuggestions: options.suggestions as unknown[],
       };
-      console.log(`[PermissionHook] Sending permission-request IPC:`, JSON.stringify({ id: request.id, sessionId: request.sessionId, toolUseId: request.toolUseId, toolName: request.toolName }));
+      console.log(`[canUseTool] Sending permission-request IPC:`, JSON.stringify({ id: request.id, sessionId: request.sessionId, toolUseId: request.toolUseId, toolName: request.toolName }));
       if (!this.mainWindow.isDestroyed()) {
         this.mainWindow.webContents.send('session:permission-request', request);
-        console.log(`[PermissionHook] IPC sent, waiting for user response...`);
-      } else {
-        console.error(`[PermissionHook] ERROR: mainWindow is destroyed, cannot send IPC`);
-        return {
-          hookSpecificOutput: {
-            hookEventName: 'PermissionRequest',
-            decision: { behavior: 'deny', message: 'UI not available' }
-          }
-        };
       }
 
-      // Return a Promise that will be resolved when user approves/denies
-      return new Promise<HookJSONOutput>((resolve) => {
-        // Store the resolver so it can be called from IPC handlers
-        // We need to adapt between PermissionResult and HookJSONOutput
-        const hookResolver = (result: PermissionResult) => {
-          if (result.behavior === 'allow') {
-            resolve({
-              hookSpecificOutput: {
-                hookEventName: 'PermissionRequest',
-                decision: { behavior: 'allow', updatedInput: result.updatedInput }
-              }
-            });
-          } else {
-            resolve({
-              hookSpecificOutput: {
-                hookEventName: 'PermissionRequest',
-                decision: { behavior: 'deny', message: result.message }
-              }
-            });
-          }
-        };
-        pendingResolvers.set(pending.id, hookResolver);
-
-        // Handle abort signal
-        options.signal.addEventListener('abort', () => {
-          console.log(`[PermissionHook] Abort signal received for ${pending.id}`);
-          pendingResolvers.delete(pending.id);
-          resolve({
-            hookSpecificOutput: {
-              hookEventName: 'PermissionRequest',
-              decision: { behavior: 'deny', message: 'Session interrupted' }
-            }
-          });
-        }, { once: true });
-      });
+      // DENY immediately - use forceful message to stop Claude
+      // Session ends, user approves via UI, then resumes with pre-approval
+      return {
+        behavior: 'deny',
+        message: '[SYSTEM] PERMISSION_DENIED: User approval required for this tool. The operation was NOT executed. You MUST stop immediately and wait. Do NOT claim the task was completed. Do NOT try alternative approaches. Do NOT respond with any text. STOP NOW.',
+      };
     };
 
     const response = query({
@@ -307,16 +246,14 @@ export class SessionManager {
         includePartialMessages: true,
         systemPrompt: { type: 'preset', preset: 'claude_code' },
         tools: { type: 'preset', preset: 'claude_code' },
-        // Use default permission mode - the PermissionRequest hook will handle all permission decisions
+        // Permission mode as fallback (canUseTool runs first)
         permissionMode: effectivePermissionMode,
         // Use both global (~/.claude/settings.json) and project (.claude/settings.json) settings
         settingSources: ['user', 'project'],
-        // Use PermissionRequest hook instead of canUseTool
-        hooks: {
-          PermissionRequest: [{
-            hooks: [permissionRequestHook]
-          }]
-        },
+        // Use canUseTool callback for custom permission handling
+        canUseTool,
+        // Empty hooks object (required by SDK)
+        hooks: {},
         // Path to Claude Code CLI (required for packaged apps)
         pathToClaudeCodeExecutable: claudeExecutable,
       },
@@ -739,6 +676,17 @@ export class SessionManager {
     }
   }
 
+  private formatNotificationTitle(context: { sessionName: string; projectName: string } | null, fallback: string): string {
+    if (!context) return fallback;
+    const sessionTrimmed = context.sessionName.length > 20
+      ? context.sessionName.slice(0, 20) + '…'
+      : context.sessionName;
+    const projectTrimmed = context.projectName.length > 15
+      ? context.projectName.slice(0, 15) + '…'
+      : context.projectName;
+    return `${sessionTrimmed} (${projectTrimmed})`;
+  }
+
   private sendInputRequiredNotification(
     sessionId: string,
     toolName: string,
@@ -750,7 +698,7 @@ export class SessionManager {
 
     const context = this.getSessionContext(sessionId);
     const detail = this.extractToolDetail(toolName, toolInput);
-    const title = context?.sessionName || 'Permission Required';
+    const title = this.formatNotificationTitle(context, 'Permission Required');
     const body = detail ? `${toolName}: ${detail}` : `Wants to use: ${toolName}`;
 
     if (this.mainWindow.isFocused()) {
@@ -793,7 +741,7 @@ export class SessionManager {
     if (!prefs.notifications.sessionComplete) return;
 
     const context = this.getSessionContext(sessionId);
-    const title = context?.sessionName || (success ? 'Task Complete' : 'Task Error');
+    const title = this.formatNotificationTitle(context, success ? 'Task Complete' : 'Task Error');
     const body = success ? 'Finished successfully' : (resultText || 'Ended with an error');
 
     if (this.mainWindow.isFocused()) {

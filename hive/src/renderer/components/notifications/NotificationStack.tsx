@@ -19,7 +19,7 @@ export function NotificationStack({ onNotificationClick }: NotificationStackProp
   if (visibleNotifications.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 w-80">
       {visibleNotifications.map((notification) => (
         <NotificationToast
           key={notification.id}
@@ -36,7 +36,7 @@ export function NotificationStack({ onNotificationClick }: NotificationStackProp
 
       {hiddenCount > 0 && (
         <button
-          className="self-end flex items-center gap-2 px-3 py-2 text-sm bg-[var(--background)] border border-[var(--border)] rounded-lg shadow-lg hover:bg-[var(--secondary)] transition-colors"
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm bg-[var(--background)] border border-[var(--border)] shadow-lg hover:bg-[var(--secondary)] transition-colors"
           onClick={toggleNotificationList}
         >
           <Bell className="w-4 h-4" />

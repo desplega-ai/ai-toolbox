@@ -25,12 +25,12 @@ export function NotificationListModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/50 cursor-pointer"
         onClick={onClose}
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-md max-h-[80vh] bg-[var(--background)] rounded-lg shadow-xl border border-[var(--border)] flex flex-col">
+      <div className="relative w-full max-w-md max-h-[80vh] bg-[var(--background)] shadow-xl border border-[var(--border)] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
           <div className="flex items-center gap-2">

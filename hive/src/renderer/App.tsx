@@ -124,15 +124,20 @@ function useGlobalSessionActionTypeListener() {
 // Global listener for in-app notifications
 function useGlobalNotificationListener() {
   const addNotification = useNotificationStore((s) => s.addNotification);
+  const currentSession = useAppStore((s) => s.currentSession);
 
   React.useEffect(() => {
     const unsub = window.electronAPI.on('notification:show', (data: unknown) => {
       const notif = data as Omit<InAppNotification, 'id' | 'timestamp' | 'read'>;
+      // Skip notification if it's for the currently focused session
+      if (notif.sessionId && currentSession?.id === notif.sessionId) {
+        return;
+      }
       addNotification(notif);
     });
 
     return () => unsub();
-  }, [addNotification]);
+  }, [addNotification, currentSession?.id]);
 }
 
 export function App() {
