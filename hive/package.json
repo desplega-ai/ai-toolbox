@@ -10,7 +10,7 @@
     "make": "electron-forge make",
     "publish": "electron-forge publish",
     "lint": "eslint --ext .ts,.tsx .",
-    "local-install": "killall 'Hive (dev)' 2>/dev/null || true && electron-forge make && rm -rf '/Applications/Hive (dev).app' && cp -R \"out/Hive-darwin-$(uname -m)/Hive.app\" '/Applications/Hive (dev).app'"
+    "local-install": "pnpm install && killall 'Hive (dev)' 2>/dev/null || true && electron-forge make && rm -rf '/Applications/Hive (dev).app' && cp -R \"out/Hive-darwin-$(uname -m)/Hive.app\" '/Applications/Hive (dev).app'"
   },
   "keywords": [],
   "author": {
