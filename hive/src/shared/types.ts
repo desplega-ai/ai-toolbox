@@ -206,3 +206,17 @@ export interface ProjectAnalytics {
 }
 
 export type AnalyticsTimeRange = 'all' | 'today' | '7days' | '30days';
+
+// In-app notification types
+export type NotificationType = 'permission' | 'success' | 'error';
+
+export interface InAppNotification {
+  id: string;
+  type: NotificationType;
+  sessionId: string;
+  sessionName: string;
+  title: string;
+  body: string;
+  timestamp: number;
+  read: boolean;
+}

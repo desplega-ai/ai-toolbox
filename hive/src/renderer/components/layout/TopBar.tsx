@@ -1,6 +1,7 @@
 import React from 'react';
 import { Plus, Settings, BarChart3, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { NotificationBadge } from '@/components/notifications/NotificationBadge';
 import { cn } from '@/lib/utils';
 import type { Tab } from '../../../shared/types';
 import hiveLogo from '@/assets/hive_logo.png';
@@ -158,6 +159,7 @@ export function TopBar({
         className="flex items-center gap-2 px-3"
         style={{ WebkitAppRegion: 'no-drag' }}
       >
+        <NotificationBadge />
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onAnalytics}>
           <BarChart3 className="h-4 w-4" />
         </Button>

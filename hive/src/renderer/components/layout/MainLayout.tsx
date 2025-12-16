@@ -438,6 +438,77 @@ export function MainLayout({ children }: MainLayoutProps) {
     return () => window.removeEventListener('collapse-sidebar', handleCollapseSidebar);
   }, [sidebarCollapsed]);
 
+  // Listen for focus-session event (triggered by notification clicks)
+  React.useEffect(() => {
+    const handleFocusSession = async (e: Event) => {
+      const { sessionId } = (e as CustomEvent).detail as { sessionId: string };
+      if (!sessionId) return;
+
+      // First, check if any existing tab has this session
+      for (const [tabId, tabState] of Object.entries(tabStates)) {
+        const session = tabState.sessions.find(s => s.id === sessionId);
+        if (session) {
+          // Found it! Switch to this tab and select the session
+          setActiveTabId(tabId);
+          setTabStates(prev => ({
+            ...prev,
+            [tabId]: { ...prev[tabId], session },
+          }));
+          setTabs(prev => prev.map(t =>
+            t.id === tabId ? { ...t, sessionId: session.id } : t
+          ));
+          return;
+        }
+      }
+
+      // Session not in any open tab - need to find which project it belongs to
+      // and open it in the current tab or a new tab
+      try {
+        const projects = await window.electronAPI.invoke<Project[]>('db:projects:list');
+        for (const project of projects) {
+          const sessions = await window.electronAPI.invoke<Session[]>('db:sessions:list', { projectId: project.id });
+          const session = sessions.find(s => s.id === sessionId);
+          if (session) {
+            // Found the session! Open in current tab if it's empty, otherwise new tab
+            const currentState = tabStates[activeTabId];
+            if (!currentState?.project) {
+              // Current tab is empty, use it
+              setTabStates(prev => ({
+                ...prev,
+                [activeTabId]: { project, session, sessions },
+              }));
+              setTabs(prev => prev.map(t =>
+                t.id === activeTabId
+                  ? { ...t, projectId: project.id, sessionId: session.id, title: project.name }
+                  : t
+              ));
+            } else {
+              // Create new tab for this session
+              const newTabId = Date.now().toString();
+              setTabs(prev => [...prev, {
+                id: newTabId,
+                title: project.name,
+                projectId: project.id,
+                sessionId: session.id,
+              }]);
+              setTabStates(prev => ({
+                ...prev,
+                [newTabId]: { project, session, sessions },
+              }));
+              setActiveTabId(newTabId);
+            }
+            return;
+          }
+        }
+      } catch (e) {
+        console.error('Failed to find session for focus-session event:', e);
+      }
+    };
+
+    window.addEventListener('focus-session', handleFocusSession);
+    return () => window.removeEventListener('focus-session', handleFocusSession);
+  }, [tabStates, activeTabId]);
+
   // Keyboard shortcuts
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

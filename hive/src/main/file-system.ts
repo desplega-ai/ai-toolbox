@@ -39,6 +39,10 @@ export async function readDirectory(dirPath: string): Promise<FileNode[]> {
       return a.name.localeCompare(b.name);
     });
   } catch (error) {
+    // Silently return empty array if directory doesn't exist
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return [];
+    }
     console.error('Error reading directory:', dirPath, error);
     return [];
   }

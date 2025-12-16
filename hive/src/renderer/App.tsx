@@ -4,10 +4,13 @@ import { StartView } from '@/components/views/StartView';
 import { ProjectView } from '@/components/views/ProjectView';
 import { SettingsModal } from '@/components/views/SettingsModal';
 import { GlobalAnalyticsModal } from '@/components/views/GlobalAnalyticsModal';
+import { NotificationStack } from '@/components/notifications/NotificationStack';
+import { NotificationListModal } from '@/components/notifications/NotificationListModal';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useAppStore, useSessionMessagesStore } from '@/lib/store';
 import { useAutocompleteStore } from '@/lib/autocomplete-store';
-import type { Session } from '../shared/types';
+import { useNotificationStore } from '@/lib/notification-store';
+import type { Session, InAppNotification } from '../shared/types';
 import type { SDKMessage, SDKStreamEvent, SDKInitMessage } from '../shared/sdk-types';
 
 function AppContent() {
@@ -118,6 +121,20 @@ function useGlobalSessionActionTypeListener() {
   }, [updateSessionActionType]);
 }
 
+// Global listener for in-app notifications
+function useGlobalNotificationListener() {
+  const addNotification = useNotificationStore((s) => s.addNotification);
+
+  React.useEffect(() => {
+    const unsub = window.electronAPI.on('notification:show', (data: unknown) => {
+      const notif = data as Omit<InAppNotification, 'id' | 'timestamp' | 'read'>;
+      addNotification(notif);
+    });
+
+    return () => unsub();
+  }, [addNotification]);
+}
+
 export function App() {
   const [showSettings, setShowSettings] = React.useState(false);
   const [showAnalytics, setShowAnalytics] = React.useState(false);
@@ -127,6 +144,19 @@ export function App() {
   useGlobalSessionStatusListener();
   useGlobalSessionNameListener();
   useGlobalSessionActionTypeListener();
+  useGlobalNotificationListener();
+
+  // Notification modal state
+  const showNotificationList = useNotificationStore((s) => s.showNotificationList);
+  const setShowNotificationList = useNotificationStore((s) => s.setShowNotificationList);
+
+  // Handle notification click - navigate to the session
+  const handleNotificationClick = React.useCallback((notification: InAppNotification) => {
+    // Dispatch custom event that MainLayout can handle to focus the session
+    window.dispatchEvent(
+      new CustomEvent('focus-session', { detail: { sessionId: notification.sessionId } })
+    );
+  }, []);
 
   React.useEffect(() => {
     const settingsHandler = () => setShowSettings(true);
@@ -146,6 +176,12 @@ export function App() {
       </MainLayout>
       <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
       <GlobalAnalyticsModal isOpen={showAnalytics} onClose={() => setShowAnalytics(false)} />
+      <NotificationStack onNotificationClick={handleNotificationClick} />
+      <NotificationListModal
+        isOpen={showNotificationList}
+        onClose={() => setShowNotificationList(false)}
+        onNotificationClick={handleNotificationClick}
+      />
     </TooltipProvider>
   );
 }

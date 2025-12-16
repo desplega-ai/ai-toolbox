@@ -748,25 +748,39 @@ export class SessionManager {
     const prefs = getPreferences();
     if (!prefs.notifications.inputRequired) return;
 
-    if (this.mainWindow.isFocused()) return;
-
     const context = this.getSessionContext(sessionId);
     const detail = this.extractToolDetail(toolName, toolInput);
+    const title = context?.sessionName || 'Permission Required';
+    const body = detail ? `${toolName}: ${detail}` : `Wants to use: ${toolName}`;
 
-    const notification = new Notification({
-      title: context?.sessionName || 'Permission Required',
-      body: detail ? `${toolName}: ${detail}` : `Wants to use: ${toolName}`,
-      icon: this.getNotificationIcon(),
-      timeoutType: 'never'
-    });
+    if (this.mainWindow.isFocused()) {
+      // In-app notification when window is focused
+      if (!this.mainWindow.isDestroyed()) {
+        this.mainWindow.webContents.send('notification:show', {
+          type: 'permission',
+          sessionId,
+          sessionName: context?.sessionName || 'Unknown Session',
+          title,
+          body,
+        });
+      }
+    } else {
+      // System notification when window is not focused
+      const notification = new Notification({
+        title,
+        body,
+        icon: this.getNotificationIcon(),
+        timeoutType: 'never'
+      });
 
-    notification.on('click', () => {
-      this.mainWindow.show();
-      this.mainWindow.focus();
-      this.mainWindow.webContents.send('session:focus', sessionId);
-    });
+      notification.on('click', () => {
+        this.mainWindow.show();
+        this.mainWindow.focus();
+        this.mainWindow.webContents.send('session:focus', sessionId);
+      });
 
-    notification.show();
+      notification.show();
+    }
   }
 
   private sendCompletionNotification(
@@ -778,22 +792,36 @@ export class SessionManager {
     const prefs = getPreferences();
     if (!prefs.notifications.sessionComplete) return;
 
-    if (this.mainWindow.isFocused()) return;
-
     const context = this.getSessionContext(sessionId);
+    const title = context?.sessionName || (success ? 'Task Complete' : 'Task Error');
+    const body = success ? 'Finished successfully' : (resultText || 'Ended with an error');
 
-    const notification = new Notification({
-      title: context?.sessionName || (success ? 'Task Complete' : 'Task Error'),
-      body: success ? 'Finished successfully' : (resultText || 'Ended with an error'),
-      icon: this.getNotificationIcon(),
-    });
+    if (this.mainWindow.isFocused()) {
+      // In-app notification when window is focused
+      if (!this.mainWindow.isDestroyed()) {
+        this.mainWindow.webContents.send('notification:show', {
+          type: success ? 'success' : 'error',
+          sessionId,
+          sessionName: context?.sessionName || 'Unknown Session',
+          title,
+          body,
+        });
+      }
+    } else {
+      // System notification when window is not focused
+      const notification = new Notification({
+        title,
+        body,
+        icon: this.getNotificationIcon(),
+      });
 
-    notification.on('click', () => {
-      this.mainWindow.show();
-      this.mainWindow.focus();
-      this.mainWindow.webContents.send('session:focus', sessionId);
-    });
+      notification.on('click', () => {
+        this.mainWindow.show();
+        this.mainWindow.focus();
+        this.mainWindow.webContents.send('session:focus', sessionId);
+      });
 
-    notification.show();
+      notification.show();
+    }
   }
 }
