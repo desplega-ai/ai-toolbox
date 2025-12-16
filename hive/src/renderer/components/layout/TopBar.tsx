@@ -8,6 +8,7 @@ import hiveLogo from '@/assets/hive_logo.png';
 interface TopBarProps {
   tabs: Tab[];
   activeTab: string;
+  projectNames: Record<string, string>;
   onTabChange: (id: string) => void;
   onNewTab: () => void;
   onCloseTab: (id: string) => void;
@@ -18,9 +19,31 @@ interface TopBarProps {
   onAnalytics: () => void;
 }
 
+// Format tab title with project name and session name
+function formatTabTitle(projectName: string | undefined, sessionTitle: string, maxLength = 30): string {
+  if (!projectName) return sessionTitle;
+
+  const fullTitle = `${projectName} - ${sessionTitle}`;
+
+  if (fullTitle.length <= maxLength) return fullTitle;
+
+  // Calculate how much to truncate
+  const separator = ' - ';
+  const availableForProject = maxLength - sessionTitle.length - separator.length - 3; // 3 for "..."
+
+  if (availableForProject > 3) {
+    // Truncate project name
+    return `${projectName.slice(0, availableForProject)}... - ${sessionTitle}`;
+  }
+
+  // Truncate the whole thing
+  return fullTitle.slice(0, maxLength - 3) + '...';
+}
+
 export function TopBar({
   tabs,
   activeTab,
+  projectNames,
   onTabChange,
   onNewTab,
   onCloseTab,
@@ -67,53 +90,60 @@ export function TopBar({
         className="flex items-center gap-1 overflow-x-auto px-2"
         style={{ WebkitAppRegion: 'no-drag' }}
       >
-        {tabs.map((tab) => (
-          <div
-            key={tab.id}
-            role="button"
-            tabIndex={0}
-            onClick={() => {
-              if (editingTabId !== tab.id) {
-                onTabChange(tab.id);
-              }
-            }}
-            onDoubleClick={() => onStartEditing(tab.id)}
-            onKeyDown={(e) => e.key === 'Enter' && editingTabId !== tab.id && onTabChange(tab.id)}
-            className={cn(
-              'flex items-center gap-2 px-3 py-1.5 text-sm rounded-t cursor-pointer',
-              'border border-b-0 border-[var(--border)] transition-colors',
-              activeTab === tab.id
-                ? 'bg-[var(--background)] text-[var(--foreground)]'
-                : 'bg-transparent text-[var(--foreground-muted)] hover:bg-[var(--background)]/50'
-            )}
-          >
-            {editingTabId === tab.id ? (
-              <input
-                ref={inputRef}
-                type="text"
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                onKeyDown={(e) => handleKeyDown(e, tab.id)}
-                onBlur={() => handleBlur(tab.id)}
-                className="bg-transparent border-none outline-none w-24 text-sm"
-                onClick={(e) => e.stopPropagation()}
-              />
-            ) : (
-              <span className="truncate max-w-32">{tab.title}</span>
-            )}
-            {tabs.length > 1 && editingTabId !== tab.id && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onCloseTab(tab.id);
-                }}
-                className="hover:bg-[var(--destructive)]/20 rounded p-0.5"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            )}
-          </div>
-        ))}
+        {tabs.map((tab) => {
+          const projectName = projectNames[tab.id];
+          const displayTitle = formatTabTitle(projectName, tab.title);
+          const fullTitle = projectName ? `${projectName} - ${tab.title}` : tab.title;
+
+          return (
+            <div
+              key={tab.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => {
+                if (editingTabId !== tab.id) {
+                  onTabChange(tab.id);
+                }
+              }}
+              onDoubleClick={() => onStartEditing(tab.id)}
+              onKeyDown={(e) => e.key === 'Enter' && editingTabId !== tab.id && onTabChange(tab.id)}
+              className={cn(
+                'flex items-center gap-2 px-3 py-1.5 text-sm rounded-t cursor-pointer',
+                'border border-b-0 border-[var(--border)] transition-colors',
+                'min-w-[120px] max-w-[280px]',
+                activeTab === tab.id
+                  ? 'bg-[var(--background)] text-[var(--foreground)]'
+                  : 'bg-transparent text-[var(--foreground-muted)] hover:bg-[var(--background)]/50'
+              )}
+            >
+              {editingTabId === tab.id ? (
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(e, tab.id)}
+                  onBlur={() => handleBlur(tab.id)}
+                  className="bg-transparent border-none outline-none flex-1 text-sm"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ) : (
+                <span className="truncate flex-1" title={fullTitle}>{displayTitle}</span>
+              )}
+              {tabs.length > 1 && editingTabId !== tab.id && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCloseTab(tab.id);
+                  }}
+                  className="hover:bg-[var(--destructive)]/20 rounded p-0.5 flex-shrink-0"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          );
+        })}
 
         <Button variant="ghost" size="icon" onClick={onNewTab} className="h-7 w-7">
           <Plus className="h-4 w-4" />

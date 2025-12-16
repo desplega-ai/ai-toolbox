@@ -18,7 +18,7 @@ export function SubagentConversation({ messages }: SubagentConversationProps) {
     <div className="border border-[var(--border)] rounded bg-[var(--background)]">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-2 p-2 text-sm text-left hover:bg-[var(--secondary)] transition-colors"
+        className="w-full flex items-center gap-2 p-2 text-sm text-left hover:bg-[var(--secondary)] transition-colors cursor-pointer"
       >
         {expanded ? (
           <ChevronDown className="h-4 w-4 text-[var(--foreground-muted)]" />
@@ -148,7 +148,7 @@ function SubagentToolUse({ tool }: { tool: { id?: string; name?: string; input?:
       <div className="flex items-center gap-1.5 w-full">
         <button
           onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-1.5 text-left"
+          className="flex items-center gap-1.5 text-left cursor-pointer"
         >
           {expanded ? (
             <ChevronDown className="h-3 w-3 text-[var(--foreground-muted)]" />
@@ -211,7 +211,7 @@ function SubagentToolResult({ result }: { result: { tool_use_id?: string; conten
     )}>
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1.5 w-full text-left"
+        className="flex items-center gap-1.5 w-full text-left cursor-pointer"
       >
         {truncated && (
           expanded ? (

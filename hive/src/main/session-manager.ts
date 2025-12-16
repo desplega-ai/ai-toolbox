@@ -77,6 +77,19 @@ export class SessionManager {
     database.sessions.updateStatus(hiveSessionId, 'running');
     this.sendStatusUpdate(hiveSessionId, 'running');
 
+    // Auto-update session name from first prompt (if using default name)
+    if (!existingClaudeSessionId) {
+      const session = database.sessions.getById(hiveSessionId);
+      if (session && /^Session \d+$/.test(session.name)) {
+        const trimmed = prompt.trim();
+        if (trimmed.length > 0) {
+          const newName = trimmed.length <= 50 ? trimmed : trimmed.slice(0, 50) + '...';
+          database.sessions.updateName(hiveSessionId, newName);
+          this.sendNameUpdate(hiveSessionId, newName);
+        }
+      }
+    }
+
     const abortController = new AbortController();
 
     // Create the canUseTool callback that uses hash-based pre-approval
@@ -93,7 +106,8 @@ export class SessionManager {
       }
     ): Promise<PermissionResult> => {
       const hash = hashToolCall(toolName, toolInput);
-      console.log(`[canUseTool] Tool: ${toolName}, Hash: ${hash}`);
+      const isSubAgent = !!options.agentID;
+      console.log(`[canUseTool] Tool: ${toolName}, Hash: ${hash}, SubAgent: ${isSubAgent ? options.agentID : 'no'}`);
       console.log(`[canUseTool] Input:`, JSON.stringify(toolInput).slice(0, 200));
 
       // Check if this tool call was pre-approved (from previous interrupt/resume)
@@ -103,6 +117,17 @@ export class SessionManager {
         // Remove the one-time approval
         database.approvedToolCalls.delete(approved.id);
         return { behavior: 'allow', updatedInput: toolInput };
+      }
+
+      // For sub-agents: auto-approve if this tool NAME has been approved before
+      // This prevents "Stream closed" errors when sub-agents use tools the user already approved
+      if (isSubAgent) {
+        const toolNameApproved = database.approvedToolCalls.hasApprovedToolName(hiveSessionId, toolName);
+        if (toolNameApproved) {
+          console.log(`[canUseTool] Sub-agent using previously approved tool "${toolName}", auto-approving`);
+          return { behavior: 'allow', updatedInput: toolInput };
+        }
+        console.log(`[canUseTool] Sub-agent requesting unapproved tool "${toolName}", will need user approval`);
       }
 
       // Not pre-approved - store as pending and deny (user will approve via UI)
@@ -166,8 +191,6 @@ export class SessionManager {
         // Use both global (~/.claude/settings.json) and project (.claude/settings.json) settings
         settingSources: ['user', 'project'],
         canUseTool,
-        // Empty hooks object to satisfy SDK validation
-        hooks: {},
         // Path to Claude Code CLI (required for packaged apps)
         pathToClaudeCodeExecutable: claudeExecutable,
       },
@@ -317,10 +340,12 @@ export class SessionManager {
 
     console.log(`[Approval] Approving ${pending.toolName} (hash: ${pending.hash})`);
 
-    // Store the approved hash for when session resumes
+    // Store the approved hash and tool name for when session resumes
+    // Tool name is also stored for sub-agent auto-approval
     database.approvedToolCalls.create({
       sessionId: hiveSessionId,
       hash: pending.hash,
+      toolName: pending.toolName,
     });
 
     // Remove from pending
@@ -377,11 +402,12 @@ export class SessionManager {
 
     console.log(`[Approval] Approving all ${pendingApprovals.length} pending tool calls`);
 
-    // Store all approved hashes
+    // Store all approved hashes and tool names
     for (const pending of pendingApprovals) {
       database.approvedToolCalls.create({
         sessionId: hiveSessionId,
         hash: pending.hash,
+        toolName: pending.toolName,
       });
     }
 
@@ -478,6 +504,12 @@ export class SessionManager {
   private sendStatusUpdate(sessionId: string, status: Session['status']): void {
     if (!this.mainWindow.isDestroyed()) {
       this.mainWindow.webContents.send('session:status', { sessionId, status });
+    }
+  }
+
+  private sendNameUpdate(sessionId: string, name: string): void {
+    if (!this.mainWindow.isDestroyed()) {
+      this.mainWindow.webContents.send('session:name', { sessionId, name });
     }
   }
 

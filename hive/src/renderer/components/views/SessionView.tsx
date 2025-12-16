@@ -1,12 +1,14 @@
 import React from 'react';
-import { Loader2, CheckCircle, Archive, Terminal, Copy, Check, ExternalLink, FolderOpen, Shield, ShieldAlert, ShieldCheck, Edit3 } from 'lucide-react';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+import { Loader2, CheckCircle, Archive, Terminal, Copy, Check, ExternalLink, FolderOpen, Shield, ShieldAlert, ShieldCheck, Edit3, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MessageList } from '@/components/session/MessageList';
 import { MessageInput } from '@/components/session/MessageInput';
+import { FileViewerPane } from '@/components/session/FileViewerPane';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Select } from '@/components/ui/select';
-import { useSessionMessagesStore } from '@/lib/store';
+import { useSessionMessagesStore, useFileViewerStore } from '@/lib/store';
 import { useTabContext } from '@/components/layout/MainLayout';
 import { ThoughtsPane } from '@/components/thoughts/ThoughtsPane';
 import { DiffTab, type DiffStats } from '@/components/session/DiffTab';
@@ -15,6 +17,7 @@ import type { Session, ClaudeModel, PermissionMode, PermissionDuration } from '.
 import { CLAUDE_MODELS, PERMISSION_MODES, DEFAULT_PERMISSION_MODE } from '../../../shared/types';
 import type { SDKMessage, PermissionRequest, SDKStreamEvent, SDKResultMessage } from '../../../shared/sdk-types';
 import { PermissionModeModal } from './PermissionModeModal';
+import { DeleteSessionModal } from './DeleteSessionModal';
 
 // Stable empty array to avoid infinite re-renders
 const EMPTY_MESSAGES: SDKMessage[] = [];
@@ -111,7 +114,10 @@ type TabId = 'agent' | 'todos' | 'diff' | 'analytics' | 'thoughts' | 'meta';
 type Activity = 'idle' | 'connecting' | 'thinking' | 'streaming' | 'tool_use';
 
 export function SessionView({ session, projectId, projectDirectory }: SessionViewProps) {
-  const [activeTab, setActiveTab] = React.useState<TabId>('agent');
+  // Get activeTab from context (persisted across refreshes)
+  const { activeSessionTab, setActiveSessionTab } = useTabContext();
+  const activeTab = activeSessionTab as TabId;
+  const setActiveTab = setActiveSessionTab;
   const [pendingApprovals, setPendingApprovals] = React.useState<PermissionRequest[]>(EMPTY_PERMISSIONS);
   const [isLoadingHistory, setIsLoadingHistory] = React.useState(false);
   // Local status tracking - stays in sync with backend via IPC
@@ -123,10 +129,16 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
   const [editedName, setEditedName] = React.useState(session.name);
   // Permission mode modal
   const [showPermissionModal, setShowPermissionModal] = React.useState(false);
+  // Delete session modal
+  const [showDeleteModal, setShowDeleteModal] = React.useState(false);
   // Timer for timed permission modes
   const [timeRemaining, setTimeRemaining] = React.useState<string | null>(null);
   // Diff stats for tab label
   const [diffStats, setDiffStats] = React.useState<DiffStats | null>(null);
+
+  // File viewer store
+  const openFile = useFileViewerStore((state) => state.openFile);
+  const closeFile = useFileViewerStore((state) => state.closeFile);
 
   // Load diff stats eagerly on session open
   React.useEffect(() => {
@@ -301,13 +313,15 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
   const tabs: { id: TabId; label: string; badge?: React.ReactNode }[] = [
     { id: 'agent', label: 'Agent' },
     { id: 'todos', label: 'Todos' },
-    { id: 'diff', label: 'Diff', badge: diffStats ? (
-      <span className="ml-1.5 text-xs">
-        <span className="text-[var(--success)]">+{diffStats.additions}</span>
-        {' '}
-        <span className="text-[var(--destructive)]">-{diffStats.deletions}</span>
-      </span>
-    ) : null },
+    {
+      id: 'diff', label: 'Diff', badge: diffStats ? (
+        <span className="ml-1.5 text-xs">
+          <span className="text-[var(--success)]">+{diffStats.additions}</span>
+          {' '}
+          <span className="text-[var(--destructive)]">-{diffStats.deletions}</span>
+        </span>
+      ) : null
+    },
     { id: 'analytics', label: 'Analytics' },
     { id: 'thoughts', label: 'Thoughts' },
     { id: 'meta', label: 'Meta' },
@@ -495,6 +509,17 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
     ));
   };
 
+  // Delete session (force delete with confirmation)
+  const handleDeleteSession = async () => {
+    await window.electronAPI.invoke('db:sessions:delete', {
+      id: session.id,
+    });
+    // Remove from sessions list
+    setSessions(sessions.filter(s => s.id !== session.id));
+    // Clear current session
+    setCurrentSession(null);
+  };
+
   // Continue in terminal
   const handleContinueInTerminal = async () => {
     if (!session.claudeSessionId) return;
@@ -576,12 +601,13 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
     <div className="h-full flex flex-col">
       {/* Tab Bar */}
       <div className="relative flex items-end gap-1 pt-2 bg-[var(--background-secondary)] border-b border-[var(--border)]">
-        {tabs.map((tab) => (
+        {tabs.map((tab, ix) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
               'px-4 py-1.5 text-sm font-medium rounded-t-md transition-all relative cursor-pointer',
+              ix === 0 ? 'ml-2' : '',
               activeTab === tab.id
                 ? 'bg-[var(--background)] text-[var(--foreground)] -mb-px z-10'
                 : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--background)]/50 mb-0'
@@ -692,10 +718,11 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
           )}
 
           {/* Session actions */}
-          {canShowActions && localStatus !== 'archived' && (
-            <>
-              <div className="flex-1" />
-              <div className="flex items-center gap-1">
+          <div className="flex-1" />
+          <div className="flex items-center gap-1">
+            {/* Actions for non-running/non-archived sessions */}
+            {canShowActions && localStatus !== 'archived' && (
+              <>
                 {session.claudeSessionId && (
                   <>
                     <Tooltip>
@@ -754,36 +781,95 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
                   </TooltipTrigger>
                   <TooltipContent>Archive session</TooltipContent>
                 </Tooltip>
-              </div>
-            </>
-          )}
+              </>
+            )}
+
+            {/* Delete button - always visible for any session state */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowDeleteModal(true)}
+                  className="h-7 w-7 text-[var(--destructive)] hover:text-[var(--destructive)] hover:bg-[var(--destructive)]/10"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Force delete session</TooltipContent>
+            </Tooltip>
+          </div>
         </div>
       </div>
 
       {/* Tab Content */}
       <div className="flex-1 overflow-hidden flex flex-col">
         {activeTab === 'agent' && (
-          <>
-            <MessageList
-              messages={messages}
-              streamingText={streamingText}
-              pendingApprovals={pendingApprovals}
-              onApprove={handleApprove}
-              onApproveAll={handleApproveAll}
-              onDeny={handleDeny}
-              isLoadingHistory={isLoadingHistory}
-              activity={activity}
-            />
-            <MessageInput
-              onSend={handleSendMessage}
-              onInterrupt={handleInterrupt}
-              isRunning={localStatus === 'running'}
-              disabled={pendingApprovals.length > 0}
-              sessionId={session.id}
-              projectId={projectId}
-            />
-            <ContextUsageBar current={contextUsage.current} max={contextUsage.max} />
-          </>
+          openFile ? (
+            <PanelGroup direction="horizontal" autoSaveId="hive-session-file-viewer">
+              <Panel id="messages" defaultSize={60} minSize={40}>
+                <div className="h-full flex flex-col">
+                  <MessageList
+                    messages={messages}
+                    streamingText={streamingText}
+                    pendingApprovals={pendingApprovals}
+                    onApprove={handleApprove}
+                    onApproveAll={handleApproveAll}
+                    onDeny={handleDeny}
+                    isLoadingHistory={isLoadingHistory}
+                    activity={activity}
+                    onFocusInput={() => window.dispatchEvent(new Event('focus-message-input'))}
+                  />
+                  <MessageInput
+                    onSend={handleSendMessage}
+                    onInterrupt={handleInterrupt}
+                    isRunning={localStatus === 'running'}
+                    disabled={pendingApprovals.length > 0}
+                    sessionId={session.id}
+                    projectId={projectId}
+                  />
+                  <ContextUsageBar current={contextUsage.current} max={contextUsage.max} />
+                </div>
+              </Panel>
+              <PanelResizeHandle className="w-1 bg-[var(--border)] hover:bg-[var(--primary)] transition-colors" />
+              <Panel id="file-viewer" defaultSize={40} minSize={20}>
+                <FileViewerPane
+                  projectDirectory={projectDirectory}
+                  onOpenThoughtsTab={() => {
+                    setActiveTab('thoughts');
+                    closeFile();
+                  }}
+                  onOpenDiffTab={() => {
+                    setActiveTab('diff');
+                    closeFile();
+                  }}
+                />
+              </Panel>
+            </PanelGroup>
+          ) : (
+            <>
+              <MessageList
+                messages={messages}
+                streamingText={streamingText}
+                pendingApprovals={pendingApprovals}
+                onApprove={handleApprove}
+                onApproveAll={handleApproveAll}
+                onDeny={handleDeny}
+                isLoadingHistory={isLoadingHistory}
+                activity={activity}
+                onFocusInput={() => window.dispatchEvent(new Event('focus-message-input'))}
+              />
+              <MessageInput
+                onSend={handleSendMessage}
+                onInterrupt={handleInterrupt}
+                isRunning={localStatus === 'running'}
+                disabled={pendingApprovals.length > 0}
+                sessionId={session.id}
+                projectId={projectId}
+              />
+              <ContextUsageBar current={contextUsage.current} max={contextUsage.max} />
+            </>
+          )
         )}
         {activeTab === 'todos' && <TodosTab messages={messages} />}
         {activeTab === 'diff' && (
@@ -809,6 +895,14 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
         isOpen={showPermissionModal}
         onClose={() => setShowPermissionModal(false)}
         onConfirm={handlePermissionModalConfirm}
+      />
+
+      {/* Delete Session Modal */}
+      <DeleteSessionModal
+        isOpen={showDeleteModal}
+        session={session}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDeleteSession}
       />
     </div>
   );
@@ -1201,38 +1295,38 @@ function AnalyticsTab({ messages }: { messages: SDKMessage[] }) {
     subtext?: string;
     tooltip?: string[];
   }> = [
-    {
-      label: 'Total Cost',
-      value: `$${stats.totalCost.toFixed(4)}`,
-      subtext: stats.resultCount > 1 ? `across ${stats.resultCount} turns` : undefined,
-    },
-    {
-      label: 'Total Tokens',
-      value: formatTokens(totalTokens),
-      tooltip: [
-        `Input: ${formatTokens(stats.inputTokens)}`,
-        `Output: ${formatTokens(stats.outputTokens)}`,
-        stats.cacheReadTokens > 0 ? `Cache read: ${formatTokens(stats.cacheReadTokens)}` : null,
-        stats.cacheWriteTokens > 0 ? `Cache write: ${formatTokens(stats.cacheWriteTokens)}` : null,
-      ].filter(Boolean) as string[],
-    },
-    {
-      label: 'Total Duration',
-      value: formatDuration(stats.totalDuration),
-      tooltip: [
-        `Total: ${formatDuration(stats.totalDuration)}`,
-        `API time: ${formatDuration(stats.totalApiDuration)}`,
-        `Overhead: ${formatDuration(stats.totalDuration - stats.totalApiDuration)}`,
-      ],
-    },
-    {
-      label: 'Turns',
-      value: String(stats.totalTurns),
-      subtext: stats.resultCount !== stats.totalTurns
-        ? `(${stats.resultCount} result${stats.resultCount > 1 ? 's' : ''})`
-        : undefined,
-    },
-  ];
+      {
+        label: 'Total Cost',
+        value: `$${stats.totalCost.toFixed(4)}`,
+        subtext: stats.resultCount > 1 ? `across ${stats.resultCount} turns` : undefined,
+      },
+      {
+        label: 'Total Tokens',
+        value: formatTokens(totalTokens),
+        tooltip: [
+          `Input: ${formatTokens(stats.inputTokens)}`,
+          `Output: ${formatTokens(stats.outputTokens)}`,
+          stats.cacheReadTokens > 0 ? `Cache read: ${formatTokens(stats.cacheReadTokens)}` : null,
+          stats.cacheWriteTokens > 0 ? `Cache write: ${formatTokens(stats.cacheWriteTokens)}` : null,
+        ].filter(Boolean) as string[],
+      },
+      {
+        label: 'Total Duration',
+        value: formatDuration(stats.totalDuration),
+        tooltip: [
+          `Total: ${formatDuration(stats.totalDuration)}`,
+          `API time: ${formatDuration(stats.totalApiDuration)}`,
+          `Overhead: ${formatDuration(stats.totalDuration - stats.totalApiDuration)}`,
+        ],
+      },
+      {
+        label: 'Turns',
+        value: String(stats.totalTurns),
+        subtext: stats.resultCount !== stats.totalTurns
+          ? `(${stats.resultCount} result${stats.resultCount > 1 ? 's' : ''})`
+          : undefined,
+      },
+    ];
 
   return (
     <div className="h-full overflow-auto p-4">

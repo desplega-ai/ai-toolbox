@@ -63,6 +63,7 @@ export interface Tab {
   title: string;
   projectId: string | null;
   sessionId: string | null;
+  activeSessionTab?: 'agent' | 'todos' | 'diff' | 'analytics' | 'thoughts' | 'meta';
 }
 
 export interface TabsState {

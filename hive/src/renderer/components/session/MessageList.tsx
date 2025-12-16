@@ -1,12 +1,54 @@
 import React from 'react';
-import { CheckCheck, Terminal, Loader2, Brain, Wrench, Code, Eye, StopCircle, Clock } from 'lucide-react';
+import { CheckCheck, Terminal, Loader2, Brain, Wrench, Code, Eye, StopCircle, Clock, Copy, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Markdown } from '@/components/ui/markdown';
-import { groupMessages } from '@/lib/message-grouping';
+import { groupMessages, type GroupedMessage } from '@/lib/message-grouping';
 import { ToolGroupBlock } from './ToolGroupBlock';
 import type { SDKMessage, SDKAssistantMessage, SDKUsage, PermissionRequest } from '../../../shared/sdk-types';
+
+// Helper to extract raw content from a grouped message item
+function getItemRawContent(item: GroupedMessage): string {
+  if (item.type === 'tool_group') {
+    const group = item.group;
+    let content = `Tool: ${group.toolName}\n`;
+    content += `Input:\n${JSON.stringify(group.toolInput, null, 2)}`;
+    if (group.result) {
+      content += `\n\nResult:\n${typeof group.result.content === 'string' ? group.result.content : JSON.stringify(group.result.content, null, 2)}`;
+    }
+    return content;
+  }
+
+  // Regular message
+  const msg = item.message;
+  if (msg.type === 'assistant') {
+    const assistantMsg = msg as SDKAssistantMessage;
+    return assistantMsg.message.content
+      .filter(c => c.type === 'text')
+      .map(c => {
+        const text = c.text;
+        if (typeof text === 'string') return text;
+        if (text && typeof text === 'object' && 'text' in text) return String((text as { text: unknown }).text);
+        return '';
+      })
+      .join('\n');
+  }
+
+  if (msg.type === 'user') {
+    const userMsg = msg as { message?: { content?: unknown } };
+    const content = userMsg.message?.content;
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) {
+      return content
+        .filter(c => c.type === 'text')
+        .map(c => c.text || '')
+        .join('\n');
+    }
+  }
+
+  return '';
+}
 
 function formatTokens(n: number): string {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
@@ -81,6 +123,7 @@ interface MessageListProps {
   onDeny: (request: PermissionRequest, message?: string) => void;
   isLoadingHistory?: boolean;
   activity?: Activity;
+  onFocusInput?: () => void;
 }
 
 export function MessageList({
@@ -91,9 +134,14 @@ export function MessageList({
   onApproveAll,
   onDeny,
   isLoadingHistory = false,
-  activity = 'idle'
+  activity = 'idle',
+  onFocusInput,
 }: MessageListProps) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const [selectedIndex, setSelectedIndex] = React.useState<number | null>(null);
+  const [copiedIndex, setCopiedIndex] = React.useState<number | null>(null);
+  const [expandedOverrides, setExpandedOverrides] = React.useState<Record<string, boolean>>({});
+  const itemRefs = React.useRef<(HTMLDivElement | null)[]>([]);
 
   // Create a map of toolUseId -> pending approval for quick lookup
   const pendingByToolUseId = React.useMemo(() => {
@@ -110,6 +158,165 @@ export function MessageList({
     [messages]
   );
 
+  // Helper to check if an item is selectable (not a divider/result/system message)
+  const isSelectableItem = React.useCallback((item: GroupedMessage): boolean => {
+    if (item.type === 'tool_group') return true;
+    const msg = item.message;
+    // Skip result messages (dividers) and system messages
+    if (msg.type === 'result' || msg.type === 'system') return false;
+    // Skip user messages that are only tool results
+    if (msg.type === 'user') {
+      const userMsg = msg as { message?: { content?: unknown } };
+      const content = userMsg.message?.content;
+      if (Array.isArray(content) && content.every(c => c.type === 'tool_result')) {
+        return false;
+      }
+    }
+    return true;
+  }, []);
+
+  // Get indices of selectable items
+  const selectableIndices = React.useMemo(() => {
+    return groupedMessages.items
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => isSelectableItem(item))
+      .map(({ index }) => index);
+  }, [groupedMessages.items, isSelectableItem]);
+
+  // Find next/prev selectable index
+  const findNextSelectable = React.useCallback((current: number | null, direction: 1 | -1): number | null => {
+    if (selectableIndices.length === 0) return null;
+    if (current === null) {
+      return direction === 1 ? selectableIndices[0] : selectableIndices[selectableIndices.length - 1];
+    }
+    const currentPos = selectableIndices.indexOf(current);
+    if (currentPos === -1) {
+      // Current is not selectable, find nearest
+      const nearestIdx = selectableIndices.findIndex(i => i > current);
+      if (direction === 1) {
+        return nearestIdx !== -1 ? selectableIndices[nearestIdx] : selectableIndices[selectableIndices.length - 1];
+      } else {
+        return nearestIdx > 0 ? selectableIndices[nearestIdx - 1] : selectableIndices[0];
+      }
+    }
+    const nextPos = currentPos + direction;
+    if (nextPos < 0) return selectableIndices[0];
+    if (nextPos >= selectableIndices.length) return selectableIndices[selectableIndices.length - 1];
+    return selectableIndices[nextPos];
+  }, [selectableIndices]);
+
+  // Keyboard navigation handler
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't handle if focus is in input or textarea
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      if (selectableIndices.length === 0) return;
+
+      switch (e.key) {
+        case 'j':
+        case 'ArrowDown':
+          e.preventDefault();
+          setSelectedIndex(prev => {
+            const next = findNextSelectable(prev, 1);
+            if (next !== null) {
+              setTimeout(() => {
+                itemRefs.current[next]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              }, 0);
+            }
+            return next;
+          });
+          break;
+        case 'k':
+        case 'ArrowUp':
+          e.preventDefault();
+          setSelectedIndex(prev => {
+            const next = findNextSelectable(prev, -1);
+            if (next !== null) {
+              setTimeout(() => {
+                itemRefs.current[next]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              }, 0);
+            }
+            return next;
+          });
+          break;
+        case 'c':
+          if (selectedIndex !== null && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            const item = groupedMessages.items[selectedIndex];
+            const content = getItemRawContent(item);
+            navigator.clipboard.writeText(content);
+            setCopiedIndex(selectedIndex);
+            setTimeout(() => setCopiedIndex(null), 2000);
+          }
+          break;
+        case 'l':
+        case 'ArrowRight':
+        case 'Enter':
+          // Expand tool group
+          if (selectedIndex !== null) {
+            e.preventDefault();
+            const item = groupedMessages.items[selectedIndex];
+            if (item.type === 'tool_group') {
+              const id = item.group.id;
+              const currentExpanded = expandedOverrides[id];
+              // Only expand if not already expanded (or use toggle for Enter)
+              if (e.key === 'Enter') {
+                setExpandedOverrides(prev => ({
+                  ...prev,
+                  [id]: prev[id] === undefined ? false : !prev[id],
+                }));
+              } else {
+                // l/ArrowRight = expand
+                if (currentExpanded === false || currentExpanded === undefined) {
+                  setExpandedOverrides(prev => ({ ...prev, [id]: true }));
+                }
+              }
+            }
+          }
+          break;
+        case 'h':
+        case 'ArrowLeft':
+          // Collapse tool group
+          if (selectedIndex !== null) {
+            e.preventDefault();
+            const item = groupedMessages.items[selectedIndex];
+            if (item.type === 'tool_group') {
+              const id = item.group.id;
+              setExpandedOverrides(prev => ({ ...prev, [id]: false }));
+            }
+          }
+          break;
+        case 'Escape':
+          setSelectedIndex(null);
+          onFocusInput?.();
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [groupedMessages.items, selectedIndex, selectableIndices, findNextSelectable, expandedOverrides, onFocusInput]);
+
+  // Toggle expansion handler for tool groups
+  const handleToggleExpand = React.useCallback((id: string) => {
+    setExpandedOverrides(prev => ({
+      ...prev,
+      [id]: prev[id] === undefined ? false : !prev[id],
+    }));
+  }, []);
+
+  // Copy handler for individual items
+  const handleCopyItem = React.useCallback((index: number) => {
+    const item = groupedMessages.items[index];
+    const content = getItemRawContent(item);
+    navigator.clipboard.writeText(content);
+    setCopiedIndex(index);
+    setTimeout(() => setCopiedIndex(null), 2000);
+  }, [groupedMessages.items]);
+
   React.useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -123,24 +330,63 @@ export function MessageList({
           Loading session history...
         </div>
       )}
-      {groupedMessages.items.map((item) => (
-        item.type === 'tool_group' ? (
-          <ToolGroupBlock
-            key={`tool-${item.group.id}`}
-            group={item.group}
-            pendingApproval={pendingByToolUseId.get(item.group.id)}
-            onApprove={onApprove}
-            onDeny={onDeny}
-          />
-        ) : (
-          <MessageItem
-            key={`msg-${item.index}`}
-            message={item.message}
-            pendingByToolUseId={pendingByToolUseId}
-            onApprove={onApprove}
-            onDeny={onDeny}
-          />
-        )
+      {groupedMessages.items.map((item, index) => (
+        <div
+          key={item.type === 'tool_group' ? `tool-${item.group.id}` : `msg-${item.index}`}
+          ref={el => { itemRefs.current[index] = el; }}
+          className={cn(
+            'relative group',
+            selectedIndex === index && 'ring-2 ring-blue-500 ring-offset-2 ring-offset-[var(--background)] rounded-lg'
+          )}
+          onClick={() => setSelectedIndex(index)}
+        >
+          {/* Copy button - visible on hover or when selected */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCopyItem(index);
+                }}
+                className={cn(
+                  'absolute -top-2 -right-2 z-10 p-1 rounded',
+                  'bg-[var(--background)] border border-[var(--border)] shadow-sm',
+                  'opacity-0 group-hover:opacity-100 transition-opacity',
+                  selectedIndex === index && 'opacity-100',
+                  'hover:bg-[var(--secondary)]'
+                )}
+              >
+                {copiedIndex === index ? (
+                  <Check className="h-3 w-3 text-[var(--success)]" />
+                ) : (
+                  <Copy className="h-3 w-3 text-[var(--foreground-muted)]" />
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="left">
+              <span>{copiedIndex === index ? 'Copied!' : 'Copy (⌘C)'}</span>
+            </TooltipContent>
+          </Tooltip>
+          {item.type === 'tool_group' ? (
+            <ToolGroupBlock
+              group={item.group}
+              pendingApproval={pendingByToolUseId.get(item.group.id)}
+              onApprove={onApprove}
+              onDeny={onDeny}
+              isSelected={selectedIndex === index}
+              expandedOverride={expandedOverrides[item.group.id]}
+              onToggleExpand={() => handleToggleExpand(item.group.id)}
+            />
+          ) : (
+            <MessageItem
+              message={item.message}
+              pendingByToolUseId={pendingByToolUseId}
+              onApprove={onApprove}
+              onDeny={onDeny}
+              isSelected={selectedIndex === index}
+            />
+          )}
+        </div>
       ))}
       {/* Activity indicator - shown when not streaming text */}
       {!streamingText && activity !== 'idle' && (
@@ -239,6 +485,7 @@ interface MessageItemProps {
   pendingByToolUseId: Map<string, PermissionRequest>;
   onApprove: (request: PermissionRequest) => void;
   onDeny: (request: PermissionRequest, message?: string) => void;
+  isSelected?: boolean;
 }
 
 function MessageItem({ message }: MessageItemProps) {

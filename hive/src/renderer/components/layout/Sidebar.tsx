@@ -1,5 +1,6 @@
 import React from 'react';
-import { ChevronLeft, ChevronRight, AlertCircle, Circle, XCircle, CheckCircle, Archive, Loader2 } from 'lucide-react';
+import Fuse from 'fuse.js';
+import { PanelLeft, PanelRight, AlertCircle, Circle, XCircle, CheckCircle, Archive, Loader2, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { Session } from '../../../shared/types';
@@ -93,9 +94,35 @@ export function Sidebar({
     return { active, done };
   }, [sessions, hideBackfilledSessions]);
 
+  // Search state
+  const [searchQuery, setSearchQuery] = React.useState('');
+
+  // Fuse.js for fuzzy search
+  const sessionFuse = React.useMemo(() => {
+    const allSessions = [...groupedSessions.active, ...groupedSessions.done];
+    return new Fuse(allSessions, {
+      keys: ['name'],
+      threshold: 0.4,
+      ignoreLocation: true,
+    });
+  }, [groupedSessions.active, groupedSessions.done]);
+
+  // Filter sessions based on search query
+  const filteredGroupedSessions = React.useMemo(() => {
+    if (!searchQuery.trim()) return groupedSessions;
+
+    const results = sessionFuse.search(searchQuery);
+    const matchedIds = new Set(results.map(r => r.item.id));
+
+    return {
+      active: groupedSessions.active.filter(s => matchedIds.has(s.id)),
+      done: groupedSessions.done.filter(s => matchedIds.has(s.id)),
+    };
+  }, [groupedSessions, searchQuery, sessionFuse]);
+
   if (isCollapsed) {
     return (
-      <div className="w-full h-full bg-[var(--sidebar)] border-r border-[var(--foreground-muted)]/30 flex items-start justify-center pt-3">
+      <div className="w-full h-full bg-[var(--sidebar)] border-r border-[var(--foreground-muted)]/30 flex items-start justify-center pt-2">
         <Button
           variant="ghost"
           size="icon"
@@ -103,7 +130,7 @@ export function Sidebar({
           onClick={onToggleCollapse}
           title="Expand sidebar"
         >
-          <ChevronRight className="h-4 w-4" />
+          <PanelLeft className="h-4 w-4" />
         </Button>
       </div>
     );
@@ -111,49 +138,69 @@ export function Sidebar({
 
   return (
     <div className="w-full h-full bg-[var(--sidebar)] border-r border-[var(--foreground-muted)]/30 flex flex-col">
-      <div className="p-3 border-b border-[var(--border)]">
+      <div className="p-3 border-b border-[var(--border)] flex items-center justify-between">
         <h2 className="font-semibold text-sm">Sessions</h2>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
+          onClick={onToggleCollapse}
+          title="Collapse sidebar"
+        >
+          <PanelRight className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {/* Search input */}
+      <div className="px-2 py-2 border-b border-[var(--border)]">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--foreground-muted)]" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Filter sessions..."
+            className="w-full pl-7 pr-7 py-1.5 text-sm bg-[var(--background)] border border-[var(--border)] rounded focus:outline-none focus:border-[var(--primary)]"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-2 space-y-4">
-        {groupedSessions.active.length > 0 && (
+        {filteredGroupedSessions.active.length > 0 && (
           <SessionGroup
             title="ACTIVE"
-            sessions={groupedSessions.active}
+            sessions={filteredGroupedSessions.active}
             currentSessionId={currentSessionId}
             onSessionSelect={onSessionSelect}
             pendingApprovalCounts={pendingApprovalCounts}
           />
         )}
 
-        {groupedSessions.done.length > 0 && (
+        {filteredGroupedSessions.done.length > 0 && (
           <SessionGroup
             title="DONE"
-            sessions={groupedSessions.done}
+            sessions={filteredGroupedSessions.done}
             currentSessionId={currentSessionId}
             onSessionSelect={onSessionSelect}
             pendingApprovalCounts={pendingApprovalCounts}
           />
         )}
 
-        {groupedSessions.active.length === 0 && groupedSessions.done.length === 0 && (
+        {filteredGroupedSessions.active.length === 0 && filteredGroupedSessions.done.length === 0 && (
           <p className="text-sm text-[var(--foreground-muted)] text-center py-4">
-            {sessions.length === 0 ? 'No sessions yet' : 'No sessions (CLI sessions hidden)'}
+            {sessions.length === 0 ? 'No sessions yet' : searchQuery ? 'No matching sessions' : 'No sessions (CLI sessions hidden)'}
           </p>
         )}
       </div>
 
-      <div className="p-2 border-t border-[var(--border)]">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onToggleCollapse}
-          className="w-full justify-start"
-        >
-          <ChevronLeft className="h-4 w-4 mr-2" />
-          Collapse
-        </Button>
-      </div>
     </div>
   );
 }

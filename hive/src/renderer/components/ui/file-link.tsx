@@ -2,6 +2,7 @@ import React from 'react';
 import { ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useFileViewerStore } from '@/lib/store';
 
 interface FileLinkProps {
   path: string;
@@ -87,17 +88,17 @@ function formatPath(path: string): string {
 
 /**
  * A simpler inline file link without tooltip, for compact displays
+ * Opens in the file viewer split pane instead of external editor
  */
 export function InlineFileLink({ path, line, className }: Omit<FileLinkProps, 'children'>) {
-  const handleClick = async (e: React.MouseEvent) => {
+  const setOpenFile = useFileViewerStore((state) => state.setOpenFile);
+
+  const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-
-    try {
-      await window.electronAPI.invoke('shell:open-in-editor', { path });
-    } catch (error) {
-      console.error('Failed to open file in editor:', error);
-    }
+    setOpenFile({ path, line });
+    // Dispatch event to collapse sidebar when file viewer opens
+    window.dispatchEvent(new Event('collapse-sidebar'));
   };
 
   const displayPath = formatPath(path);
@@ -105,7 +106,7 @@ export function InlineFileLink({ path, line, className }: Omit<FileLinkProps, 'c
   return (
     <button
       onClick={handleClick}
-      title={`Open ${path}${line ? `:${line}` : ''} in editor`}
+      title={`View ${path}${line ? `:${line}` : ''}`}
       className={cn(
         "inline-flex items-center gap-0.5 font-mono",
         "text-[var(--primary)] hover:text-[var(--primary)]/80",

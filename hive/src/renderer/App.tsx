@@ -78,13 +78,30 @@ function useGlobalSessionStatusListener() {
   }, [updateSessionStatus]);
 }
 
+// Global listener for session name updates
+function useGlobalSessionNameListener() {
+  const updateSessionName = useAppStore((state) => state.updateSessionName);
+
+  React.useEffect(() => {
+    const unsub = window.electronAPI.on('session:name', (data: unknown) => {
+      const { sessionId, name } = data as { sessionId: string; name: string };
+      updateSessionName(sessionId, name);
+    });
+
+    return () => {
+      unsub();
+    };
+  }, [updateSessionName]);
+}
+
 export function App() {
   const [showSettings, setShowSettings] = React.useState(false);
   const [showAnalytics, setShowAnalytics] = React.useState(false);
 
-  // Listen for global session events (messages + status)
+  // Listen for global session events (messages, status, name)
   useGlobalSessionMessageListener();
   useGlobalSessionStatusListener();
+  useGlobalSessionNameListener();
 
   React.useEffect(() => {
     const settingsHandler = () => setShowSettings(true);

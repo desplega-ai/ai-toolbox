@@ -219,7 +219,7 @@ function ToolResultDisplay({ content, isError }: { content: unknown; isError: bo
     )}>
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 w-full text-left"
+        className="flex items-center gap-2 w-full text-left cursor-pointer"
       >
         {truncated && (
           expanded ? (
@@ -250,17 +250,33 @@ interface ToolGroupBlockProps {
   pendingApproval?: PermissionRequest;
   onApprove: (request: PermissionRequest) => void;
   onDeny: (request: PermissionRequest, message?: string) => void;
+  isSelected?: boolean;
+  expandedOverride?: boolean;
+  onToggleExpand?: () => void;
 }
 
-export function ToolGroupBlock({ group, pendingApproval, onApprove, onDeny }: ToolGroupBlockProps) {
-  const [expanded, setExpanded] = React.useState(!!pendingApproval || !group.result);
+export function ToolGroupBlock({ group, pendingApproval, onApprove, onDeny, isSelected, expandedOverride, onToggleExpand }: ToolGroupBlockProps) {
+  const [expandedInternal, setExpandedInternal] = React.useState(!!pendingApproval || !group.result);
+
+  // Use override if provided, otherwise use internal state
+  const expanded = expandedOverride !== undefined ? expandedOverride : expandedInternal;
+
+  const handleToggle = () => {
+    if (onToggleExpand) {
+      onToggleExpand();
+    } else {
+      setExpandedInternal(!expandedInternal);
+    }
+  };
 
   // Auto-expand if pending approval or still running
   React.useEffect(() => {
     if (pendingApproval || !group.result) {
-      setExpanded(true);
+      if (!expanded) {
+        setExpandedInternal(true);
+      }
     }
-  }, [pendingApproval, group.result]);
+  }, [pendingApproval, group.result, expanded]);
 
   const isPending = !!pendingApproval;
   const isComplete = !!group.result;
@@ -284,8 +300,8 @@ export function ToolGroupBlock({ group, pendingApproval, onApprove, onDeny }: To
     )}>
       {/* Header - always visible */}
       <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-2 p-3 text-left"
+        onClick={handleToggle}
+        className="w-full flex items-center gap-2 p-3 text-left cursor-pointer hover:bg-[var(--foreground)]/5 transition-colors rounded-t-lg"
       >
         {expanded ? (
           <ChevronDown className="h-4 w-4 text-[var(--foreground-muted)]" />

@@ -96,6 +96,7 @@ export function MessageInput({ onSend, onInterrupt, isRunning, disabled, session
   const [input, setInput] = React.useState('');
   const [editorFileId, setEditorFileId] = React.useState<string | null>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const backdropRef = React.useRef<HTMLDivElement>(null);
 
   const getDraftForSession = useDraftsStore((state) => state.getDraftForSession);
   const saveDraft = useDraftsStore((state) => state.saveDraft);
@@ -208,10 +209,15 @@ export function MessageInput({ onSend, onInterrupt, isRunning, disabled, session
       }
     }
 
-    // Default Enter behavior (send message)
+    // Default Enter behavior (send message) - only when not running
     if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit(e);
+      if (!isRunning && !disabled && input.trim()) {
+        e.preventDefault();
+        handleSubmit(e);
+      } else if (!isRunning && !input.trim()) {
+        e.preventDefault(); // Prevent empty submission
+      }
+      // When running, allow newline (don't prevent default) for drafting
     }
     // Ctrl+G: Open in editor
     if (e.key === 'g' && e.ctrlKey) {
@@ -252,8 +258,19 @@ export function MessageInput({ onSend, onInterrupt, isRunning, disabled, session
       textareaRef.current.style.height = 'auto';
       const scrollHeight = textareaRef.current.scrollHeight;
       textareaRef.current.style.height = `${Math.max(minHeight, Math.min(scrollHeight, maxHeight))}px`;
+      // Also resize backdrop
+      if (backdropRef.current) {
+        backdropRef.current.style.height = `${Math.max(minHeight, Math.min(scrollHeight, maxHeight))}px`;
+      }
     }
   }, [input]);
+
+  // Sync scroll position between textarea and highlight backdrop
+  const handleScroll = React.useCallback(() => {
+    if (textareaRef.current && backdropRef.current) {
+      backdropRef.current.scrollTop = textareaRef.current.scrollTop;
+    }
+  }, []);
 
   return (
     <form onSubmit={handleSubmit} className="p-4 border-t border-[var(--border)] relative">
@@ -261,7 +278,9 @@ export function MessageInput({ onSend, onInterrupt, isRunning, disabled, session
         <div className="flex-1 relative">
           {/* Highlight backdrop - renders colored tokens */}
           <div
-            className="absolute inset-0 px-3 py-2 rounded border border-transparent bg-[var(--background)] text-[var(--foreground)] font-mono text-sm leading-[21px] whitespace-pre-wrap break-words overflow-hidden pointer-events-none"
+            ref={backdropRef}
+            className="absolute inset-0 px-3 py-2 rounded border border-transparent bg-[var(--background)] text-[var(--foreground)] font-mono text-sm leading-[21px] whitespace-pre-wrap break-words overflow-y-auto pointer-events-none scrollbar-none"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             aria-hidden="true"
           >
             <HighlightedText text={input} />
@@ -272,12 +291,19 @@ export function MessageInput({ onSend, onInterrupt, isRunning, disabled, session
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
+            onScroll={handleScroll}
             onBlur={() => {
               // Delay dismiss to allow click on dropdown
               setTimeout(() => autocomplete.dismiss(), 200);
             }}
-            placeholder={isRunning ? "Claude is working..." : "Type a message... (/ for commands, @ for files)"}
-            disabled={isRunning || disabled}
+            placeholder={
+              disabled
+                ? "Approve or deny pending actions..."
+                : isRunning
+                  ? "Claude is working... (draft your next message)"
+                  : "Type a message... (/ for commands, @ for files)"
+            }
+            disabled={disabled}
             rows={MIN_LINES}
             className="relative w-full px-3 py-2 rounded border border-[var(--border)] bg-transparent text-transparent caret-[var(--foreground)] placeholder:text-[var(--foreground-muted)] disabled:opacity-50 resize-none font-mono text-sm leading-[21px] selection:bg-[var(--primary)]/30 selection:text-transparent"
           />

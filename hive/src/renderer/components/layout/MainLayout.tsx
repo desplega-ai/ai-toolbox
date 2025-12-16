@@ -97,10 +97,30 @@ export function MainLayout({ children }: MainLayoutProps) {
       });
     });
 
+    const unsubName = window.electronAPI.on('session:name', (data: unknown) => {
+      const { sessionId, name } = data as { sessionId: string; name: string };
+
+      // Update session name in all tab states that have this session
+      setTabStates(prev => {
+        const updated: Record<string, TabState> = {};
+        for (const [tabId, tabState] of Object.entries(prev)) {
+          const updatedSessions = tabState.sessions.map(s =>
+            s.id === sessionId ? { ...s, name } : s
+          );
+          const updatedSession = tabState.session?.id === sessionId
+            ? { ...tabState.session, name }
+            : tabState.session;
+          updated[tabId] = { ...tabState, sessions: updatedSessions, session: updatedSession };
+        }
+        return updated;
+      });
+    });
+
     return () => {
       unsubStatus();
       unsubPermission();
       unsubApprovalResolved();
+      unsubName();
     };
   }, []);
 
@@ -129,7 +149,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   }, [tabs, activeTabId, isLoaded]);
 
   // Load project/sessions for a tab
-  const loadTabProject = React.useCallback(async (tabId: string, projectId: string | null) => {
+  const loadTabProject = React.useCallback(async (tabId: string, projectId: string | null, sessionId?: string | null) => {
     if (!projectId) {
       setTabStates(prev => ({
         ...prev,
@@ -144,9 +164,11 @@ export function MainLayout({ children }: MainLayoutProps) {
 
       if (project) {
         const sessions = await window.electronAPI.invoke<Session[]>('db:sessions:list', { projectId });
+        // Restore session if sessionId is provided and exists in sessions list
+        const restoredSession = sessionId ? sessions.find(s => s.id === sessionId) : null;
         setTabStates(prev => ({
           ...prev,
-          [tabId]: { project, session: null, sessions },
+          [tabId]: { project, session: restoredSession || null, sessions },
         }));
 
         // Load pending approval counts for all sessions
@@ -184,7 +206,7 @@ export function MainLayout({ children }: MainLayoutProps) {
     if (!isLoaded) return;
     const activeTab = tabs.find(t => t.id === activeTabId);
     if (activeTab?.projectId && !tabStates[activeTabId]) {
-      loadTabProject(activeTabId, activeTab.projectId);
+      loadTabProject(activeTabId, activeTab.projectId, activeTab.sessionId);
     }
   }, [isLoaded, activeTabId, tabs, tabStates, loadTabProject]);
 
@@ -194,7 +216,7 @@ export function MainLayout({ children }: MainLayoutProps) {
 
     // Load tab's project if not already loaded
     if (tab?.projectId && !tabStates[tabId]) {
-      loadTabProject(tabId, tab.projectId);
+      loadTabProject(tabId, tab.projectId, tab.sessionId);
     }
   }, [tabs, tabStates, loadTabProject]);
 
@@ -332,17 +354,42 @@ export function MainLayout({ children }: MainLayoutProps) {
     });
   };
 
+  // Get active session tab for current tab
+  const activeTab = tabs.find(t => t.id === activeTabId);
+  const activeSessionTab = activeTab?.activeSessionTab || 'agent';
+
+  // Update active session tab for current tab
+  const setActiveSessionTab = (tab: 'agent' | 'todos' | 'diff' | 'analytics' | 'thoughts' | 'meta') => {
+    setTabs(prev => prev.map(t =>
+      t.id === activeTabId ? { ...t, activeSessionTab: tab } : t
+    ));
+  };
+
   // Provide tab state to children
   const tabContext = {
     currentProject: currentTabState.project,
     currentSession: currentTabState.session,
     sessions: currentTabState.sessions,
+    activeSessionTab,
     setCurrentProject,
     setCurrentSession,
     setSessions,
+    setActiveSessionTab,
     updateSessionModel,
     updateSessionPermissionMode,
   };
+
+  // Listen for collapse-sidebar event (triggered when file viewer opens)
+  React.useEffect(() => {
+    const handleCollapseSidebar = () => {
+      const panel = sidebarPanelRef.current;
+      if (panel && !sidebarCollapsed) {
+        panel.collapse();
+      }
+    };
+    window.addEventListener('collapse-sidebar', handleCollapseSidebar);
+    return () => window.removeEventListener('collapse-sidebar', handleCollapseSidebar);
+  }, [sidebarCollapsed]);
 
   // Keyboard shortcuts
   React.useEffect(() => {
@@ -391,6 +438,18 @@ export function MainLayout({ children }: MainLayoutProps) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [tabs, activeTabId, handleCloseTab, handleNewTab, handleTabChange]);
 
+  // Create projectNames map for tabs
+  const projectNames = React.useMemo(() => {
+    const names: Record<string, string> = {};
+    for (const tab of tabs) {
+      const state = tabStates[tab.id];
+      if (state?.project) {
+        names[tab.id] = state.project.name;
+      }
+    }
+    return names;
+  }, [tabs, tabStates]);
+
   if (!isLoaded) {
     return <div className="h-screen w-screen flex items-center justify-center">Loading...</div>;
   }
@@ -401,6 +460,7 @@ export function MainLayout({ children }: MainLayoutProps) {
         <TopBar
           tabs={tabs}
           activeTab={activeTabId}
+          projectNames={projectNames}
           onTabChange={handleTabChange}
           onNewTab={handleNewTab}
           onCloseTab={handleCloseTab}
@@ -419,9 +479,9 @@ export function MainLayout({ children }: MainLayoutProps) {
                 id="sidebar"
                 defaultSize={20}
                 minSize={10}
-                maxSize={40}
+                maxSize={30}
                 collapsible
-                collapsedSize={2}
+                collapsedSize={3}
                 onCollapse={() => setSidebarCollapsed(true)}
                 onExpand={() => setSidebarCollapsed(false)}
               >
@@ -452,13 +512,17 @@ export function MainLayout({ children }: MainLayoutProps) {
 }
 
 // Context for tab state
+type SessionTabId = 'agent' | 'todos' | 'diff' | 'analytics' | 'thoughts' | 'meta';
+
 interface TabContextValue {
   currentProject: Project | null;
   currentSession: Session | null;
   sessions: Session[];
+  activeSessionTab: SessionTabId;
   setCurrentProject: (project: Project | null) => void;
   setCurrentSession: (session: Session | null) => void;
   setSessions: (sessions: Session[]) => void;
+  setActiveSessionTab: (tab: SessionTabId) => void;
   updateSessionModel: (sessionId: string, model: ClaudeModel) => void;
   updateSessionPermissionMode: (sessionId: string, mode: PermissionMode, expiresAt: number | null) => void;
 }

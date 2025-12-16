@@ -86,6 +86,7 @@ interface AppState {
   updateSessionStatus: (sessionId: string, status: Session['status']) => void;
   updateSessionModel: (sessionId: string, model: ClaudeModel) => void;
   updateSessionPermissionMode: (sessionId: string, mode: PermissionMode, expiresAt: number | null) => void;
+  updateSessionName: (sessionId: string, name: string) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -119,6 +120,14 @@ export const useAppStore = create<AppState>((set) => ({
     ),
     currentSession: state.currentSession?.id === sessionId
       ? { ...state.currentSession, permissionMode: mode, permissionExpiresAt: expiresAt }
+      : state.currentSession,
+  })),
+  updateSessionName: (sessionId, name) => set((state) => ({
+    sessions: state.sessions.map((s) =>
+      s.id === sessionId ? { ...s, name } : s
+    ),
+    currentSession: state.currentSession?.id === sessionId
+      ? { ...state.currentSession, name }
       : state.currentSession,
   })),
 }));
@@ -269,4 +278,22 @@ export const useSessionMessagesStore = create<SessionMessagesState>((set, get) =
     return { loadedSessions: newLoadedSessions };
   }),
   isLoaded: (sessionId) => get().loadedSessions.has(sessionId),
+}));
+
+// File Viewer store - for viewing files in split pane
+interface FileViewerFile {
+  path: string;
+  line?: number;
+}
+
+interface FileViewerState {
+  openFile: FileViewerFile | null;
+  setOpenFile: (file: FileViewerFile | null) => void;
+  closeFile: () => void;
+}
+
+export const useFileViewerStore = create<FileViewerState>((set) => ({
+  openFile: null,
+  setOpenFile: (file) => set({ openFile: file }),
+  closeFile: () => set({ openFile: null }),
 }));

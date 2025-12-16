@@ -66,6 +66,16 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     mainWindow.webContents.send('session:status', { sessionId: id, status });
   });
 
+  ipcMain.handle('db:sessions:delete', (_, { id }) => {
+    // First interrupt the session if it's running
+    if (sessionManager) {
+      sessionManager.interruptSession(id).catch(() => {
+        // Ignore errors - session might not be running
+      });
+    }
+    database.sessions.delete(id);
+  });
+
   // Load session history from ~/.claude JSONL files
   ipcMain.handle('session:load-history', async (_, { directory, claudeSessionId }) => {
     if (!claudeSessionId) return [];

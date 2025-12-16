@@ -144,6 +144,13 @@ try {
   // Column already exists, ignore
 }
 
+// Migration: Add tool_name column to approved_tool_calls for sub-agent auto-approval
+try {
+  db.exec(`ALTER TABLE approved_tool_calls ADD COLUMN tool_name TEXT`);
+} catch {
+  // Column already exists, ignore
+}
+
 // Migration: Update thought_comments to text-based anchoring (drop old table if schema mismatch)
 try {
   // Check if the new columns exist
@@ -244,16 +251,19 @@ const statements = {
 
   // Approved Tool Calls
   insertApprovedToolCall: db.prepare(`
-    INSERT INTO approved_tool_calls (id, session_id, hash, approved_at)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO approved_tool_calls (id, session_id, hash, tool_name, approved_at)
+    VALUES (?, ?, ?, ?, ?)
   `),
   getApprovedToolCall: db.prepare(`
-    SELECT id, session_id as sessionId, hash, approved_at as approvedAt
+    SELECT id, session_id as sessionId, hash, tool_name as toolName, approved_at as approvedAt
     FROM approved_tool_calls WHERE session_id = ? AND hash = ?
   `),
   getApprovedToolCallsBySession: db.prepare(`
-    SELECT id, session_id as sessionId, hash, approved_at as approvedAt
+    SELECT id, session_id as sessionId, hash, tool_name as toolName, approved_at as approvedAt
     FROM approved_tool_calls WHERE session_id = ?
+  `),
+  hasApprovedToolName: db.prepare(`
+    SELECT 1 FROM approved_tool_calls WHERE session_id = ? AND tool_name = ? LIMIT 1
   `),
   deleteApprovedToolCall: db.prepare(`DELETE FROM approved_tool_calls WHERE id = ?`),
   deleteApprovedToolCallsBySession: db.prepare(`DELETE FROM approved_tool_calls WHERE session_id = ?`),
@@ -399,6 +409,7 @@ interface ApprovedToolCallRow {
   id: string;
   sessionId: string;
   hash: string;
+  toolName: string | null;
   approvedAt: number;
 }
 
@@ -499,6 +510,7 @@ export interface ApprovedToolCall {
   id: string;
   sessionId: string;
   hash: string;
+  toolName: string | null;
   approvedAt: number;
 }
 
@@ -646,13 +658,23 @@ export const database = {
     create(data: Omit<ApprovedToolCall, 'id' | 'approvedAt'>): ApprovedToolCall {
       const id = nanoid();
       const now = Date.now();
-      statements.insertApprovedToolCall.run(id, data.sessionId, data.hash, now);
+      statements.insertApprovedToolCall.run(id, data.sessionId, data.hash, data.toolName || null, now);
       return { id, ...data, approvedAt: now };
     },
 
     findByHash(sessionId: string, hash: string): ApprovedToolCall | undefined {
       const row = statements.getApprovedToolCall.get(sessionId, hash) as ApprovedToolCallRow | undefined;
       return row;
+    },
+
+    /**
+     * Check if a tool name has ever been approved for this session.
+     * Used for sub-agent auto-approval: if the user approved a tool before,
+     * sub-agents can use that same tool without additional approval.
+     */
+    hasApprovedToolName(sessionId: string, toolName: string): boolean {
+      const row = statements.hasApprovedToolName.get(sessionId, toolName);
+      return row !== undefined;
     },
 
     listBySession(sessionId: string): ApprovedToolCall[] {
