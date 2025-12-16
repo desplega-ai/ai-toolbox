@@ -45,20 +45,20 @@ export function Markdown({ children, className }: MarkdownProps) {
           const isInline = !className;
           if (isInline) {
             return (
-              <code className="px-1.5 py-0.5 rounded bg-[var(--secondary)] text-[var(--foreground)] font-mono text-xs">
+              <code className="px-1.5 py-0.5 bg-[var(--secondary)] text-[var(--foreground)] font-mono text-xs">
                 {children}
               </code>
             );
           }
           return (
-            <code className={cn('block p-3 rounded bg-[var(--secondary)] font-mono text-xs overflow-auto', className)} {...props}>
+            <code className={cn('block p-3 bg-[var(--secondary)] font-mono text-xs overflow-auto', className)} {...props}>
               {children}
             </code>
           );
         },
         // Pre (code blocks)
         pre: ({ children }) => (
-          <pre className="my-2 rounded bg-[var(--secondary)] overflow-auto">
+          <pre className="my-2 bg-[var(--secondary)] overflow-auto">
             {children}
           </pre>
         ),

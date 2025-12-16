@@ -79,7 +79,7 @@ export function AllCommentsPanel({
                       onCommentClick(comment);
                       onClose();
                     }}
-                    className="w-full text-left p-2 rounded bg-[var(--background-secondary)] hover:bg-[var(--sidebar-accent)] transition-colors"
+                    className="w-full text-left p-2 bg-[var(--background-secondary)] hover:bg-[var(--sidebar-accent)] transition-colors"
                   >
                     <div className="text-xs text-[var(--foreground-muted)] italic truncate">
                       "{comment.selectedText?.slice(0, 40)}{(comment.selectedText?.length ?? 0) > 40 ? '…' : ''}"

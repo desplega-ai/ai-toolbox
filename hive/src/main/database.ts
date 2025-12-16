@@ -224,6 +224,9 @@ const statements = {
   updateSessionPermissionMode: db.prepare(`
     UPDATE sessions SET permission_mode = ?, permission_expires_at = ?, updated_at = ? WHERE id = ?
   `),
+  updateSessionActionType: db.prepare(`
+    UPDATE sessions SET action_type = ?, updated_at = ? WHERE id = ?
+  `),
   updateClaudeSessionId: db.prepare(`
     UPDATE sessions SET claude_session_id = ?, updated_at = ? WHERE id = ?
   `),
@@ -602,6 +605,10 @@ export const database = {
 
     updatePermissionMode(id: string, mode: PermissionMode, expiresAt: number | null): void {
       statements.updateSessionPermissionMode.run(mode, expiresAt, Date.now(), id);
+    },
+
+    updateActionType(id: string, actionType: Session['actionType']): void {
+      statements.updateSessionActionType.run(actionType, Date.now(), id);
     },
 
     getById(id: string): Session | undefined {

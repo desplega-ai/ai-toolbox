@@ -59,7 +59,7 @@ function ToolDetails({ toolName, input }: { toolName: string; input: Record<stri
             <InlineFileLink path={input.file_path as string} />
           </div>
           <div className="text-xs text-[var(--foreground-muted)]">Content:</div>
-          <pre className="text-xs bg-[var(--background)] p-2 rounded overflow-auto max-h-40 font-mono border border-[var(--border)]">
+          <pre className="text-xs bg-[var(--background)] p-2 overflow-auto max-h-40 font-mono border border-[var(--border)]">
             {String(input.content || '').slice(0, 1000)}
             {String(input.content || '').length > 1000 && '\n... (truncated)'}
           </pre>
@@ -76,13 +76,13 @@ function ToolDetails({ toolName, input }: { toolName: string; input: Record<stri
           <div className="grid grid-cols-2 gap-2">
             <div>
               <div className="text-xs text-[var(--destructive)] mb-1">- Remove:</div>
-              <pre className="text-xs bg-[var(--destructive)]/10 p-2 rounded overflow-auto max-h-24 font-mono border border-[var(--destructive)]/20">
+              <pre className="text-xs bg-[var(--destructive)]/10 p-2 overflow-auto max-h-24 font-mono border border-[var(--destructive)]/20">
                 {String(input.old_string || '').slice(0, 300)}
               </pre>
             </div>
             <div>
               <div className="text-xs text-[var(--success)] mb-1">+ Add:</div>
-              <pre className="text-xs bg-[var(--success)]/10 p-2 rounded overflow-auto max-h-24 font-mono border border-[var(--success)]/20">
+              <pre className="text-xs bg-[var(--success)]/10 p-2 overflow-auto max-h-24 font-mono border border-[var(--success)]/20">
                 {String(input.new_string || '').slice(0, 300)}
               </pre>
             </div>
@@ -96,7 +96,7 @@ function ToolDetails({ toolName, input }: { toolName: string; input: Record<stri
           {typeof input.description === 'string' && input.description && (
             <div className="text-xs text-[var(--foreground-muted)]">{input.description}</div>
           )}
-          <pre className="text-xs bg-[var(--background)] p-2 rounded overflow-auto max-h-24 font-mono border border-[var(--border)]">
+          <pre className="text-xs bg-[var(--background)] p-2 overflow-auto max-h-24 font-mono border border-[var(--border)]">
             <span className="text-[var(--success)]">$</span> {String(input.command || '')}
           </pre>
         </div>
@@ -117,7 +117,7 @@ function ToolDetails({ toolName, input }: { toolName: string; input: Record<stri
         <div className="space-y-1 text-xs">
           <div className="flex items-center gap-2">
             <span className="text-[var(--foreground-muted)]">Pattern:</span>
-            <code className="bg-[var(--secondary)] px-1.5 py-0.5 rounded">{String(input.pattern || '')}</code>
+            <code className="bg-[var(--secondary)] px-1.5 py-0.5">{String(input.pattern || '')}</code>
           </div>
           {typeof input.path === 'string' && input.path && (
             <div className="flex items-center gap-2">
@@ -133,7 +133,7 @@ function ToolDetails({ toolName, input }: { toolName: string; input: Record<stri
         <div className="space-y-1 text-xs">
           <div className="flex items-center gap-2">
             <span className="text-[var(--foreground-muted)]">Search:</span>
-            <code className="bg-[var(--secondary)] px-1.5 py-0.5 rounded">{String(input.pattern || '')}</code>
+            <code className="bg-[var(--secondary)] px-1.5 py-0.5">{String(input.pattern || '')}</code>
           </div>
           {typeof input.path === 'string' && input.path && (
             <div className="flex items-center gap-2">
@@ -156,13 +156,13 @@ function ToolDetails({ toolName, input }: { toolName: string; input: Record<stri
           {typeof input.subagent_type === 'string' && (
             <div className="flex items-center gap-2">
               <span className="text-[var(--foreground-muted)]">Agent:</span>
-              <code className="bg-[var(--secondary)] px-1.5 py-0.5 rounded">{input.subagent_type}</code>
+              <code className="bg-[var(--secondary)] px-1.5 py-0.5">{input.subagent_type}</code>
             </div>
           )}
           {typeof input.prompt === 'string' && (
             <div>
               <div className="text-[var(--foreground-muted)] mb-1">Prompt:</div>
-              <pre className="bg-[var(--background)] p-2 rounded overflow-auto max-h-32 font-mono border border-[var(--border)]">
+              <pre className="bg-[var(--background)] p-2 overflow-auto max-h-32 font-mono border border-[var(--border)]">
                 {input.prompt.slice(0, 500)}
                 {input.prompt.length > 500 && '\n... (truncated)'}
               </pre>
@@ -173,7 +173,7 @@ function ToolDetails({ toolName, input }: { toolName: string; input: Record<stri
 
     default:
       return (
-        <pre className="text-xs bg-[var(--background)] p-2 rounded overflow-auto max-h-32 font-mono border border-[var(--border)]">
+        <pre className="text-xs bg-[var(--background)] p-2 overflow-auto max-h-32 font-mono border border-[var(--border)]">
           {JSON.stringify(input, null, 2).slice(0, 500)}
         </pre>
       );
@@ -212,7 +212,7 @@ function ToolResultDisplay({ content, isError }: { content: unknown; isError: bo
 
   return (
     <div className={cn(
-      "rounded p-2 text-xs border",
+      "p-2 text-xs border",
       isError
         ? "bg-[var(--destructive)]/5 border-[var(--destructive)]/20"
         : "bg-[var(--success)]/5 border-[var(--success)]/20"
@@ -248,6 +248,8 @@ function ToolResultDisplay({ content, isError }: { content: unknown; isError: bo
 interface ToolGroupBlockProps {
   group: ToolGroup;
   pendingApproval?: PermissionRequest;
+  stagedDecision?: 'approved' | 'denied';
+  resolvedDecision?: 'approved' | 'denied';
   onApprove: (request: PermissionRequest) => void;
   onDeny: (request: PermissionRequest, message?: string) => void;
   isSelected?: boolean;
@@ -255,7 +257,8 @@ interface ToolGroupBlockProps {
   onToggleExpand?: () => void;
 }
 
-export function ToolGroupBlock({ group, pendingApproval, onApprove, onDeny, isSelected, expandedOverride, onToggleExpand }: ToolGroupBlockProps) {
+export function ToolGroupBlock({ group, pendingApproval, stagedDecision, resolvedDecision, onApprove, onDeny, isSelected, expandedOverride, onToggleExpand }: ToolGroupBlockProps) {
+  console.log(`[ToolGroupBlock] Rendering group ${group.id} (${group.toolName}), pendingApproval:`, pendingApproval ? { id: pendingApproval.id, toolUseId: pendingApproval.toolUseId } : 'none', 'stagedDecision:', stagedDecision, 'resolvedDecision:', resolvedDecision);
   const [expandedInternal, setExpandedInternal] = React.useState(!!pendingApproval || !group.result);
 
   // Use override if provided, otherwise use internal state
@@ -280,28 +283,37 @@ export function ToolGroupBlock({ group, pendingApproval, onApprove, onDeny, isSe
 
   const isPending = !!pendingApproval;
   const isComplete = !!group.result;
-  const isError = group.result?.isError;
+
+  // Check if this is a permission-denied result (not a real error)
+  const resultContent = group.result?.content;
+  const isPermissionDenied = typeof resultContent === 'string' && resultContent.includes('PERMISSION_DENIED');
+  const isError = group.result?.isError && !isPermissionDenied;
+
   const isDangerous = ['Bash', 'Write', 'Edit'].includes(group.toolName);
   const ToolIcon = getToolIcon(group.toolName);
   const summary = getToolSummary(group.toolName, group.toolInput);
 
   return (
     <div className={cn(
-      "rounded-lg border",
+      "border",
       isPending
         ? isDangerous
           ? "border-[var(--warning)] bg-[var(--warning)]/5"
           : "border-[var(--primary)] bg-[var(--primary)]/5"
-        : isError
-          ? "border-[var(--destructive)]/30 bg-[var(--destructive)]/5"
-          : isComplete
-            ? "border-[var(--success)]/30 bg-[var(--success)]/5"
-            : "border-[var(--border)] bg-[var(--secondary)]"
+        : resolvedDecision === 'approved'
+          ? "border-[var(--success)]/30 bg-[var(--success)]/5"
+          : resolvedDecision === 'denied'
+            ? "border-[var(--destructive)]/30 bg-[var(--destructive)]/5"
+            : isError
+              ? "border-[var(--destructive)]/30 bg-[var(--destructive)]/5"
+              : isComplete
+                ? "border-[var(--success)]/30 bg-[var(--success)]/5"
+                : "border-[var(--border)] bg-[var(--secondary)]"
     )}>
       {/* Header - always visible */}
       <button
         onClick={handleToggle}
-        className="w-full flex items-center gap-2 p-3 text-left cursor-pointer hover:bg-[var(--foreground)]/5 transition-colors rounded-t-lg"
+        className="w-full flex items-center gap-2 p-3 text-left cursor-pointer hover:bg-[var(--foreground)]/5 transition-colors"
       >
         {expanded ? (
           <ChevronDown className="h-4 w-4 text-[var(--foreground-muted)]" />
@@ -333,31 +345,53 @@ export function ToolGroupBlock({ group, pendingApproval, onApprove, onDeny, isSe
         )}
 
         {/* Status indicators */}
-        {isPending && (
+        {isPending && !stagedDecision && (
           <span className={cn(
-            "text-xs px-1.5 py-0.5 rounded",
+            "text-xs px-1.5 py-0.5",
             isDangerous ? "bg-[var(--warning)]/20 text-[var(--warning)]" : "bg-[var(--primary)]/20 text-[var(--primary)]"
           )}>
             Pending Approval
           </span>
         )}
+        {isPending && stagedDecision === 'approved' && (
+          <span className="text-xs px-1.5 py-0.5 bg-[var(--success)]/20 text-[var(--success)]">
+            ✓ Will Approve
+          </span>
+        )}
+        {isPending && stagedDecision === 'denied' && (
+          <span className="text-xs px-1.5 py-0.5 bg-[var(--destructive)]/20 text-[var(--destructive)]">
+            ✗ Will Deny
+          </span>
+        )}
         {!isComplete && !isPending && (
           <Loader2 className="h-3 w-3 animate-spin text-[var(--foreground-muted)]" />
         )}
-        {isComplete && !isError && !isPending && (
-          <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--success)]/20 text-[var(--success)]">
+        {/* Show resolved decision outcome */}
+        {resolvedDecision === 'approved' && !isPending && (
+          <span className="text-xs px-1.5 py-0.5 bg-[var(--success)]/20 text-[var(--success)]">
+            Approved
+          </span>
+        )}
+        {resolvedDecision === 'denied' && !isPending && (
+          <span className="text-xs px-1.5 py-0.5 bg-[var(--destructive)]/20 text-[var(--destructive)]">
+            Denied
+          </span>
+        )}
+        {/* Show Done/Error only if no resolved decision */}
+        {isComplete && !isError && !isPending && !resolvedDecision && (
+          <span className="text-xs px-1.5 py-0.5 bg-[var(--success)]/20 text-[var(--success)]">
             Done
           </span>
         )}
-        {isError && (
-          <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--destructive)]/20 text-[var(--destructive)]">
+        {isError && !isPending && !resolvedDecision && (
+          <span className="text-xs px-1.5 py-0.5 bg-[var(--destructive)]/20 text-[var(--destructive)]">
             Error
           </span>
         )}
 
         {/* Subagent indicator */}
         {group.isSubagent && group.subagentMessages.length > 0 && (
-          <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--secondary)] text-[var(--foreground-muted)]">
+          <span className="text-xs px-1.5 py-0.5 bg-[var(--secondary)] text-[var(--foreground-muted)]">
             {group.subagentMessages.length} messages
           </span>
         )}
@@ -373,19 +407,20 @@ export function ToolGroupBlock({ group, pendingApproval, onApprove, onDeny, isSe
           {isPending && pendingApproval && (
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border)]">
               <Button
-                variant="outline"
+                variant={stagedDecision === 'denied' ? 'destructive' : 'outline'}
                 size="sm"
                 onClick={() => onDeny(pendingApproval, 'User denied permission')}
               >
                 <X className="h-3 w-3 mr-1" />
-                Deny
+                {stagedDecision === 'denied' ? 'Denied' : 'Deny'}
               </Button>
               <Button
+                variant={stagedDecision === 'approved' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => onApprove(pendingApproval)}
               >
                 <Check className="h-3 w-3 mr-1" />
-                Approve
+                {stagedDecision === 'approved' ? 'Approved' : 'Approve'}
               </Button>
             </div>
           )}

@@ -122,7 +122,7 @@ export function Select<T extends string = string>({
 
   const triggerVariants = {
     default: cn(
-      'flex items-center justify-between gap-2 px-3 py-1.5 text-sm rounded-md border border-[var(--border)]',
+      'flex items-center justify-between gap-2 px-3 py-1.5 text-sm border border-[var(--border)]',
       'bg-[var(--background)] text-[var(--foreground)]',
       'hover:bg-[var(--secondary)] transition-colors',
       'focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:ring-offset-1',
@@ -130,7 +130,7 @@ export function Select<T extends string = string>({
       !disabled && 'cursor-pointer'
     ),
     compact: cn(
-      'flex items-center justify-between gap-1.5 px-2 py-0.5 text-xs rounded-md',
+      'flex items-center justify-between gap-1.5 px-2 py-0.5 text-xs',
       'bg-[var(--secondary)] text-[var(--secondary-foreground)]',
       'hover:bg-[var(--secondary)]/80 transition-colors',
       'focus:outline-none focus:ring-2 focus:ring-[var(--ring)]',
@@ -138,7 +138,7 @@ export function Select<T extends string = string>({
       !disabled && 'cursor-pointer'
     ),
     pill: cn(
-      'flex items-center justify-between gap-1.5 px-2.5 py-0.5 text-xs rounded-full',
+      'flex items-center justify-between gap-1.5 px-2.5 py-0.5 text-xs',
       'bg-[var(--secondary)] text-[var(--secondary-foreground)]',
       'hover:bg-[var(--secondary)]/80 transition-colors',
       'focus:outline-none focus:ring-2 focus:ring-[var(--ring)]',
@@ -180,7 +180,7 @@ export function Select<T extends string = string>({
           role="listbox"
           className={cn(
             'absolute z-50 mt-1 min-w-full max-h-60 overflow-auto',
-            'bg-[var(--background)] border border-[var(--border)] rounded-md shadow-lg',
+            'bg-[var(--background)] border border-[var(--border)] shadow-lg',
             'animate-in fade-in-0 zoom-in-95 duration-100'
           )}
         >

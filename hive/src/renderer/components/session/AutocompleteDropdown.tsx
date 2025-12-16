@@ -41,7 +41,7 @@ export function AutocompleteDropdown({
 
   return (
     <div
-      className="fixed z-50 min-w-[280px] max-w-[400px] max-h-[300px] overflow-auto bg-[var(--background)] border border-[var(--border)] rounded-lg shadow-lg"
+      className="fixed z-50 min-w-[280px] max-w-[400px] max-h-[300px] overflow-auto bg-[var(--background)] border border-[var(--border)] shadow-lg"
       style={{
         bottom: `calc(100vh - ${position.top}px)`,
         left: position.left,

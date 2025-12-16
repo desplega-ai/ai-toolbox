@@ -1,8 +1,10 @@
-import { query, type Query, type PermissionResult, type PermissionUpdate, type CanUseTool } from '@anthropic-ai/claude-agent-sdk';
-import { BrowserWindow, Notification } from 'electron';
+import { query, type Query, type PermissionResult, type HookCallback, type HookJSONOutput, type PermissionRequestHookInput } from '@anthropic-ai/claude-agent-sdk';
+import { app, BrowserWindow, Notification } from 'electron';
+import path from 'path';
 import { execSync } from 'child_process';
 import { existsSync } from 'fs';
 import { getAuthEnvironment } from './auth-manager';
+import { getPreferences } from './preferences';
 import { database, type PendingApproval } from './database';
 import { hashToolCall } from '../shared/tool-hash';
 import type { Session, ClaudeModel, PermissionMode } from '../shared/types';
@@ -57,6 +59,25 @@ interface ActiveSession {
   abortController: AbortController;
 }
 
+// Resolver function for pending permission requests
+type PermissionResolver = (result: PermissionResult) => void;
+
+// Global map to store permission resolvers (keyed by pendingApprovalId)
+const pendingResolvers = new Map<string, PermissionResolver>();
+
+/**
+ * Resolve a pending permission request (called from IPC handlers).
+ */
+export function resolvePermission(pendingApprovalId: string, result: PermissionResult): boolean {
+  const resolver = pendingResolvers.get(pendingApprovalId);
+  if (resolver) {
+    resolver(result);
+    pendingResolvers.delete(pendingApprovalId);
+    return true;
+  }
+  return false;
+}
+
 export class SessionManager {
   private activeSessions = new Map<string, ActiveSession>();
   private mainWindow: BrowserWindow;
@@ -88,55 +109,119 @@ export class SessionManager {
           this.sendNameUpdate(hiveSessionId, newName);
         }
       }
+
+      // Auto-detect actionType from first message commands or permission mode
+      const commandRegex = /\/[\w:-]+/g;
+      const commands = prompt.match(commandRegex) || [];
+      let detectedActionType: Session['actionType'] | null = null;
+
+      // Check if any command contains "research"
+      if (commands.some(cmd => cmd.toLowerCase().includes('research'))) {
+        detectedActionType = 'research';
+      }
+      // Check if any command contains "create-plan" OR permission mode is 'plan'
+      else if (commands.some(cmd => cmd.toLowerCase().includes('create-plan')) || permissionMode === 'plan') {
+        detectedActionType = 'plan';
+      }
+
+      if (detectedActionType) {
+        database.sessions.updateActionType(hiveSessionId, detectedActionType);
+        this.sendActionTypeUpdate(hiveSessionId, detectedActionType);
+      }
     }
 
     const abortController = new AbortController();
 
-    // Create the canUseTool callback that uses hash-based pre-approval
-    const canUseTool: CanUseTool = async (
-      toolName: string,
-      toolInput: Record<string, unknown>,
-      options: {
-        signal: AbortSignal;
-        suggestions?: PermissionUpdate[];
-        blockedPath?: string;
-        decisionReason?: string;
-        toolUseID: string;
-        agentID?: string;
-      }
-    ): Promise<PermissionResult> => {
-      const hash = hashToolCall(toolName, toolInput);
-      const isSubAgent = !!options.agentID;
-      console.log(`[canUseTool] Tool: ${toolName}, Hash: ${hash}, SubAgent: ${isSubAgent ? options.agentID : 'no'}`);
-      console.log(`[canUseTool] Input:`, JSON.stringify(toolInput).slice(0, 200));
+    // Get the user's permission mode (we bypass SDK's internal system and implement it ourselves)
+    const effectivePermissionMode = permissionMode || DEFAULT_PERMISSION_MODE;
 
-      // Check if this tool call was pre-approved (from previous interrupt/resume)
+    // Define which tools are safe/auto-approved based on permission mode
+    const readOnlyTools = ['Read', 'Glob', 'Grep', 'WebSearch', 'WebFetch', 'TodoWrite', 'Task', 'TaskOutput'];
+    const editTools = ['Edit', 'Write', 'NotebookEdit'];
+
+    console.log(`[Session] Creating query with PermissionRequest hook`);
+
+    // Find the Claude Code CLI executable
+    const claudeExecutable = findClaudeExecutable();
+    console.log(`[Session] Using Claude executable: ${claudeExecutable}`);
+
+    // Create PermissionRequest hook that handles permissions via our UI
+    const permissionRequestHook: HookCallback = async (
+      input,
+      toolUseID,
+      options
+    ): Promise<HookJSONOutput> => {
+      const hookInput = input as PermissionRequestHookInput;
+      const toolName = hookInput.tool_name;
+      const toolInput = hookInput.tool_input as Record<string, unknown>;
+
+      const hash = hashToolCall(toolName, toolInput);
+      console.log(`[PermissionHook] Tool: ${toolName}, Hash: ${hash}, PermissionMode: ${effectivePermissionMode}`);
+      console.log(`[PermissionHook] ToolUseID: ${toolUseID}`);
+      console.log(`[PermissionHook] Input:`, JSON.stringify(toolInput).slice(0, 200));
+
+      // Apply permission mode logic
+      if (effectivePermissionMode === 'bypassPermissions') {
+        console.log(`[PermissionHook] Bypass mode - auto-allowing ${toolName}`);
+        return {
+          hookSpecificOutput: {
+            hookEventName: 'PermissionRequest',
+            decision: { behavior: 'allow', updatedInput: toolInput }
+          }
+        };
+      }
+
+      if (effectivePermissionMode === 'acceptEdits') {
+        if (readOnlyTools.includes(toolName) || editTools.includes(toolName)) {
+          console.log(`[PermissionHook] AcceptEdits mode - auto-allowing ${toolName}`);
+          return {
+            hookSpecificOutput: {
+              hookEventName: 'PermissionRequest',
+              decision: { behavior: 'allow', updatedInput: toolInput }
+            }
+          };
+        }
+      }
+
+      if (effectivePermissionMode === 'plan') {
+        if (readOnlyTools.includes(toolName)) {
+          console.log(`[PermissionHook] Plan mode - auto-allowing read-only tool ${toolName}`);
+          return {
+            hookSpecificOutput: {
+              hookEventName: 'PermissionRequest',
+              decision: { behavior: 'allow', updatedInput: toolInput }
+            }
+          };
+        }
+        console.log(`[PermissionHook] Plan mode - denying write operation ${toolName}`);
+        return {
+          hookSpecificOutput: {
+            hookEventName: 'PermissionRequest',
+            decision: { behavior: 'deny', message: 'Write operations are not allowed in plan mode' }
+          }
+        };
+      }
+
+      // Default mode - check pre-approvals or wait for user
       const approved = database.approvedToolCalls.findByHash(hiveSessionId, hash);
       if (approved) {
-        console.log(`[canUseTool] Pre-approved hash found, allowing tool`);
-        // Remove the one-time approval
+        console.log(`[PermissionHook] Pre-approved hash found, allowing tool`);
         database.approvedToolCalls.delete(approved.id);
-        return { behavior: 'allow', updatedInput: toolInput };
+        return {
+          hookSpecificOutput: {
+            hookEventName: 'PermissionRequest',
+            decision: { behavior: 'allow', updatedInput: toolInput }
+          }
+        };
       }
 
-      // For sub-agents: auto-approve if this tool NAME has been approved before
-      // This prevents "Stream closed" errors when sub-agents use tools the user already approved
-      if (isSubAgent) {
-        const toolNameApproved = database.approvedToolCalls.hasApprovedToolName(hiveSessionId, toolName);
-        if (toolNameApproved) {
-          console.log(`[canUseTool] Sub-agent using previously approved tool "${toolName}", auto-approving`);
-          return { behavior: 'allow', updatedInput: toolInput };
-        }
-        console.log(`[canUseTool] Sub-agent requesting unapproved tool "${toolName}", will need user approval`);
-      }
+      // Not pre-approved - wait for user approval via Promise
+      console.log(`[PermissionHook] No pre-approval, waiting for user decision`);
 
-      // Not pre-approved - store as pending and deny (user will approve via UI)
-      console.log(`[canUseTool] No pre-approval, storing pending and denying`);
-
-      // Store pending approval in database (persists across restarts)
+      // Store pending approval in database
       const pending = database.pendingApprovals.create({
         sessionId: hiveSessionId,
-        toolUseId: options.toolUseID,
+        toolUseId: toolUseID || 'unknown',
         toolName,
         toolInput,
         hash,
@@ -147,34 +232,69 @@ export class SessionManager {
       this.sendStatusUpdate(hiveSessionId, 'waiting');
 
       // Send notification if window not focused
-      this.sendInputRequiredNotification(hiveSessionId, toolName);
+      this.sendInputRequiredNotification(hiveSessionId, toolName, toolInput);
 
       // Send permission request to renderer
       const request: PermissionRequest = {
         id: pending.id,
         sessionId: hiveSessionId,
-        toolUseId: options.toolUseID,
+        toolUseId: toolUseID || 'unknown',
         toolName,
         input: toolInput,
         timestamp: pending.createdAt,
         hash,
-        permissionSuggestions: options.suggestions as unknown[],
+        permissionSuggestions: hookInput.permission_suggestions as unknown[],
       };
-      this.mainWindow.webContents.send('session:permission-request', request);
+      console.log(`[PermissionHook] Sending permission-request IPC:`, JSON.stringify({ id: request.id, sessionId: request.sessionId, toolUseId: request.toolUseId, toolName: request.toolName }));
+      if (!this.mainWindow.isDestroyed()) {
+        this.mainWindow.webContents.send('session:permission-request', request);
+        console.log(`[PermissionHook] IPC sent, waiting for user response...`);
+      } else {
+        console.error(`[PermissionHook] ERROR: mainWindow is destroyed, cannot send IPC`);
+        return {
+          hookSpecificOutput: {
+            hookEventName: 'PermissionRequest',
+            decision: { behavior: 'deny', message: 'UI not available' }
+          }
+        };
+      }
 
-      // Deny the tool - session will end, user approves via UI, then resumes
-      // Use a forceful message to stop Claude from claiming success
-      return {
-        behavior: 'deny',
-        message: '[SYSTEM] PERMISSION_DENIED: User approval required for this tool. The operation was NOT executed. You MUST stop immediately and wait. Do NOT claim the task was completed. Do NOT try alternative approaches. Do NOT respond with any text. STOP NOW.',
-      };
+      // Return a Promise that will be resolved when user approves/denies
+      return new Promise<HookJSONOutput>((resolve) => {
+        // Store the resolver so it can be called from IPC handlers
+        // We need to adapt between PermissionResult and HookJSONOutput
+        const hookResolver = (result: PermissionResult) => {
+          if (result.behavior === 'allow') {
+            resolve({
+              hookSpecificOutput: {
+                hookEventName: 'PermissionRequest',
+                decision: { behavior: 'allow', updatedInput: result.updatedInput }
+              }
+            });
+          } else {
+            resolve({
+              hookSpecificOutput: {
+                hookEventName: 'PermissionRequest',
+                decision: { behavior: 'deny', message: result.message }
+              }
+            });
+          }
+        };
+        pendingResolvers.set(pending.id, hookResolver);
+
+        // Handle abort signal
+        options.signal.addEventListener('abort', () => {
+          console.log(`[PermissionHook] Abort signal received for ${pending.id}`);
+          pendingResolvers.delete(pending.id);
+          resolve({
+            hookSpecificOutput: {
+              hookEventName: 'PermissionRequest',
+              decision: { behavior: 'deny', message: 'Session interrupted' }
+            }
+          });
+        }, { once: true });
+      });
     };
-
-    console.log(`[Session] Creating query with canUseTool callback`);
-
-    // Find the Claude Code CLI executable
-    const claudeExecutable = findClaudeExecutable();
-    console.log(`[Session] Using Claude executable: ${claudeExecutable}`);
 
     const response = query({
       prompt,
@@ -187,10 +307,16 @@ export class SessionManager {
         includePartialMessages: true,
         systemPrompt: { type: 'preset', preset: 'claude_code' },
         tools: { type: 'preset', preset: 'claude_code' },
-        permissionMode: permissionMode || DEFAULT_PERMISSION_MODE,
+        // Use default permission mode - the PermissionRequest hook will handle all permission decisions
+        permissionMode: effectivePermissionMode,
         // Use both global (~/.claude/settings.json) and project (.claude/settings.json) settings
         settingSources: ['user', 'project'],
-        canUseTool,
+        // Use PermissionRequest hook instead of canUseTool
+        hooks: {
+          PermissionRequest: [{
+            hooks: [permissionRequestHook]
+          }]
+        },
         // Path to Claude Code CLI (required for packaged apps)
         pathToClaudeCodeExecutable: claudeExecutable,
       },
@@ -254,9 +380,14 @@ export class SessionManager {
             this.sendStatusUpdate(hiveSessionId, 'waiting');
           } else {
             const isSuccess = message.subtype === 'success';
+            const resultMsg = message as SDKResultMessage;
             database.sessions.updateStatus(hiveSessionId, 'idle');
             this.sendStatusUpdate(hiveSessionId, 'idle');
-            this.sendCompletionNotification(hiveSessionId, isSuccess);
+            this.sendCompletionNotification(
+              hiveSessionId,
+              isSuccess,
+              !isSuccess ? resultMsg.result : undefined
+            );
           }
         }
       }
@@ -326,8 +457,9 @@ export class SessionManager {
   }
 
   /**
-   * Approve a pending tool call and resume the session.
-   * The hash is stored so the tool will be auto-approved on retry.
+   * Approve a pending tool call.
+   * Resolves the waiting Promise so the tool executes immediately.
+   * Falls back to session restart if no active session (e.g., after app restart).
    */
   async approveAndResume(hiveSessionId: string, pendingApprovalId: string): Promise<void> {
     const pendingApprovals = database.pendingApprovals.listBySession(hiveSessionId);
@@ -340,8 +472,7 @@ export class SessionManager {
 
     console.log(`[Approval] Approving ${pending.toolName} (hash: ${pending.hash})`);
 
-    // Store the approved hash and tool name for when session resumes
-    // Tool name is also stored for sub-agent auto-approval
+    // Store the approved hash and tool name for sub-agent auto-approval
     database.approvedToolCalls.create({
       sessionId: hiveSessionId,
       hash: pending.hash,
@@ -351,37 +482,48 @@ export class SessionManager {
     // Remove from pending
     database.pendingApprovals.delete(pendingApprovalId);
 
-    // Check if there are more pending approvals
-    const remainingPending = database.pendingApprovals.listBySession(hiveSessionId);
-    if (remainingPending.length > 0) {
-      console.log(`[Approval] ${remainingPending.length} more pending approval(s), not resuming yet`);
-      return;
-    }
+    // Try to resolve the waiting Promise
+    const resolved = resolvePermission(pendingApprovalId, {
+      behavior: 'allow',
+      updatedInput: pending.toolInput as Record<string, unknown>,
+    });
 
-    // All approvals done - resume session
+    if (resolved) {
+      console.log(`[Approval] Permission resolved, tool will execute`);
+      // Update status if no more pending approvals
+      const remainingPending = database.pendingApprovals.listBySession(hiveSessionId);
+      if (remainingPending.length === 0) {
+        database.sessions.updateStatus(hiveSessionId, 'running');
+        this.sendStatusUpdate(hiveSessionId, 'running');
+      }
+    } else {
+      // No active session - fall back to restart (e.g., after app restart)
+      console.log(`[Approval] No active session, checking if restart needed`);
+      const remainingPending = database.pendingApprovals.listBySession(hiveSessionId);
+      if (remainingPending.length === 0) {
+        await this.restartSessionWithApproval(hiveSessionId, pending.toolName);
+      }
+    }
+  }
+
+  /**
+   * Helper to restart a session after approval (fallback when no active Promise).
+   */
+  private async restartSessionWithApproval(hiveSessionId: string, toolName: string): Promise<void> {
     const session = database.sessions.getById(hiveSessionId);
-    if (!session) {
-      console.log(`[Approval] Session ${hiveSessionId} not found`);
-      return;
-    }
+    if (!session) return;
 
-    // Get project directory
     const project = database.projects.list().find(p => {
       const sessions = database.sessions.listByProject(p.id);
       return sessions.some(s => s.id === hiveSessionId);
     });
+    if (!project) return;
 
-    if (!project) {
-      console.log(`[Approval] Project for session ${hiveSessionId} not found`);
-      return;
-    }
-
-    console.log(`[Approval] Resuming session ${hiveSessionId}`);
-
-    // Resume the session
+    console.log(`[Approval] Restarting session ${hiveSessionId}`);
+    const resumeMessage = `The ${toolName} tool has been approved. Please retry the exact same ${toolName} call that was previously denied - it will now succeed.`;
     await this.startSession(
       hiveSessionId,
-      'Please continue with your previous task.',
+      resumeMessage,
       project.directory,
       session.claudeSessionId || undefined,
       session.model,
@@ -390,7 +532,9 @@ export class SessionManager {
   }
 
   /**
-   * Approve all pending tool calls for a session and resume.
+   * Approve all pending tool calls for a session.
+   * Resolves all waiting Promises so tools execute immediately.
+   * Falls back to session restart if no active session (e.g., after app restart).
    */
   async approveAllAndResume(hiveSessionId: string): Promise<void> {
     const pendingApprovals = database.pendingApprovals.listBySession(hiveSessionId);
@@ -402,41 +546,45 @@ export class SessionManager {
 
     console.log(`[Approval] Approving all ${pendingApprovals.length} pending tool calls`);
 
-    // Store all approved hashes and tool names
+    // Collect tool names for potential restart message
+    const toolNames = [...new Set(pendingApprovals.map(p => p.toolName))];
+    let anyResolved = false;
+
+    // Store all approved hashes and tool names, then resolve each Promise
     for (const pending of pendingApprovals) {
+      // Store for sub-agent auto-approval
       database.approvedToolCalls.create({
         sessionId: hiveSessionId,
         hash: pending.hash,
         toolName: pending.toolName,
       });
+
+      // Try to resolve the waiting Promise
+      const resolved = resolvePermission(pending.id, {
+        behavior: 'allow',
+        updatedInput: pending.toolInput as Record<string, unknown>,
+      });
+      if (resolved) anyResolved = true;
     }
 
-    // Clear all pending
+    // Clear all pending from database
     database.pendingApprovals.deleteBySession(hiveSessionId);
 
-    // Resume session
-    const session = database.sessions.getById(hiveSessionId);
-    if (!session) return;
-
-    const project = database.projects.list().find(p => {
-      const sessions = database.sessions.listByProject(p.id);
-      return sessions.some(s => s.id === hiveSessionId);
-    });
-
-    if (!project) return;
-
-    await this.startSession(
-      hiveSessionId,
-      'Please continue with your previous task.',
-      project.directory,
-      session.claudeSessionId || undefined,
-      session.model,
-      session.permissionMode
-    );
+    if (anyResolved) {
+      // Active session - update status
+      database.sessions.updateStatus(hiveSessionId, 'running');
+      this.sendStatusUpdate(hiveSessionId, 'running');
+    } else {
+      // No active session - fall back to restart
+      console.log(`[Approval] No active session, restarting with approval`);
+      await this.restartSessionWithApproval(hiveSessionId, toolNames.join(', '));
+    }
   }
 
   /**
-   * Deny a pending tool call and resume the session with denial message.
+   * Deny a pending tool call.
+   * Resolves the waiting Promise with deny so Claude gets the denial message.
+   * Falls back to session restart if no active session (e.g., after app restart).
    */
   async denyAndResume(hiveSessionId: string, pendingApprovalId: string, reason?: string): Promise<void> {
     const pendingApprovals = database.pendingApprovals.listBySession(hiveSessionId);
@@ -449,13 +597,44 @@ export class SessionManager {
 
     console.log(`[Denial] Denying ${pending.toolName} (hash: ${pending.hash})`);
 
-    // Remove from pending (don't add to approved)
+    const denialMessage = reason
+      ? `User denied the ${pending.toolName} tool. Reason: ${reason}. Please try a different approach or ask for clarification.`
+      : `User denied the ${pending.toolName} tool. Please try a different approach or ask for clarification.`;
+
+    // Try to resolve with deny - Claude will see the denial message
+    const resolved = resolvePermission(pendingApprovalId, {
+      behavior: 'deny',
+      message: denialMessage,
+    });
+
+    // Remove the denied approval from database
     database.pendingApprovals.delete(pendingApprovalId);
 
-    // Clear any other pending approvals for this session (deny cancels all)
+    // Also deny any other pending approvals (deny cancels all)
+    const remainingPending = database.pendingApprovals.listBySession(hiveSessionId);
+    for (const other of remainingPending) {
+      resolvePermission(other.id, {
+        behavior: 'deny',
+        message: 'Another tool was denied, cancelling this request.',
+      });
+    }
     database.pendingApprovals.deleteBySession(hiveSessionId);
 
-    // Resume session with denial message
+    if (resolved) {
+      // Active session - update status
+      database.sessions.updateStatus(hiveSessionId, 'running');
+      this.sendStatusUpdate(hiveSessionId, 'running');
+    } else {
+      // No active session - fall back to restart with denial message
+      console.log(`[Denial] No active session, restarting with denial`);
+      await this.restartSessionWithDenial(hiveSessionId, denialMessage);
+    }
+  }
+
+  /**
+   * Helper to restart a session after denial (fallback when no active Promise).
+   */
+  private async restartSessionWithDenial(hiveSessionId: string, denialMessage: string): Promise<void> {
     const session = database.sessions.getById(hiveSessionId);
     if (!session) return;
 
@@ -463,13 +642,9 @@ export class SessionManager {
       const sessions = database.sessions.listByProject(p.id);
       return sessions.some(s => s.id === hiveSessionId);
     });
-
     if (!project) return;
 
-    const denialMessage = reason
-      ? `User denied the ${pending.toolName} tool. Reason: ${reason}. Please try a different approach or ask for clarification.`
-      : `User denied the ${pending.toolName} tool. Please try a different approach or ask for clarification.`;
-
+    console.log(`[Denial] Restarting session ${hiveSessionId} with denial`);
     await this.startSession(
       hiveSessionId,
       denialMessage,
@@ -513,12 +688,75 @@ export class SessionManager {
     }
   }
 
-  private sendInputRequiredNotification(sessionId: string, toolName: string): void {
+  private sendActionTypeUpdate(sessionId: string, actionType: Session['actionType']): void {
+    if (!this.mainWindow.isDestroyed()) {
+      this.mainWindow.webContents.send('session:actionType', { sessionId, actionType });
+    }
+  }
+
+  /**
+   * Get session and project context for notifications.
+   */
+  private getSessionContext(sessionId: string): { sessionName: string; projectName: string } | null {
+    const session = database.sessions.getById(sessionId);
+    if (!session) return null;
+    const project = database.projects.list().find(p => p.id === session.projectId);
+    return {
+      sessionName: session.name,
+      projectName: project?.name || 'Unknown Project'
+    };
+  }
+
+  /**
+   * Get notification icon path (works in dev and production).
+   */
+  private getNotificationIcon(): string {
+    const isDev = !app.isPackaged;
+    if (isDev) {
+      return path.join(process.cwd(), 'resources', 'icon.png');
+    }
+    return path.join(process.resourcesPath, 'icon.png');
+  }
+
+  /**
+   * Extract the most relevant detail from tool input for notification display.
+   */
+  private extractToolDetail(toolName: string, toolInput: Record<string, unknown>): string | null {
+    switch (toolName) {
+      case 'Edit':
+      case 'Read':
+      case 'Write':
+        return (toolInput.file_path as string) || null;
+      case 'Bash': {
+        const cmd = toolInput.command as string;
+        return cmd ? (cmd.length > 50 ? cmd.slice(0, 47) + '...' : cmd) : null;
+      }
+      case 'Glob':
+      case 'Grep':
+        return (toolInput.pattern as string) || null;
+      default:
+        return null;
+    }
+  }
+
+  private sendInputRequiredNotification(
+    sessionId: string,
+    toolName: string,
+    toolInput: Record<string, unknown>
+  ): void {
+    // Check preference
+    const prefs = getPreferences();
+    if (!prefs.notifications.inputRequired) return;
+
     if (this.mainWindow.isFocused()) return;
 
+    const context = this.getSessionContext(sessionId);
+    const detail = this.extractToolDetail(toolName, toolInput);
+
     const notification = new Notification({
-      title: 'Input Required',
-      body: `Claude wants to use: ${toolName}`,
+      title: context?.sessionName || 'Permission Required',
+      body: detail ? `${toolName}: ${detail}` : `Wants to use: ${toolName}`,
+      icon: this.getNotificationIcon(),
       timeoutType: 'never'
     });
 
@@ -531,12 +769,23 @@ export class SessionManager {
     notification.show();
   }
 
-  private sendCompletionNotification(sessionId: string, success: boolean): void {
+  private sendCompletionNotification(
+    sessionId: string,
+    success: boolean,
+    resultText?: string
+  ): void {
+    // Check preference
+    const prefs = getPreferences();
+    if (!prefs.notifications.sessionComplete) return;
+
     if (this.mainWindow.isFocused()) return;
 
+    const context = this.getSessionContext(sessionId);
+
     const notification = new Notification({
-      title: success ? 'Task Complete' : 'Task Error',
-      body: success ? 'Claude finished the task' : 'Task ended with an error'
+      title: context?.sessionName || (success ? 'Task Complete' : 'Task Error'),
+      body: success ? 'Finished successfully' : (resultText || 'Ended with an error'),
+      icon: this.getNotificationIcon(),
     });
 
     notification.on('click', () => {

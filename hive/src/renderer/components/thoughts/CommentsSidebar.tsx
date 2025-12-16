@@ -104,7 +104,7 @@ export function CommentsSidebar({
             {sentComments.map((comment) => (
               <div
                 key={comment.id}
-                className="px-3 py-2 text-xs text-[var(--foreground-muted)] opacity-60 rounded bg-[var(--background)]"
+                className="px-3 py-2 text-xs text-[var(--foreground-muted)] opacity-60 bg-[var(--background)]"
               >
                 <div className="flex items-center gap-1 mb-1">
                   <Check className="h-3 w-3" />
@@ -150,7 +150,7 @@ function CommentCard({
     <div
       ref={cardRef}
       className={cn(
-        'group px-3 py-2 rounded border cursor-pointer transition-colors',
+        'group px-3 py-2 border cursor-pointer transition-colors',
         isHighlighted && 'bg-[var(--color-sol-yellow)]/20 border-[var(--color-sol-yellow)]',
         isSelected && !isHighlighted && 'bg-[var(--primary)]/10 border-[var(--primary)]',
         !isHighlighted && !isSelected && 'bg-[var(--background)] border-[var(--border)] hover:border-[var(--foreground-muted)]'

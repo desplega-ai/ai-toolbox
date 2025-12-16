@@ -111,7 +111,7 @@ export function InlineFileLink({ path, line, className }: Omit<FileLinkProps, 'c
         "inline-flex items-center gap-0.5 font-mono",
         "text-[var(--primary)] hover:text-[var(--primary)]/80",
         "hover:underline underline-offset-2 cursor-pointer",
-        "bg-[var(--secondary)] px-1.5 py-0.5 rounded",
+        "bg-[var(--secondary)] px-1.5 py-0.5",
         className
       )}
     >

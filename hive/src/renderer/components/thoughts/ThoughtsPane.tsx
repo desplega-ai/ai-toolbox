@@ -348,7 +348,7 @@ export function ThoughtsPane({ projectId, projectDirectory, currentSessionId, on
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search files..."
-                className="w-full pl-7 pr-7 py-1 text-sm bg-[var(--background)] border border-[var(--border)] rounded focus:outline-none focus:border-[var(--primary)]"
+                className="w-full pl-7 pr-7 py-1 text-sm bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:border-[var(--primary)]"
               />
               {searchQuery && (
                 <button

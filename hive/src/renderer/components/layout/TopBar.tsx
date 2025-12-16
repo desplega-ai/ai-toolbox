@@ -108,7 +108,7 @@ export function TopBar({
               onDoubleClick={() => onStartEditing(tab.id)}
               onKeyDown={(e) => e.key === 'Enter' && editingTabId !== tab.id && onTabChange(tab.id)}
               className={cn(
-                'flex items-center gap-2 px-3 py-1.5 text-sm rounded-t cursor-pointer',
+                'flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer',
                 'border border-b-0 border-[var(--border)] transition-colors',
                 'min-w-[120px] max-w-[280px]',
                 activeTab === tab.id
@@ -136,7 +136,7 @@ export function TopBar({
                     e.stopPropagation();
                     onCloseTab(tab.id);
                   }}
-                  className="hover:bg-[var(--destructive)]/20 rounded p-0.5 flex-shrink-0"
+                  className="hover:bg-[var(--destructive)]/20 p-0.5 flex-shrink-0"
                 >
                   <X className="h-3 w-3" />
                 </button>

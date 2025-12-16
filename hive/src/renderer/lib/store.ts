@@ -87,6 +87,8 @@ interface AppState {
   updateSessionModel: (sessionId: string, model: ClaudeModel) => void;
   updateSessionPermissionMode: (sessionId: string, mode: PermissionMode, expiresAt: number | null) => void;
   updateSessionName: (sessionId: string, name: string) => void;
+  updateSessionClaudeSessionId: (sessionId: string, claudeSessionId: string) => void;
+  updateSessionActionType: (sessionId: string, actionType: Session['actionType']) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -128,6 +130,22 @@ export const useAppStore = create<AppState>((set) => ({
     ),
     currentSession: state.currentSession?.id === sessionId
       ? { ...state.currentSession, name }
+      : state.currentSession,
+  })),
+  updateSessionClaudeSessionId: (sessionId, claudeSessionId) => set((state) => ({
+    sessions: state.sessions.map((s) =>
+      s.id === sessionId ? { ...s, claudeSessionId } : s
+    ),
+    currentSession: state.currentSession?.id === sessionId
+      ? { ...state.currentSession, claudeSessionId }
+      : state.currentSession,
+  })),
+  updateSessionActionType: (sessionId, actionType) => set((state) => ({
+    sessions: state.sessions.map((s) =>
+      s.id === sessionId ? { ...s, actionType, updatedAt: Date.now() } : s
+    ),
+    currentSession: state.currentSession?.id === sessionId
+      ? { ...state.currentSession, actionType, updatedAt: Date.now() }
       : state.currentSession,
   })),
 }));

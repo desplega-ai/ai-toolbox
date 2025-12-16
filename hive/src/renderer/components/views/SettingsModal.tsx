@@ -144,7 +144,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-lg bg-[var(--background)] rounded-lg shadow-xl border border-[var(--border)]">
+      <div className="relative w-full max-w-lg bg-[var(--background)] shadow-xl border border-[var(--border)]">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
           <h2 className="text-lg font-semibold">Settings</h2>
@@ -163,7 +163,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 <button
                   key={t}
                   onClick={() => setTheme(t)}
-                  className={`px-4 py-2 rounded border transition-colors cursor-pointer ${
+                  className={`px-4 py-2 border transition-colors cursor-pointer ${
                     theme === t
                       ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--foreground)]'
                       : 'border-[var(--border)] hover:border-[var(--foreground-muted)] hover:bg-[var(--secondary)]'
@@ -184,12 +184,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 role="switch"
                 aria-checked={hideBackfilledSessions}
                 onClick={handleHideBackfilledToggle}
-                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                className={`relative inline-flex h-5 w-9 items-center transition-colors ${
                   hideBackfilledSessions ? 'bg-[var(--primary)]' : 'bg-[var(--border)]'
                 }`}
               >
                 <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  className={`inline-block h-4 w-4 transform bg-white transition-transform ${
                     hideBackfilledSessions ? 'translate-x-4' : 'translate-x-0.5'
                   }`}
                 />
@@ -222,7 +222,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 <button
                   key={preset.value}
                   onClick={() => handleEditorChange(preset.value)}
-                  className={`px-3 py-1.5 text-sm rounded border transition-colors cursor-pointer ${
+                  className={`px-3 py-1.5 text-sm border transition-colors cursor-pointer ${
                     editorCommand === preset.value
                       ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--foreground)]'
                       : 'border-[var(--border)] hover:border-[var(--foreground-muted)] hover:bg-[var(--secondary)]'
@@ -239,7 +239,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   value={customEditor}
                   onChange={(e) => setCustomEditor(e.target.value)}
                   placeholder="e.g., /usr/local/bin/nvim"
-                  className="flex-1 px-3 py-2 rounded border border-[var(--border)] bg-[var(--background)] text-sm font-mono focus:outline-none focus:border-[var(--primary)]"
+                  className="flex-1 px-3 py-2 border border-[var(--border)] bg-[var(--background)] text-sm font-mono focus:outline-none focus:border-[var(--primary)]"
                 />
                 <Button size="sm" onClick={handleCustomEditorSave} disabled={!customEditor.trim()}>
                   Save
@@ -267,7 +267,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 <button
                   key={preset.value}
                   onClick={() => handleTerminalChange(preset.value)}
-                  className={`px-3 py-1.5 text-sm rounded border transition-colors cursor-pointer ${
+                  className={`px-3 py-1.5 text-sm border transition-colors cursor-pointer ${
                     terminalCommand === preset.value
                       ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--foreground)]'
                       : 'border-[var(--border)] hover:border-[var(--foreground-muted)] hover:bg-[var(--secondary)]'
@@ -284,7 +284,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   value={customTerminal}
                   onChange={(e) => setCustomTerminal(e.target.value)}
                   placeholder="e.g., /usr/local/bin/alacritty"
-                  className="flex-1 px-3 py-2 rounded border border-[var(--border)] bg-[var(--background)] text-sm font-mono focus:outline-none focus:border-[var(--primary)]"
+                  className="flex-1 px-3 py-2 border border-[var(--border)] bg-[var(--background)] text-sm font-mono focus:outline-none focus:border-[var(--primary)]"
                 />
                 <Button size="sm" onClick={handleCustomTerminalSave} disabled={!customTerminal.trim()}>
                   Save

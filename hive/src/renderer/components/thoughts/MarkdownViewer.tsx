@@ -220,7 +220,7 @@ export function MarkdownViewer({
         onClick={(e: React.MouseEvent<HTMLElement>) => handleBlockClick(e, index)}
         className={cn(
           className,
-          'cursor-pointer rounded transition-colors',
+          'cursor-pointer transition-colors',
           isSelected
             ? 'bg-[var(--primary)]/20 outline outline-2 outline-[var(--primary)]/50'
             : commentState.isHighlighted
@@ -243,7 +243,7 @@ export function MarkdownViewer({
     >
       {/* Selection toolbar - fixed at top of viewport */}
       {selectedBlocks.size > 0 && (
-        <div className="sticky top-0 z-50 flex items-center justify-between gap-2 p-2 mb-4 bg-[var(--background-secondary)] border border-[var(--border)] rounded-lg shadow-lg">
+        <div className="sticky top-0 z-50 flex items-center justify-between gap-2 p-2 mb-4 bg-[var(--background-secondary)] border border-[var(--border)] shadow-lg">
           <div className="flex items-center gap-3">
             <span className="text-sm text-[var(--foreground-muted)]">
               {selectedBlocks.size} block{selectedBlocks.size > 1 ? 's' : ''} selected
@@ -251,7 +251,7 @@ export function MarkdownViewer({
             <button
               onClick={() => setMultiSelectMode(!multiSelectMode)}
               className={cn(
-                "flex items-center gap-1.5 px-2 py-1 text-xs rounded border transition-colors",
+                "flex items-center gap-1.5 px-2 py-1 text-xs border transition-colors",
                 multiSelectMode
                   ? "bg-[var(--primary)]/20 border-[var(--primary)] text-[var(--primary)]"
                   : "border-[var(--border)] text-[var(--foreground-muted)] hover:border-[var(--foreground-muted)]"
@@ -265,7 +265,7 @@ export function MarkdownViewer({
           <div className="flex items-center gap-2">
             <button
               onClick={handleAddComment}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-[var(--primary-foreground)] rounded hover:opacity-90 transition-opacity"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-[var(--primary)] text-[var(--primary-foreground)] hover:opacity-90 transition-opacity"
             >
               <MessageSquarePlus className="h-4 w-4" />
               Add Comment
@@ -321,20 +321,20 @@ export function MarkdownViewer({
               const isInline = !className;
               if (isInline) {
                 return (
-                  <code className="px-1.5 py-0.5 rounded bg-[var(--secondary)] text-[var(--foreground)] font-mono text-xs">
+                  <code className="px-1.5 py-0.5 bg-[var(--secondary)] text-[var(--foreground)] font-mono text-xs">
                     {children}
                   </code>
                 );
               }
               return (
-                <code className={cn('block p-3 rounded bg-[var(--secondary)] font-mono text-xs overflow-auto', className)} {...props}>
+                <code className={cn('block p-3 bg-[var(--secondary)] font-mono text-xs overflow-auto', className)} {...props}>
                   {children}
                 </code>
               );
             },
             // Pre (code blocks) - selectable as a whole
             pre: ({ children }) => (
-              <SelectableBlock as="pre" className="my-3 rounded bg-[var(--secondary)] overflow-auto">
+              <SelectableBlock as="pre" className="my-3 bg-[var(--secondary)] overflow-auto">
                 {children}
               </SelectableBlock>
             ),
@@ -363,7 +363,7 @@ export function MarkdownViewer({
               <ol className="my-3 ml-4 list-decimal space-y-1">{children}</ol>
             ),
             li: ({ children }) => (
-              <SelectableBlock as="li" className="leading-relaxed px-2 py-0.5 -mx-2 rounded">
+              <SelectableBlock as="li" className="leading-relaxed px-2 py-0.5 -mx-2">
                 {children}
               </SelectableBlock>
             ),

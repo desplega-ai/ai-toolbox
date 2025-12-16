@@ -298,7 +298,7 @@ export function DiffTab({ projectDirectory, claudeSessionId, onStatsChange }: Di
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search files..."
-                className="w-full pl-7 pr-7 py-1 text-sm bg-[var(--background)] border border-[var(--border)] rounded focus:outline-none focus:border-[var(--primary)]"
+                className="w-full pl-7 pr-7 py-1 text-sm bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:border-[var(--primary)]"
               />
               {searchQuery && (
                 <button
@@ -478,12 +478,12 @@ function DiffViewer({ content, isLoading, projectDirectory }: DiffViewerProps) {
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">{content.path}</span>
           {isNewFile && (
-            <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--success)]/20 text-[var(--success)]">
+            <span className="text-xs px-1.5 py-0.5 bg-[var(--success)]/20 text-[var(--success)]">
               new file
             </span>
           )}
           {isDeletedFile && (
-            <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--destructive)]/20 text-[var(--destructive)]">
+            <span className="text-xs px-1.5 py-0.5 bg-[var(--destructive)]/20 text-[var(--destructive)]">
               deleted
             </span>
           )}

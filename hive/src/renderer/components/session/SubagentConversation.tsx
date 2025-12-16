@@ -15,7 +15,7 @@ export function SubagentConversation({ messages }: SubagentConversationProps) {
   if (messages.length === 0) return null;
 
   return (
-    <div className="border border-[var(--border)] rounded bg-[var(--background)]">
+    <div className="border border-[var(--border)] bg-[var(--background)]">
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-2 p-2 text-sm text-left hover:bg-[var(--secondary)] transition-colors cursor-pointer"
@@ -58,7 +58,7 @@ function SubagentMessageItem({ message }: { message: SDKMessage }) {
     const toolUses = assistantMsg.message.content.filter(c => c.type === 'tool_use');
 
     return (
-      <div className="bg-[var(--secondary)] rounded p-2">
+      <div className="bg-[var(--secondary)] p-2">
         <div className="text-xs text-[var(--foreground-muted)] mb-1">Subagent</div>
         {textContent && (
           <div className="text-sm">
@@ -108,7 +108,7 @@ function SubagentMessageItem({ message }: { message: SDKMessage }) {
     if (!textContent) return null;
 
     return (
-      <div className="bg-[var(--primary)]/10 rounded p-2 ml-4">
+      <div className="bg-[var(--primary)]/10 p-2 ml-4">
         <div className="text-xs text-[var(--foreground-muted)] mb-1">Input</div>
         <div className="text-sm font-mono whitespace-pre-wrap">{textContent}</div>
       </div>
@@ -144,7 +144,7 @@ function SubagentToolUse({ tool }: { tool: { id?: string; name?: string; input?:
   }
 
   return (
-    <div className="text-xs border border-[var(--border)] rounded p-1.5 bg-[var(--background)]">
+    <div className="text-xs border border-[var(--border)] p-1.5 bg-[var(--background)]">
       <div className="flex items-center gap-1.5 w-full">
         <button
           onClick={() => setExpanded(!expanded)}
@@ -165,7 +165,7 @@ function SubagentToolUse({ tool }: { tool: { id?: string; name?: string; input?:
         )}
       </div>
       {expanded && (
-        <pre className="mt-1.5 p-1.5 bg-[var(--secondary)] rounded overflow-auto max-h-32 font-mono">
+        <pre className="mt-1.5 p-1.5 bg-[var(--secondary)] overflow-auto max-h-32 font-mono">
           {JSON.stringify(input, null, 2)}
         </pre>
       )}
@@ -204,7 +204,7 @@ function SubagentToolResult({ result }: { result: { tool_use_id?: string; conten
 
   return (
     <div className={cn(
-      "text-xs rounded p-1.5 ml-4",
+      "text-xs p-1.5 ml-4",
       isError
         ? "bg-[var(--destructive)]/5 border border-[var(--destructive)]/20"
         : "bg-[var(--success)]/5 border border-[var(--success)]/20"

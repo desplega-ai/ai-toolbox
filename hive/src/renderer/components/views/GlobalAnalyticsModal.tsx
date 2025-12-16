@@ -94,7 +94,7 @@ export function GlobalAnalyticsModal({ isOpen, onClose }: GlobalAnalyticsModalPr
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-2xl bg-[var(--background)] rounded-lg shadow-xl border border-[var(--border)] max-h-[80vh] flex flex-col">
+      <div className="relative w-full max-w-2xl bg-[var(--background)] shadow-xl border border-[var(--border)] max-h-[80vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
           <h2 className="text-lg font-semibold">Analytics</h2>
@@ -110,7 +110,7 @@ export function GlobalAnalyticsModal({ isOpen, onClose }: GlobalAnalyticsModalPr
               <button
                 key={range.value}
                 onClick={() => setTimeRange(range.value)}
-                className={`px-3 py-1.5 text-sm rounded border transition-colors cursor-pointer ${
+                className={`px-3 py-1.5 text-sm border transition-colors cursor-pointer ${
                   timeRange === range.value
                     ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--foreground)]'
                     : 'border-[var(--border)] hover:border-[var(--foreground-muted)] hover:bg-[var(--secondary)]'
@@ -133,7 +133,7 @@ export function GlobalAnalyticsModal({ isOpen, onClose }: GlobalAnalyticsModalPr
               {/* Global Stats Grid */}
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {/* Total Cost */}
-                <div className="p-4 rounded-lg border border-[var(--border)] bg-[var(--secondary)]">
+                <div className="p-4 border border-[var(--border)] bg-[var(--secondary)]">
                   <div className="flex items-center gap-2 text-[var(--foreground-muted)] mb-1">
                     <DollarSign className="h-4 w-4" />
                     <span className="text-xs uppercase tracking-wide">Total Cost</span>
@@ -142,7 +142,7 @@ export function GlobalAnalyticsModal({ isOpen, onClose }: GlobalAnalyticsModalPr
                 </div>
 
                 {/* Total Duration */}
-                <div className="p-4 rounded-lg border border-[var(--border)] bg-[var(--secondary)]">
+                <div className="p-4 border border-[var(--border)] bg-[var(--secondary)]">
                   <div className="flex items-center gap-2 text-[var(--foreground-muted)] mb-1">
                     <Clock className="h-4 w-4" />
                     <span className="text-xs uppercase tracking-wide">Total Time</span>
@@ -154,7 +154,7 @@ export function GlobalAnalyticsModal({ isOpen, onClose }: GlobalAnalyticsModalPr
                 </div>
 
                 {/* Sessions */}
-                <div className="p-4 rounded-lg border border-[var(--border)] bg-[var(--secondary)]">
+                <div className="p-4 border border-[var(--border)] bg-[var(--secondary)]">
                   <div className="flex items-center gap-2 text-[var(--foreground-muted)] mb-1">
                     <MessageSquare className="h-4 w-4" />
                     <span className="text-xs uppercase tracking-wide">Sessions</span>
@@ -166,7 +166,7 @@ export function GlobalAnalyticsModal({ isOpen, onClose }: GlobalAnalyticsModalPr
                 </div>
 
                 {/* Total Tokens */}
-                <div className="p-4 rounded-lg border border-[var(--border)] bg-[var(--secondary)]">
+                <div className="p-4 border border-[var(--border)] bg-[var(--secondary)]">
                   <div className="flex items-center gap-2 text-[var(--foreground-muted)] mb-1">
                     <Database className="h-4 w-4" />
                     <span className="text-xs uppercase tracking-wide">Tokens</span>
@@ -178,7 +178,7 @@ export function GlobalAnalyticsModal({ isOpen, onClose }: GlobalAnalyticsModalPr
                 </div>
 
                 {/* Cache Stats */}
-                <div className="p-4 rounded-lg border border-[var(--border)] bg-[var(--secondary)]">
+                <div className="p-4 border border-[var(--border)] bg-[var(--secondary)]">
                   <div className="flex items-center gap-2 text-[var(--foreground-muted)] mb-1">
                     <TrendingUp className="h-4 w-4" />
                     <span className="text-xs uppercase tracking-wide">Cache</span>
@@ -190,7 +190,7 @@ export function GlobalAnalyticsModal({ isOpen, onClose }: GlobalAnalyticsModalPr
                 </div>
 
                 {/* Average Cost per Session */}
-                <div className="p-4 rounded-lg border border-[var(--border)] bg-[var(--secondary)]">
+                <div className="p-4 border border-[var(--border)] bg-[var(--secondary)]">
                   <div className="flex items-center gap-2 text-[var(--foreground-muted)] mb-1">
                     <DollarSign className="h-4 w-4" />
                     <span className="text-xs uppercase tracking-wide">Avg/Session</span>
@@ -211,7 +211,7 @@ export function GlobalAnalyticsModal({ isOpen, onClose }: GlobalAnalyticsModalPr
                     {projectStats.map((project) => (
                       <div
                         key={project.projectId}
-                        className="flex items-center justify-between p-3 rounded border border-[var(--border)] bg-[var(--secondary)]"
+                        className="flex items-center justify-between p-3 border border-[var(--border)] bg-[var(--secondary)]"
                       >
                         <div className="flex-1 min-w-0">
                           <div className="font-medium truncate">{project.projectName}</div>

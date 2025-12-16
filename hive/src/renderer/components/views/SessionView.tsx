@@ -39,9 +39,11 @@ function getPermissionIcon(mode: PermissionMode): React.ReactNode {
 
 // Context Usage Computation
 const DEFAULT_CONTEXT_WINDOW = 200000; // 200k default
+const ESTIMATED_SYSTEM_TOKENS = 21000; // System prompt + tools + MCP overhead
 
 interface ContextUsage {
-  current: number;
+  current: number;      // Conversation tokens
+  system: number;       // Estimated system overhead
   max: number;
 }
 
@@ -70,15 +72,19 @@ function computeContextUsage(messages: SDKMessage[]): ContextUsage {
     }
   }
 
-  return { current, max };
+  return { current, system: ESTIMATED_SYSTEM_TOKENS, max };
 }
 
 // Context Usage Bar Component
-function ContextUsageBar({ current, max }: ContextUsage) {
+function ContextUsageBar({ current, system, max }: ContextUsage) {
   // Don't show if no usage yet
   if (current === 0) return null;
 
-  const percent = (current / max) * 100;
+  const total = current + system;
+  const systemPercent = (system / max) * 100;
+  const conversationPercent = (current / max) * 100;
+  const totalPercent = (total / max) * 100;
+
   const formatNum = (n: number): string => {
     if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
     if (n >= 1000) return `${(n / 1000).toFixed(0)}k`;
@@ -88,17 +94,23 @@ function ContextUsageBar({ current, max }: ContextUsage) {
   return (
     <div className="px-4 pb-2 flex items-center gap-2 text-xs text-[var(--foreground-muted)]">
       <span>Context:</span>
-      <div className="flex-1 h-1.5 bg-[var(--border)] rounded-full overflow-hidden max-w-48">
+      <div className="flex-1 h-1.5 bg-[var(--border)] overflow-hidden max-w-48 flex">
+        {/* System tokens segment (muted) */}
+        <div
+          className="h-full bg-[var(--foreground-muted)]/30 transition-all duration-300"
+          style={{ width: `${Math.min(systemPercent, 100)}%` }}
+        />
+        {/* Conversation tokens segment */}
         <div
           className={cn(
             "h-full transition-all duration-300",
-            percent >= 90 ? "bg-red-500" : percent >= 70 ? "bg-amber-500" : "bg-[var(--primary)]"
+            totalPercent >= 90 ? "bg-red-500" : totalPercent >= 70 ? "bg-amber-500" : "bg-[var(--primary)]"
           )}
-          style={{ width: `${Math.min(percent, 100)}%` }}
+          style={{ width: `${Math.min(conversationPercent, 100 - systemPercent)}%` }}
         />
       </div>
       <span className="font-mono">
-        {formatNum(current)} / {formatNum(max)} ({percent.toFixed(1)}%)
+        <span className="opacity-60">{formatNum(system)}</span> + {formatNum(current)} / {formatNum(max)} ({totalPercent.toFixed(1)}%)
       </span>
     </div>
   );
@@ -119,6 +131,10 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
   const activeTab = activeSessionTab as TabId;
   const setActiveTab = setActiveSessionTab;
   const [pendingApprovals, setPendingApprovals] = React.useState<PermissionRequest[]>(EMPTY_PERMISSIONS);
+  // Track staged decisions (approve/deny) before submitting all at once
+  const [stagedDecisions, setStagedDecisions] = React.useState<Map<string, 'approved' | 'denied'>>(new Map());
+  // Track resolved decisions (persists after submission to show outcome)
+  const [resolvedDecisions, setResolvedDecisions] = React.useState<Map<string, 'approved' | 'denied'>>(new Map());
   const [isLoadingHistory, setIsLoadingHistory] = React.useState(false);
   // Local status tracking - stays in sync with backend via IPC
   const [localStatus, setLocalStatus] = React.useState<Session['status']>(session.status);
@@ -370,8 +386,12 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
       const { sessionId, status: newStatus } = data as { sessionId: string; status: Session['status'] };
       if (sessionId === session.id) {
         setLocalStatus(newStatus);
-        if (newStatus === 'idle' || newStatus === 'error' || newStatus === 'finished' || newStatus === 'waiting') {
+        // Clear pending approvals only when session is truly done, NOT when 'waiting' for approval
+        if (newStatus === 'idle' || newStatus === 'error' || newStatus === 'finished') {
           setPendingApprovals([]);
+          setActivity('idle');
+        } else if (newStatus === 'waiting') {
+          // When waiting for approval, just set activity to idle but keep pending approvals
           setActivity('idle');
         }
       }
@@ -380,12 +400,26 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
     // Listen for new permission requests
     const unsubPermission = window.electronAPI.on('session:permission-request', (request: unknown) => {
       const req = request as PermissionRequest;
+      console.log(`[SessionView] permission-request received:`, {
+        reqSessionId: req.sessionId,
+        currentSessionId: session.id,
+        matches: req.sessionId === session.id,
+        toolUseId: req.toolUseId,
+        toolName: req.toolName
+      });
       if (req.sessionId === session.id) {
+        console.log(`[SessionView] Adding to pendingApprovals`);
         setPendingApprovals(prev => {
           const exists = prev.some(p => p.id === req.id);
-          if (exists) return prev;
+          if (exists) {
+            console.log(`[SessionView] Already exists in pendingApprovals`);
+            return prev;
+          }
+          console.log(`[SessionView] pendingApprovals updated, new count:`, prev.length + 1);
           return [...prev, req];
         });
+      } else {
+        console.log(`[SessionView] Session ID mismatch, ignoring`);
       }
     });
 
@@ -426,40 +460,86 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
     });
   };
 
-  // Approve a single pending tool call
-  const handleApprove = async (request: PermissionRequest) => {
-    // Remove from local state immediately for responsiveness
-    setPendingApprovals(prev => prev.filter(p => p.id !== request.id));
-
-    // Call IPC to approve and potentially resume
-    await window.electronAPI.invoke('session:approve', {
-      sessionId: request.sessionId,
-      pendingApprovalId: request.id,
+  // Stage a single pending tool call as approved (don't send to backend yet)
+  const handleApprove = (request: PermissionRequest) => {
+    setStagedDecisions(prev => {
+      const next = new Map(prev);
+      next.set(request.id, 'approved');
+      return next;
     });
   };
 
-  // Approve all pending tool calls
-  const handleApproveAll = async () => {
+  // Stage all pending tool calls as approved
+  const handleApproveAll = () => {
+    setStagedDecisions(prev => {
+      const next = new Map(prev);
+      for (const approval of pendingApprovals) {
+        next.set(approval.id, 'approved');
+      }
+      return next;
+    });
+  };
+
+  // Stage a pending tool call as denied
+  const handleDeny = (request: PermissionRequest, _reason?: string) => {
+    setStagedDecisions(prev => {
+      const next = new Map(prev);
+      next.set(request.id, 'denied');
+      return next;
+    });
+  };
+
+  // Check if all pending approvals have been staged
+  const allDecisionsStaged = pendingApprovals.length > 0 &&
+    pendingApprovals.every(p => stagedDecisions.has(p.id));
+
+  // Submit all staged decisions to backend
+  const handleSubmitDecisions = async () => {
+    // Separate approved and denied
+    const approved: PermissionRequest[] = [];
+    const denied: PermissionRequest[] = [];
+
+    for (const approval of pendingApprovals) {
+      const decision = stagedDecisions.get(approval.id);
+      if (decision === 'approved') {
+        approved.push(approval);
+      } else if (decision === 'denied') {
+        denied.push(approval);
+      }
+    }
+
+    // Save decisions to resolved (keyed by toolUseId for matching with ToolGroup)
+    setResolvedDecisions(prev => {
+      const next = new Map(prev);
+      for (const approval of pendingApprovals) {
+        const decision = stagedDecisions.get(approval.id);
+        if (decision) {
+          next.set(approval.toolUseId, decision);
+        }
+      }
+      return next;
+    });
+
     // Clear local state
     setPendingApprovals([]);
+    setStagedDecisions(new Map());
 
-    // Call IPC to approve all and resume
-    await window.electronAPI.invoke('session:approve-all', {
-      sessionId: session.id,
-    });
-  };
+    // If any denied, deny first (this clears all pending in backend and resumes)
+    if (denied.length > 0) {
+      await window.electronAPI.invoke('session:deny', {
+        sessionId: session.id,
+        pendingApprovalId: denied[0].id,
+        reason: 'User denied permission',
+      });
+      return;
+    }
 
-  // Deny a pending tool call
-  const handleDeny = async (request: PermissionRequest, reason?: string) => {
-    // Clear all pending (deny cancels all)
-    setPendingApprovals([]);
-
-    // Call IPC to deny and resume with denial message
-    await window.electronAPI.invoke('session:deny', {
-      sessionId: request.sessionId,
-      pendingApprovalId: request.id,
-      reason,
-    });
+    // If all approved, approve all at once
+    if (approved.length > 0) {
+      await window.electronAPI.invoke('session:approve-all', {
+        sessionId: session.id,
+      });
+    }
   };
 
   // Save session name
@@ -589,6 +669,33 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
     }
   };
 
+  // Handle "Auto-accept edits" quick action - changes mode and approves all
+  const handleAutoAcceptEdits = async () => {
+    // Change permission mode first
+    await handlePermissionModeChange('acceptEdits');
+
+    // Then approve all and continue
+    if (pendingApprovals.length > 0) {
+      // Save all as approved to resolved decisions
+      setResolvedDecisions(prev => {
+        const next = new Map(prev);
+        for (const approval of pendingApprovals) {
+          next.set(approval.toolUseId, 'approved');
+        }
+        return next;
+      });
+
+      // Clear local state
+      setPendingApprovals([]);
+      setStagedDecisions(new Map());
+
+      // Approve all and resume
+      await window.electronAPI.invoke('session:approve-all', {
+        sessionId: session.id,
+      });
+    }
+  };
+
   // Handle modal confirmation
   const handlePermissionModalConfirm = (duration: PermissionDuration) => {
     handlePermissionModeChange('bypassPermissions', duration);
@@ -606,7 +713,7 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
-              'px-4 py-1.5 text-sm font-medium rounded-t-md transition-all relative cursor-pointer',
+              'px-4 py-1.5 text-sm font-medium transition-all relative cursor-pointer',
               ix === 0 ? 'ml-2' : '',
               activeTab === tab.id
                 ? 'bg-[var(--background)] text-[var(--foreground)] -mb-px z-10'
@@ -659,7 +766,7 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
               {session.name}
             </span>
           )}
-          <span className="text-xs px-2 py-0.5 rounded bg-[var(--secondary)] text-[var(--secondary-foreground)]">
+          <span className="text-xs px-2 py-0.5 bg-[var(--secondary)] text-[var(--secondary-foreground)]">
             {session.actionType}
           </span>
           {/* Model selector */}
@@ -700,7 +807,7 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
             )}
           </div>
           <span className={cn(
-            'text-xs px-2 py-0.5 rounded',
+            'text-xs px-2 py-0.5',
             localStatus === 'pending' && 'bg-[var(--secondary)] text-[var(--secondary-foreground)]',
             localStatus === 'running' && 'bg-[var(--success)]/20 text-[var(--success)]',
             localStatus === 'waiting' && 'bg-[var(--warning)]/20 text-[var(--warning)]',
@@ -712,7 +819,7 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
             {localStatus}
           </span>
           {pendingApprovals.length > 0 && (
-            <span className="text-xs px-2 py-0.5 rounded bg-[var(--warning)]/20 text-[var(--warning)]">
+            <span className="text-xs px-2 py-0.5 bg-[var(--warning)]/20 text-[var(--warning)]">
               {pendingApprovals.length} pending approval{pendingApprovals.length > 1 ? 's' : ''}
             </span>
           )}
@@ -813,9 +920,16 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
                     messages={messages}
                     streamingText={streamingText}
                     pendingApprovals={pendingApprovals}
+                    stagedDecisions={stagedDecisions}
+                    resolvedDecisions={resolvedDecisions}
+                    allDecisionsStaged={allDecisionsStaged}
                     onApprove={handleApprove}
                     onApproveAll={handleApproveAll}
                     onDeny={handleDeny}
+                    onSubmitDecisions={handleSubmitDecisions}
+                    permissionMode={session.permissionMode}
+                    onAutoAcceptEdits={handleAutoAcceptEdits}
+                    onBypassAll={() => setShowPermissionModal(true)}
                     isLoadingHistory={isLoadingHistory}
                     activity={activity}
                     onFocusInput={() => window.dispatchEvent(new Event('focus-message-input'))}
@@ -828,7 +942,7 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
                     sessionId={session.id}
                     projectId={projectId}
                   />
-                  <ContextUsageBar current={contextUsage.current} max={contextUsage.max} />
+                  <ContextUsageBar current={contextUsage.current} system={contextUsage.system} max={contextUsage.max} />
                 </div>
               </Panel>
               <PanelResizeHandle className="w-1 bg-[var(--border)] hover:bg-[var(--primary)] transition-colors" />
@@ -852,9 +966,16 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
                 messages={messages}
                 streamingText={streamingText}
                 pendingApprovals={pendingApprovals}
+                stagedDecisions={stagedDecisions}
+                resolvedDecisions={resolvedDecisions}
+                allDecisionsStaged={allDecisionsStaged}
                 onApprove={handleApprove}
                 onApproveAll={handleApproveAll}
                 onDeny={handleDeny}
+                onSubmitDecisions={handleSubmitDecisions}
+                permissionMode={session.permissionMode}
+                onAutoAcceptEdits={handleAutoAcceptEdits}
+                onBypassAll={() => setShowPermissionModal(true)}
                 isLoadingHistory={isLoadingHistory}
                 activity={activity}
                 onFocusInput={() => window.dispatchEvent(new Event('focus-message-input'))}
@@ -867,7 +988,7 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
                 sessionId={session.id}
                 projectId={projectId}
               />
-              <ContextUsageBar current={contextUsage.current} max={contextUsage.max} />
+              <ContextUsageBar current={contextUsage.current} system={contextUsage.system} max={contextUsage.max} />
             </>
           )
         )}
@@ -962,7 +1083,7 @@ function TodosTab({ messages }: { messages: SDKMessage[] }) {
             <span className="font-medium">{progressPercent}%</span>
           </div>
           {/* Progress Bar */}
-          <div className="h-2 bg-[var(--secondary)] rounded-full overflow-hidden">
+          <div className="h-2 bg-[var(--secondary)] overflow-hidden">
             <div
               className="h-full bg-[var(--success)] transition-all duration-300"
               style={{ width: `${progressPercent}%` }}
@@ -971,7 +1092,7 @@ function TodosTab({ messages }: { messages: SDKMessage[] }) {
         </div>
 
         {/* Todo List */}
-        <div className="bg-[var(--background-secondary)] rounded-lg border border-[var(--border)] divide-y divide-[var(--border)]">
+        <div className="bg-[var(--background-secondary)] border border-[var(--border)] divide-y divide-[var(--border)]">
           {todos.map((todo, index) => (
             <div
               key={index}
@@ -985,7 +1106,7 @@ function TodosTab({ messages }: { messages: SDKMessage[] }) {
                 {todo.status === 'completed' && <CheckCircle className="h-5 w-5 text-[var(--success)]" />}
                 {todo.status === 'in_progress' && <Loader2 className="h-5 w-5 text-[var(--primary)] animate-spin" />}
                 {todo.status === 'pending' && (
-                  <span className="inline-block h-5 w-5 rounded-full border-2 border-[var(--border)]" />
+                  <span className="inline-block h-5 w-5 border-2 border-[var(--border)]" />
                 )}
               </span>
               {/* Task Text */}
@@ -1077,7 +1198,7 @@ function MetaTab({ session, projectDirectory }: { session: Session; projectDirec
           <h3 className="text-sm font-medium text-[var(--foreground-muted)] uppercase tracking-wider">
             Session Info
           </h3>
-          <div className="bg-[var(--background-secondary)] rounded-lg border border-[var(--border)] divide-y divide-[var(--border)]">
+          <div className="bg-[var(--background-secondary)] border border-[var(--border)] divide-y divide-[var(--border)]">
             {rows.map(({ label, value, copyable, key }) => (
               <div key={key} className="flex items-center justify-between px-4 py-2.5">
                 <span className="text-sm text-[var(--foreground-muted)]">{label}</span>
@@ -1111,7 +1232,7 @@ function MetaTab({ session, projectDirectory }: { session: Session; projectDirec
             <h3 className="text-sm font-medium text-[var(--foreground-muted)] uppercase tracking-wider">
               Resume Command
             </h3>
-            <div className="bg-[var(--background-secondary)] rounded-lg border border-[var(--border)] p-3 flex items-center justify-between">
+            <div className="bg-[var(--background-secondary)] border border-[var(--border)] p-3 flex items-center justify-between">
               <code className="text-sm font-mono text-[var(--foreground)]">
                 {resumeCommand}
               </code>
@@ -1137,7 +1258,7 @@ function MetaTab({ session, projectDirectory }: { session: Session; projectDirec
             <h3 className="text-sm font-medium text-[var(--foreground-muted)] uppercase tracking-wider">
               Session File
             </h3>
-            <div className="bg-[var(--background-secondary)] rounded-lg border border-[var(--border)] p-3">
+            <div className="bg-[var(--background-secondary)] border border-[var(--border)] p-3">
               <div className="flex items-center justify-between">
                 <code className="text-sm font-mono text-[var(--foreground)] break-all">
                   {sessionFilePath}
@@ -1198,7 +1319,7 @@ function MetaTab({ session, projectDirectory }: { session: Session; projectDirec
             <h3 className="text-sm font-medium text-[var(--foreground-muted)] uppercase tracking-wider">
               Metadata
             </h3>
-            <div className="bg-[var(--background-secondary)] rounded-lg border border-[var(--border)] p-3">
+            <div className="bg-[var(--background-secondary)] border border-[var(--border)] p-3">
               <pre className="text-sm font-mono text-[var(--foreground)] whitespace-pre-wrap overflow-auto">
                 {JSON.stringify(session.metadata, null, 2)}
               </pre>
@@ -1342,7 +1463,7 @@ function AnalyticsTab({ messages }: { messages: SDKMessage[] }) {
             {statCards.map((card) => (
               <div
                 key={card.label}
-                className="bg-[var(--background-secondary)] rounded-lg border border-[var(--border)] p-4"
+                className="bg-[var(--background-secondary)] border border-[var(--border)] p-4"
               >
                 <div className="text-xs text-[var(--foreground-muted)] mb-1">
                   {card.label}
@@ -1380,7 +1501,7 @@ function AnalyticsTab({ messages }: { messages: SDKMessage[] }) {
           <h3 className="text-sm font-medium text-[var(--foreground-muted)] uppercase tracking-wider mb-3">
             Token Breakdown
           </h3>
-          <div className="bg-[var(--background-secondary)] rounded-lg border border-[var(--border)] divide-y divide-[var(--border)]">
+          <div className="bg-[var(--background-secondary)] border border-[var(--border)] divide-y divide-[var(--border)]">
             <TokenRow label="Input tokens" value={stats.inputTokens} total={totalTokens} />
             <TokenRow label="Output tokens" value={stats.outputTokens} total={totalTokens} />
             {stats.cacheReadTokens > 0 && (
@@ -1397,7 +1518,7 @@ function AnalyticsTab({ messages }: { messages: SDKMessage[] }) {
           <h3 className="text-sm font-medium text-[var(--foreground-muted)] uppercase tracking-wider mb-3">
             Duration Breakdown
           </h3>
-          <div className="bg-[var(--background-secondary)] rounded-lg border border-[var(--border)] divide-y divide-[var(--border)]">
+          <div className="bg-[var(--background-secondary)] border border-[var(--border)] divide-y divide-[var(--border)]">
             <DurationRow
               label="API time"
               value={stats.totalApiDuration}
@@ -1421,7 +1542,7 @@ function TokenRow({ label, value, total }: { label: string; value: number; total
     <div className="flex items-center justify-between px-4 py-2.5">
       <span className="text-sm text-[var(--foreground-muted)]">{label}</span>
       <div className="flex items-center gap-3">
-        <div className="w-24 h-2 bg-[var(--border)] rounded-full overflow-hidden">
+        <div className="w-24 h-2 bg-[var(--border)] overflow-hidden">
           <div
             className="h-full bg-[var(--primary)] transition-all duration-300"
             style={{ width: `${percent}%` }}
@@ -1442,7 +1563,7 @@ function DurationRow({ label, value, total }: { label: string; value: number; to
     <div className="flex items-center justify-between px-4 py-2.5">
       <span className="text-sm text-[var(--foreground-muted)]">{label}</span>
       <div className="flex items-center gap-3">
-        <div className="w-24 h-2 bg-[var(--border)] rounded-full overflow-hidden">
+        <div className="w-24 h-2 bg-[var(--border)] overflow-hidden">
           <div
             className="h-full bg-[var(--success)] transition-all duration-300"
             style={{ width: `${percent}%` }}

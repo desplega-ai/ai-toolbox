@@ -52,7 +52,7 @@ export function PermissionDialog({ request, onApprove, onDeny }: PermissionDialo
       <div className="absolute inset-0 bg-black/50" />
 
       {/* Dialog */}
-      <div className="relative w-full max-w-lg bg-[var(--background)] rounded-lg shadow-xl border border-[var(--border)]">
+      <div className="relative w-full max-w-lg bg-[var(--background)] shadow-xl border border-[var(--border)]">
         {/* Header */}
         <div className={`flex items-center gap-3 p-4 border-b border-[var(--border)] ${
           isDangerous ? 'bg-[var(--warning)]/10' : 'bg-[var(--primary)]/10'
@@ -65,7 +65,7 @@ export function PermissionDialog({ request, onApprove, onDeny }: PermissionDialo
           <div className="flex-1">
             <h2 className="font-semibold">Permission Required</h2>
             <p className="text-sm text-[var(--foreground-muted)]">
-              Claude wants to use: <code className="bg-[var(--secondary)] px-1 rounded">{request.toolName}</code>
+              Claude wants to use: <code className="bg-[var(--secondary)] px-1">{request.toolName}</code>
             </p>
           </div>
           {/* Countdown timer */}
@@ -82,7 +82,7 @@ export function PermissionDialog({ request, onApprove, onDeny }: PermissionDialo
           {/* Input preview */}
           <div>
             <h3 className="text-sm font-medium mb-2">Details:</h3>
-            <pre className="text-xs bg-[var(--secondary)] p-3 rounded overflow-auto max-h-48 font-mono">
+            <pre className="text-xs bg-[var(--secondary)] p-3 overflow-auto max-h-48 font-mono">
               {inputPreview}
               {inputPreview.length >= 500 && '...'}
             </pre>
@@ -94,7 +94,7 @@ export function PermissionDialog({ request, onApprove, onDeny }: PermissionDialo
               type="checkbox"
               checked={remember}
               onChange={(e) => setRemember(e.target.checked)}
-              className="rounded"
+              className=""
             />
             Remember this choice for this session
           </label>

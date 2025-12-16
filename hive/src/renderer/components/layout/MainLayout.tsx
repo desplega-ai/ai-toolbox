@@ -4,7 +4,7 @@ import { TopBar } from './TopBar';
 import { Sidebar } from './Sidebar';
 import { usePreferencesStore } from '@/lib/store';
 import type { Tab, TabsState, Project, Session, ClaudeModel, PermissionMode } from '../../../shared/types';
-import type { PermissionRequest } from '../../../shared/sdk-types';
+import type { PermissionRequest, SDKMessage, SDKInitMessage } from '../../../shared/sdk-types';
 
 interface TabState {
   project: Project | null;
@@ -71,6 +71,7 @@ export function MainLayout({ children }: MainLayoutProps) {
 
     const unsubPermission = window.electronAPI.on('session:permission-request', (request: unknown) => {
       const req = request as PermissionRequest;
+      console.log(`[MainLayout] permission-request received:`, { sessionId: req.sessionId, toolUseId: req.toolUseId, toolName: req.toolName });
       // Increment pending approval count
       setPendingApprovalCounts(prev => ({
         ...prev,
@@ -116,11 +117,57 @@ export function MainLayout({ children }: MainLayoutProps) {
       });
     });
 
+    const unsubActionType = window.electronAPI.on('session:actionType', (data: unknown) => {
+      const { sessionId, actionType } = data as { sessionId: string; actionType: Session['actionType'] };
+
+      // Update session actionType in all tab states that have this session
+      setTabStates(prev => {
+        const updated: Record<string, TabState> = {};
+        for (const [tabId, tabState] of Object.entries(prev)) {
+          const updatedSessions = tabState.sessions.map(s =>
+            s.id === sessionId ? { ...s, actionType } : s
+          );
+          const updatedSession = tabState.session?.id === sessionId
+            ? { ...tabState.session, actionType }
+            : tabState.session;
+          updated[tabId] = { ...tabState, sessions: updatedSessions, session: updatedSession };
+        }
+        return updated;
+      });
+    });
+
+    // Listen for init messages to capture claudeSessionId
+    const unsubMessage = window.electronAPI.on('session:message', (data: unknown) => {
+      const { sessionId, message } = data as { sessionId: string; message: SDKMessage };
+
+      // Only handle init messages to update claudeSessionId
+      if (message.type === 'system' && 'subtype' in message && message.subtype === 'init') {
+        const initMessage = message as SDKInitMessage;
+        if (initMessage.session_id) {
+          setTabStates(prev => {
+            const updated: Record<string, TabState> = {};
+            for (const [tabId, tabState] of Object.entries(prev)) {
+              const updatedSessions = tabState.sessions.map(s =>
+                s.id === sessionId ? { ...s, claudeSessionId: initMessage.session_id } : s
+              );
+              const updatedSession = tabState.session?.id === sessionId
+                ? { ...tabState.session, claudeSessionId: initMessage.session_id }
+                : tabState.session;
+              updated[tabId] = { ...tabState, sessions: updatedSessions, session: updatedSession };
+            }
+            return updated;
+          });
+        }
+      }
+    });
+
     return () => {
       unsubStatus();
       unsubPermission();
       unsubApprovalResolved();
       unsubName();
+      unsubActionType();
+      unsubMessage();
     };
   }, []);
 

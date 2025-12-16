@@ -279,7 +279,7 @@ export function MessageInput({ onSend, onInterrupt, isRunning, disabled, session
           {/* Highlight backdrop - renders colored tokens */}
           <div
             ref={backdropRef}
-            className="absolute inset-0 px-3 py-2 rounded border border-transparent bg-[var(--background)] text-[var(--foreground)] font-mono text-sm leading-[21px] whitespace-pre-wrap break-words overflow-y-auto pointer-events-none scrollbar-none"
+            className="absolute inset-0 px-3 py-2 border border-transparent bg-[var(--background)] text-[var(--foreground)] font-mono text-sm leading-[21px] whitespace-pre-wrap break-words overflow-y-auto pointer-events-none scrollbar-none"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             aria-hidden="true"
           >
@@ -305,7 +305,7 @@ export function MessageInput({ onSend, onInterrupt, isRunning, disabled, session
             }
             disabled={disabled}
             rows={MIN_LINES}
-            className="relative w-full px-3 py-2 rounded border border-[var(--border)] bg-transparent text-transparent caret-[var(--foreground)] placeholder:text-[var(--foreground-muted)] disabled:opacity-50 resize-none font-mono text-sm leading-[21px] selection:bg-[var(--primary)]/30 selection:text-transparent"
+            className="relative w-full px-3 py-2 border border-[var(--border)] bg-transparent text-transparent caret-[var(--foreground)] placeholder:text-[var(--foreground-muted)] disabled:opacity-50 resize-none font-mono text-sm leading-[21px] selection:bg-[var(--primary)]/30 selection:text-transparent"
           />
         </div>
         <div className="flex flex-col gap-1">

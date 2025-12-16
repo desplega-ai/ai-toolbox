@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCheck, Terminal, Loader2, Brain, Wrench, Code, Eye, StopCircle, Clock, Copy, Check } from 'lucide-react';
+import { CheckCheck, Terminal, Loader2, Brain, Wrench, Code, Eye, StopCircle, Clock, Copy, Check, Send, Zap, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -7,6 +7,7 @@ import { Markdown } from '@/components/ui/markdown';
 import { groupMessages, type GroupedMessage } from '@/lib/message-grouping';
 import { ToolGroupBlock } from './ToolGroupBlock';
 import type { SDKMessage, SDKAssistantMessage, SDKUsage, PermissionRequest } from '../../../shared/sdk-types';
+import type { PermissionMode } from '../../../shared/types';
 
 // Helper to extract raw content from a grouped message item
 function getItemRawContent(item: GroupedMessage): string {
@@ -118,9 +119,16 @@ interface MessageListProps {
   messages: SDKMessage[];
   streamingText: string;
   pendingApprovals: PermissionRequest[];
+  stagedDecisions: Map<string, 'approved' | 'denied'>;
+  resolvedDecisions: Map<string, 'approved' | 'denied'>;
+  allDecisionsStaged: boolean;
   onApprove: (request: PermissionRequest) => void;
   onApproveAll: () => void;
   onDeny: (request: PermissionRequest, message?: string) => void;
+  onSubmitDecisions: () => void;
+  permissionMode: PermissionMode;
+  onAutoAcceptEdits: () => void;
+  onBypassAll: () => void;
   isLoadingHistory?: boolean;
   activity?: Activity;
   onFocusInput?: () => void;
@@ -130,9 +138,16 @@ export function MessageList({
   messages,
   streamingText,
   pendingApprovals,
+  stagedDecisions,
+  resolvedDecisions,
+  allDecisionsStaged,
   onApprove,
   onApproveAll,
   onDeny,
+  onSubmitDecisions,
+  permissionMode,
+  onAutoAcceptEdits,
+  onBypassAll,
   isLoadingHistory = false,
   activity = 'idle',
   onFocusInput,
@@ -149,14 +164,19 @@ export function MessageList({
     for (const approval of pendingApprovals) {
       map.set(approval.toolUseId, approval);
     }
+    console.log(`[MessageList] pendingByToolUseId created with ${map.size} entries:`, Array.from(map.keys()));
     return map;
   }, [pendingApprovals]);
 
   // Group messages by tool invocation
-  const groupedMessages = React.useMemo(
-    () => groupMessages(messages),
-    [messages]
-  );
+  const groupedMessages = React.useMemo(() => {
+    const grouped = groupMessages(messages);
+    const toolGroupIds = grouped.items
+      .filter(item => item.type === 'tool_group')
+      .map(item => (item as { group: { id: string } }).group.id);
+    console.log(`[MessageList] groupedMessages created with ${toolGroupIds.length} tool groups:`, toolGroupIds);
+    return grouped;
+  }, [messages]);
 
   // Helper to check if an item is selectable (not a divider/result/system message)
   const isSelectableItem = React.useCallback((item: GroupedMessage): boolean => {
@@ -242,16 +262,6 @@ export function MessageList({
             return next;
           });
           break;
-        case 'c':
-          if (selectedIndex !== null && (e.metaKey || e.ctrlKey)) {
-            e.preventDefault();
-            const item = groupedMessages.items[selectedIndex];
-            const content = getItemRawContent(item);
-            navigator.clipboard.writeText(content);
-            setCopiedIndex(selectedIndex);
-            setTimeout(() => setCopiedIndex(null), 2000);
-          }
-          break;
         case 'l':
         case 'ArrowRight':
         case 'Enter':
@@ -336,7 +346,7 @@ export function MessageList({
           ref={el => { itemRefs.current[index] = el; }}
           className={cn(
             'relative group',
-            selectedIndex === index && 'ring-2 ring-blue-500 ring-offset-2 ring-offset-[var(--background)] rounded-lg'
+            selectedIndex === index && 'ring-2 ring-blue-500 ring-offset-2 ring-offset-[var(--background)]'
           )}
           onClick={() => setSelectedIndex(index)}
         >
@@ -349,7 +359,7 @@ export function MessageList({
                   handleCopyItem(index);
                 }}
                 className={cn(
-                  'absolute -top-2 -right-2 z-10 p-1 rounded',
+                  'absolute -top-2 -right-2 z-10 p-1',
                   'bg-[var(--background)] border border-[var(--border)] shadow-sm',
                   'opacity-0 group-hover:opacity-100 transition-opacity',
                   selectedIndex === index && 'opacity-100',
@@ -364,13 +374,15 @@ export function MessageList({
               </button>
             </TooltipTrigger>
             <TooltipContent side="left">
-              <span>{copiedIndex === index ? 'Copied!' : 'Copy (⌘C)'}</span>
+              <span>{copiedIndex === index ? 'Copied!' : 'Copy'}</span>
             </TooltipContent>
           </Tooltip>
           {item.type === 'tool_group' ? (
             <ToolGroupBlock
               group={item.group}
               pendingApproval={pendingByToolUseId.get(item.group.id)}
+              stagedDecision={stagedDecisions.get(pendingByToolUseId.get(item.group.id)?.id ?? '')}
+              resolvedDecision={resolvedDecisions.get(item.group.id)}
               onApprove={onApprove}
               onDeny={onDeny}
               isSelected={selectedIndex === index}
@@ -394,19 +406,50 @@ export function MessageList({
       )}
       {/* Streaming text with cursor */}
       {streamingText && (
-        <div className="bg-[var(--secondary)] rounded-lg p-3">
+        <div className="bg-[var(--secondary)] p-3">
           <div className="text-xs text-[var(--foreground-muted)] mb-1">Claude</div>
           <div className="whitespace-pre-wrap font-mono text-sm">{streamingText}</div>
           <span className="inline-block w-2 h-4 bg-[var(--primary)] animate-pulse ml-0.5" />
         </div>
       )}
-      {/* Show "Approve All" button when multiple pending approvals */}
-      {pendingApprovals.length > 1 && (
-        <div className="flex justify-center">
-          <Button size="sm" onClick={onApproveAll}>
-            <CheckCheck className="h-3 w-3 mr-1" />
-            Approve All ({pendingApprovals.length})
-          </Button>
+      {/* Show action buttons for pending approvals */}
+      {pendingApprovals.length > 0 && (
+        <div className="flex flex-col items-center gap-2">
+          <div className="flex justify-center gap-2">
+            {allDecisionsStaged ? (
+              <Button size="sm" onClick={onSubmitDecisions}>
+                <Send className="h-3 w-3 mr-1" />
+                Submit Decisions
+              </Button>
+            ) : (
+              <>
+                {pendingApprovals.length > 1 && (
+                  <Button size="sm" variant="outline" onClick={onApproveAll}>
+                    <CheckCheck className="h-3 w-3 mr-1" />
+                    Approve All ({pendingApprovals.length})
+                  </Button>
+                )}
+                <span className="text-xs text-[var(--foreground-muted)] self-center">
+                  Review all tools then submit
+                </span>
+              </>
+            )}
+          </div>
+          {/* Permission mode quick actions */}
+          <div className="flex gap-2 text-xs">
+            {permissionMode === 'default' && (
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onAutoAcceptEdits}>
+                <Zap className="h-3 w-3 mr-1" />
+                Auto-accept edits
+              </Button>
+            )}
+            {permissionMode !== 'bypassPermissions' && (
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onBypassAll}>
+                <Shield className="h-3 w-3 mr-1" />
+                Bypass all
+              </Button>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -438,12 +481,12 @@ function AssistantMessage({ message }: { message: SDKAssistantMessage }) {
   const modelName = formatModelName(model);
 
   return (
-    <div className="bg-[var(--secondary)] rounded-lg p-3">
+    <div className="bg-[var(--secondary)] p-3">
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2 text-xs text-[var(--foreground-muted)]">
           <span>Claude</span>
           {modelName && (
-            <span className="px-1.5 py-0.5 rounded bg-[var(--background)] font-medium">
+            <span className="px-1.5 py-0.5 bg-[var(--background)] font-medium">
               {modelName}
             </span>
           )}
@@ -459,7 +502,7 @@ function AssistantMessage({ message }: { message: SDKAssistantMessage }) {
             <TooltipTrigger asChild>
               <button
                 onClick={() => setShowRaw(!showRaw)}
-                className="p-1 rounded hover:bg-[var(--background)] text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors"
+                className="p-1 hover:bg-[var(--background)] text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors"
               >
                 {showRaw ? <Eye className="h-3 w-3" /> : <Code className="h-3 w-3" />}
               </button>
@@ -513,7 +556,7 @@ function MessageItem({ message }: MessageItemProps) {
     // Show interrupted message
     if (resultMsg.subtype === 'interrupted') {
       return (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--warning)]/10 text-[var(--warning)] border border-[var(--warning)]/20">
+        <div className="flex items-center gap-2 px-3 py-2 bg-[var(--warning)]/10 text-[var(--warning)] border border-[var(--warning)]/20">
           <StopCircle className="h-4 w-4" />
           <span className="text-sm font-medium">Session interrupted</span>
         </div>
@@ -641,7 +684,7 @@ function UserMessageContent({ content, timestamp }: { content: string; timestamp
   const localCommandMatch = content.match(/<local-command-stdout>([\s\S]*?)<\/local-command-stdout>/);
   if (localCommandMatch) {
     return (
-      <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] overflow-hidden">
+      <div className="border border-[var(--border)] bg-[var(--background)] overflow-hidden">
         <div className="px-3 py-1.5 bg-[var(--secondary)] border-b border-[var(--border)] flex items-center justify-between">
           <span className="text-xs text-[var(--foreground-muted)]">System</span>
           {formattedTime && (
@@ -665,7 +708,7 @@ function UserMessageContent({ content, timestamp }: { content: string; timestamp
     return (
       <div className="flex items-center gap-2 text-sm text-[var(--foreground-muted)]">
         <Terminal className="h-3 w-3" />
-        <code className="bg-[var(--secondary)] px-2 py-0.5 rounded font-mono">{commandName}</code>
+        <code className="bg-[var(--secondary)] px-2 py-0.5 font-mono">{commandName}</code>
         {formattedTime && (
           <span className="flex items-center gap-1 ml-auto">
             <Clock className="h-3 w-3" />
@@ -678,7 +721,7 @@ function UserMessageContent({ content, timestamp }: { content: string; timestamp
 
   // Regular user message
   return (
-    <div className="bg-[var(--primary)]/10 rounded-lg p-3 ml-8">
+    <div className="bg-[var(--primary)]/10 p-3 ml-8">
       <div className="flex items-center justify-between text-xs text-[var(--foreground-muted)] mb-1">
         <span>You</span>
         {formattedTime && (
@@ -732,13 +775,13 @@ function ActivityIndicator({ activity }: { activity: Activity }) {
   if (activity === 'idle') return null;
 
   return (
-    <div className={cn('flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--secondary)]/50', color)}>
+    <div className={cn('flex items-center gap-2 px-3 py-2 bg-[var(--secondary)]/50', color)}>
       <Icon className={cn('h-4 w-4', spin ? 'animate-spin' : 'animate-pulse')} />
       <span className="text-sm">{text}</span>
       <span className="flex gap-0.5 ml-0.5">
-        <span className="w-1 h-1 rounded-full bg-current animate-bounce" style={{ animationDelay: '0ms' }} />
-        <span className="w-1 h-1 rounded-full bg-current animate-bounce" style={{ animationDelay: '150ms' }} />
-        <span className="w-1 h-1 rounded-full bg-current animate-bounce" style={{ animationDelay: '300ms' }} />
+        <span className="w-1 h-1 bg-current animate-bounce" style={{ animationDelay: '0ms' }} />
+        <span className="w-1 h-1 bg-current animate-bounce" style={{ animationDelay: '150ms' }} />
+        <span className="w-1 h-1 bg-current animate-bounce" style={{ animationDelay: '300ms' }} />
       </span>
     </div>
   );

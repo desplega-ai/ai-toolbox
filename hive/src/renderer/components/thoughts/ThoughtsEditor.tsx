@@ -176,19 +176,19 @@ export function ThoughtsEditor({
             {fileContent.path.split('/').pop()}
           </span>
           {isDirty && (
-            <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--warning)]/20 text-[var(--warning)]">
+            <span className="text-xs px-1.5 py-0.5 bg-[var(--warning)]/20 text-[var(--warning)]">
               unsaved
             </span>
           )}
         </div>
         <div className="flex items-center gap-2">
           {/* View mode toggle */}
-          <div className="flex items-center rounded border border-[var(--border)]">
+          <div className="flex items-center border border-[var(--border)]">
             <Button
               variant={viewMode === 'rendered' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('rendered')}
-              className="rounded-r-none gap-1 h-7 px-2"
+              className="gap-1 h-7 px-2"
             >
               <Eye className="h-3 w-3" />
               View
@@ -197,7 +197,7 @@ export function ThoughtsEditor({
               variant={viewMode === 'raw' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => setViewMode('raw')}
-              className="rounded-l-none gap-1 h-7 px-2"
+              className="gap-1 h-7 px-2"
             >
               <Code className="h-3 w-3" />
               Edit

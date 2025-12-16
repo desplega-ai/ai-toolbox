@@ -22,7 +22,7 @@ export function DeleteSessionModal({ isOpen, session, onClose, onConfirm }: Dele
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-[var(--background)] border border-[var(--border)] rounded-lg shadow-xl w-[400px] max-h-[90vh] overflow-hidden">
+      <div className="bg-[var(--background)] border border-[var(--border)] shadow-xl w-[400px] max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
           <div className="flex items-center gap-2">
@@ -36,7 +36,7 @@ export function DeleteSessionModal({ isOpen, session, onClose, onConfirm }: Dele
 
         {/* Content */}
         <div className="p-4 space-y-4">
-          <div className="p-3 bg-[var(--destructive)]/10 border border-[var(--destructive)]/20 rounded-lg">
+          <div className="p-3 bg-[var(--destructive)]/10 border border-[var(--destructive)]/20">
             <p className="text-sm text-[var(--destructive)]">
               <strong>Warning:</strong> This action cannot be undone. The session and all its associated data will be permanently deleted.
             </p>
@@ -46,7 +46,7 @@ export function DeleteSessionModal({ isOpen, session, onClose, onConfirm }: Dele
             <p className="text-sm text-[var(--foreground-muted)]">
               You are about to delete:
             </p>
-            <div className="p-3 bg-[var(--background-secondary)] border border-[var(--border)] rounded-lg">
+            <div className="p-3 bg-[var(--background-secondary)] border border-[var(--border)]">
               <p className="font-medium truncate">{session.name}</p>
               <p className="text-xs text-[var(--foreground-muted)] mt-1">
                 Status: {session.status} | Created: {new Date(session.createdAt).toLocaleDateString()}

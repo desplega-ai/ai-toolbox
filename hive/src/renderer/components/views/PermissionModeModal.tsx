@@ -24,7 +24,7 @@ export function PermissionModeModal({ isOpen, onClose, onConfirm }: PermissionMo
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-[var(--background)] border border-[var(--border)] rounded-lg shadow-xl w-[400px] max-h-[90vh] overflow-hidden">
+      <div className="bg-[var(--background)] border border-[var(--border)] shadow-xl w-[400px] max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
           <div className="flex items-center gap-2">
@@ -38,7 +38,7 @@ export function PermissionModeModal({ isOpen, onClose, onConfirm }: PermissionMo
 
         {/* Content */}
         <div className="p-4 space-y-4">
-          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+          <div className="p-3 bg-amber-500/10 border border-amber-500/20">
             <p className="text-sm text-amber-600 dark:text-amber-400">
               <strong>Warning:</strong> This mode bypasses ALL permission checks. Claude will be able to execute any tool without asking for confirmation.
             </p>
@@ -52,7 +52,7 @@ export function PermissionModeModal({ isOpen, onClose, onConfirm }: PermissionMo
             <select
               value={selectedDuration}
               onChange={(e) => setSelectedDuration(Number(e.target.value) as PermissionDuration)}
-              className="w-full px-3 py-2 rounded-md border border-[var(--border)] bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+              className="w-full px-3 py-2 border border-[var(--border)] bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
             >
               {PERMISSION_DURATIONS.map((d) => (
                 <option key={d} value={d}>

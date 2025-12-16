@@ -160,7 +160,7 @@ export function Sidebar({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Filter sessions..."
-            className="w-full pl-7 pr-7 py-1.5 text-sm bg-[var(--background)] border border-[var(--border)] rounded focus:outline-none focus:border-[var(--primary)]"
+            className="w-full pl-7 pr-7 py-1.5 text-sm bg-[var(--background)] border border-[var(--border)] focus:outline-none focus:border-[var(--primary)]"
           />
           {searchQuery && (
             <button
@@ -227,7 +227,7 @@ function SessionGroup({ title, sessions, currentSessionId, onSessionSelect, pend
               key={session.id}
               onClick={() => onSessionSelect(session)}
               className={cn(
-                'w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left',
+                'w-full flex items-center gap-2 px-2 py-1.5 text-sm text-left',
                 'hover:bg-[var(--sidebar-accent)] transition-colors',
                 currentSessionId === session.id && 'bg-[var(--sidebar-accent)]'
               )}
@@ -235,7 +235,7 @@ function SessionGroup({ title, sessions, currentSessionId, onSessionSelect, pend
               <SessionStatusIcon status={session.status} />
               <span className="truncate flex-1">{session.name}</span>
               {pendingCount > 0 && (
-                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-[var(--warning)] text-[var(--warning-foreground)] text-xs flex items-center justify-center font-medium">
+                <span className="flex-shrink-0 w-5 h-5 bg-[var(--warning)] text-[var(--warning-foreground)] text-xs flex items-center justify-center font-medium">
                   {pendingCount}
                 </span>
               )}

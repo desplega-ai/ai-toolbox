@@ -21,6 +21,7 @@ function useGlobalSessionMessageListener() {
   const appendStreamingText = useSessionMessagesStore((state) => state.appendStreamingText);
   const clearStreamingText = useSessionMessagesStore((state) => state.clearStreamingText);
   const setCommands = useAutocompleteStore((state) => state.setCommands);
+  const updateSessionClaudeSessionId = useAppStore((state) => state.updateSessionClaudeSessionId);
 
   React.useEffect(() => {
     const unsubMessage = window.electronAPI.on('session:message', (data: unknown) => {
@@ -40,10 +41,16 @@ function useGlobalSessionMessageListener() {
         clearStreamingText(sessionId);
       }
 
-      // Capture commands from init message
+      // Capture commands and session ID from init message
       if (message.type === 'system' && 'subtype' in message && message.subtype === 'init') {
         const initMessage = message as SDKInitMessage;
         console.log('[Autocomplete] Init message received:', JSON.stringify(initMessage, null, 2));
+
+        // Update the session's claudeSessionId so follow-up messages reuse it
+        if (initMessage.session_id) {
+          updateSessionClaudeSessionId(sessionId, initMessage.session_id);
+        }
+
         if (initMessage.slash_commands) {
           console.log('[Autocomplete] Setting commands:', initMessage.slash_commands);
           setCommands(initMessage.slash_commands);
@@ -53,13 +60,14 @@ function useGlobalSessionMessageListener() {
       }
 
       // Add message to store
+      console.log(`[App] Adding message to store:`, { sessionId, type: message.type, subtype: 'subtype' in message ? message.subtype : undefined });
       addMessage(sessionId, message);
     });
 
     return () => {
       unsubMessage();
     };
-  }, [addMessage, appendStreamingText, clearStreamingText, setCommands]);
+  }, [addMessage, appendStreamingText, clearStreamingText, setCommands, updateSessionClaudeSessionId]);
 }
 
 // Global listener for session status updates
@@ -94,14 +102,31 @@ function useGlobalSessionNameListener() {
   }, [updateSessionName]);
 }
 
+// Global listener for session actionType updates
+function useGlobalSessionActionTypeListener() {
+  const updateSessionActionType = useAppStore((state) => state.updateSessionActionType);
+
+  React.useEffect(() => {
+    const unsub = window.electronAPI.on('session:actionType', (data: unknown) => {
+      const { sessionId, actionType } = data as { sessionId: string; actionType: Session['actionType'] };
+      updateSessionActionType(sessionId, actionType);
+    });
+
+    return () => {
+      unsub();
+    };
+  }, [updateSessionActionType]);
+}
+
 export function App() {
   const [showSettings, setShowSettings] = React.useState(false);
   const [showAnalytics, setShowAnalytics] = React.useState(false);
 
-  // Listen for global session events (messages, status, name)
+  // Listen for global session events (messages, status, name, actionType)
   useGlobalSessionMessageListener();
   useGlobalSessionStatusListener();
   useGlobalSessionNameListener();
+  useGlobalSessionActionTypeListener();
 
   React.useEffect(() => {
     const settingsHandler = () => setShowSettings(true);

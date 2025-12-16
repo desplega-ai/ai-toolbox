@@ -46,7 +46,7 @@ export function AddCommentDialog({
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
       {/* Dialog */}
-      <div className="relative w-full max-w-md bg-[var(--background)] rounded-lg shadow-xl border border-[var(--border)]">
+      <div className="relative w-full max-w-md bg-[var(--background)] shadow-xl border border-[var(--border)]">
         <form onSubmit={handleSubmit}>
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
@@ -69,7 +69,7 @@ export function AddCommentDialog({
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               placeholder="Add feedback for Claude to review..."
-              className="w-full h-24 px-3 py-2 rounded border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+              className="w-full h-24 px-3 py-2 border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
             />
 
             <p className="text-xs text-[var(--foreground-muted)]">
