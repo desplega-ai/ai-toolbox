@@ -1,3 +1,7 @@
+// Fix PATH for macOS apps launched from Finder (must be first)
+import fixPath from 'fix-path';
+fixPath();
+
 import { app, BrowserWindow, Tray, Menu, nativeImage } from 'electron';
 import path from 'path';
 import windowStateKeeper from 'electron-window-state';
@@ -26,8 +30,12 @@ function getResourcePath(filename: string): string {
   return path.join(process.resourcesPath, filename);
 }
 
+function getIconFilename(): string {
+  return !app.isPackaged ? 'icon-dev.png' : 'icon.png';
+}
+
 function createTray(): void {
-  const trayIcon = nativeImage.createFromPath(getResourcePath('icon.png'));
+  const trayIcon = nativeImage.createFromPath(getResourcePath(getIconFilename()));
   // Resize for menu bar (macOS expects ~18x18 for standard, @2x for retina)
   const resizedIcon = trayIcon.resize({ width: 18, height: 18 });
   resizedIcon.setTemplateImage(true); // Makes it adapt to dark/light menu bar
@@ -113,7 +121,7 @@ function createWindow(): void {
 app.whenReady().then(() => {
   // Set dock icon (for dev mode - production uses packagerConfig)
   if (process.platform === 'darwin') {
-    const dockIcon = nativeImage.createFromPath(getResourcePath('icon.png'));
+    const dockIcon = nativeImage.createFromPath(getResourcePath(getIconFilename()));
     if (!dockIcon.isEmpty()) {
       app.dock?.setIcon(dockIcon);
     }

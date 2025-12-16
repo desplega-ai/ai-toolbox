@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Check } from 'lucide-react';
+import { X, Check, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useThemeStore, usePreferencesStore } from '@/lib/store';
 import type { Preferences } from '../../../shared/types';
@@ -301,12 +301,41 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             </p>
           </div>
 
-          {/* Storage */}
+          {/* Storage & Logs */}
           <div>
-            <h3 className="text-sm font-medium mb-3">Storage</h3>
-            <p className="text-sm text-[var(--foreground-muted)] font-mono">
-              ~/.hive/
-            </p>
+            <h3 className="text-sm font-medium mb-3">Storage & Logs</h3>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-mono">~/.hive/</p>
+                  <p className="text-xs text-[var(--foreground-muted)]">App data and database</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => window.electronAPI.invoke('shell:open-folder', { path: '~/.hive' })}
+                  className="h-7 px-2"
+                >
+                  <FolderOpen className="h-4 w-4 mr-1" />
+                  Open
+                </Button>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-mono">~/.claude/projects/</p>
+                  <p className="text-xs text-[var(--foreground-muted)]">Claude session logs (JSONL)</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => window.electronAPI.invoke('shell:open-folder', { path: '~/.claude/projects' })}
+                  className="h-7 px-2"
+                >
+                  <FolderOpen className="h-4 w-4 mr-1" />
+                  Open
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </div>

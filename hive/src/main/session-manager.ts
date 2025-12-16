@@ -1,11 +1,56 @@
 import { query, type Query, type PermissionResult, type PermissionUpdate, type CanUseTool } from '@anthropic-ai/claude-agent-sdk';
 import { BrowserWindow, Notification } from 'electron';
+import { execSync } from 'child_process';
+import { existsSync } from 'fs';
 import { getAuthEnvironment } from './auth-manager';
 import { database, type PendingApproval } from './database';
 import { hashToolCall } from '../shared/tool-hash';
 import type { Session, ClaudeModel, PermissionMode } from '../shared/types';
 import { DEFAULT_MODEL, DEFAULT_PERMISSION_MODE } from '../shared/types';
 import type { SDKMessage, SDKResultMessage, PermissionRequest } from '../shared/sdk-types';
+
+// Cache the Claude executable path
+let cachedClaudePath: string | null = null;
+
+/**
+ * Find the Claude Code CLI executable.
+ * Tries: 1) which claude, 2) common install locations
+ */
+function findClaudeExecutable(): string {
+  if (cachedClaudePath) return cachedClaudePath;
+
+  // Try 'which claude' first
+  try {
+    const result = execSync('which claude', { encoding: 'utf-8', timeout: 5000 }).trim();
+    if (result && existsSync(result)) {
+      cachedClaudePath = result;
+      console.log(`[Session] Found Claude executable via 'which': ${result}`);
+      return result;
+    }
+  } catch {
+    // 'which' failed, try common locations
+  }
+
+  // Common installation paths
+  const commonPaths = [
+    '/usr/local/bin/claude',
+    '/opt/homebrew/bin/claude',
+    `${process.env.HOME}/.local/bin/claude`,
+    `${process.env.HOME}/.npm-global/bin/claude`,
+  ];
+
+  for (const p of commonPaths) {
+    if (existsSync(p)) {
+      cachedClaudePath = p;
+      console.log(`[Session] Found Claude executable at: ${p}`);
+      return p;
+    }
+  }
+
+  throw new Error(
+    'Claude Code CLI not found. Please install it with: npm install -g @anthropic-ai/claude-code'
+  );
+}
 
 interface ActiveSession {
   query: Query;
@@ -102,6 +147,10 @@ export class SessionManager {
 
     console.log(`[Session] Creating query with canUseTool callback`);
 
+    // Find the Claude Code CLI executable
+    const claudeExecutable = findClaudeExecutable();
+    console.log(`[Session] Using Claude executable: ${claudeExecutable}`);
+
     const response = query({
       prompt,
       options: {
@@ -119,6 +168,8 @@ export class SessionManager {
         canUseTool,
         // Empty hooks object to satisfy SDK validation
         hooks: {},
+        // Path to Claude Code CLI (required for packaged apps)
+        pathToClaudeCodeExecutable: claudeExecutable,
       },
     });
 

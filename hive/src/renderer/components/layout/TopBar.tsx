@@ -3,6 +3,7 @@ import { Plus, Settings, BarChart3, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { Tab } from '../../../shared/types';
+import hiveLogo from '@/assets/hive_logo.png';
 
 interface TopBarProps {
   tabs: Tab[];
@@ -133,7 +134,7 @@ export function TopBar({
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onSettings}>
           <Settings className="h-4 w-4" />
         </Button>
-        <img src="/hive_logo.png" alt="Hive" className="h-6 w-6 ml-1" />
+        <img src={hiveLogo} alt="Hive" className="h-6 w-6 ml-1" />
       </div>
     </div>
   );

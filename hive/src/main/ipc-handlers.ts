@@ -266,6 +266,13 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     shell.showItemInFolder(expandedPath);
   });
 
+  // Open folder in Finder/Explorer
+  ipcMain.handle('shell:open-folder', async (_, { path: targetPath }) => {
+    // Expand ~ to home directory if present
+    const expandedPath = targetPath.replace(/^~/, os.homedir());
+    await shell.openPath(expandedPath);
+  });
+
   // Open terminal with optional command
   ipcMain.handle('shell:open-in-terminal', async (_, { path: targetPath, command }) => {
     const prefs = getPreferences();

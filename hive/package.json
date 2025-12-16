@@ -17,6 +17,10 @@
     "email": "tarasyaremabcn@gmail.com"
   },
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/desplega-ai/ai-toolbox.git"
+  },
   "pnpm": {
     "onlyBuiltDependencies": [
       "electron",
@@ -69,6 +73,7 @@
     "electron-squirrel-startup": "^1.0.1",
     "electron-store": "^11.0.2",
     "electron-window-state": "^5.0.3",
+    "fix-path": "^5.0.0",
     "fuse.js": "^7.1.0",
     "hack-font": "^3.3.0",
     "ignore": "^7.0.5",
