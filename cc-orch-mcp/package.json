@@ -14,6 +14,7 @@
     "start": "bun src/stdio.ts",
     "start:http": "bun src/http.ts",
     "inspector": "bunx @modelcontextprotocol/inspector --transport stdio bun src/stdio.ts",
+    "inspector:http": "bunx @modelcontextprotocol/inspector --transport http http://localhost:3013/mcp",
     "lint": "biome check src",
     "lint:fix": "biome check --write src",
     "format": "biome format --write src"

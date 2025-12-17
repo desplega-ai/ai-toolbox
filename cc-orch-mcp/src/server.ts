@@ -9,29 +9,29 @@ import { registerSendTaskTool } from "./tools/send-task";
 import { registerStoreProgressTool } from "./tools/store-progress";
 
 export function createServer() {
-	// Initialize database with WAL mode
-	initDb();
+  // Initialize database with WAL mode
+  initDb();
 
-	const server = new McpServer(
-		{
-			name: "cc-orch-mcp",
-			version: "1.0.0",
-			description: "Agent Orchestrator MCP Server",
-		},
-		{
-			capabilities: {
-				logging: {},
-			},
-		},
-	);
+  const server = new McpServer(
+    {
+      name: "cc-orch-mcp",
+      version: "1.0.0",
+      description: "Agent Orchestrator MCP Server",
+    },
+    {
+      capabilities: {
+        logging: {},
+      },
+    },
+  );
 
-	registerJoinSwarmTool(server);
-	registerPollTaskTool(server);
-	registerGetSwarmTool(server);
-	registerGetTasksTool(server);
-	registerSendTaskTool(server);
-	registerGetTaskDetailsTool(server);
-	registerStoreProgressTool(server);
+  registerJoinSwarmTool(server);
+  registerPollTaskTool(server);
+  registerGetSwarmTool(server);
+  registerGetTasksTool(server);
+  registerSendTaskTool(server);
+  registerGetTaskDetailsTool(server);
+  registerStoreProgressTool(server);
 
-	return server;
+  return server;
 }
