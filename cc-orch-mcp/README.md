@@ -1,8 +1,8 @@
+# Agent Swarm MCP
+
 <p align="center">
   <img src="assets/agent-swarm.png" alt="Agent Swarm" width="400">
 </p>
-
-# Agent Swarm MCP
 
 > Agent orchestration layer MCP for Claude Code, Codex, Gemini CLI, and more!
 
