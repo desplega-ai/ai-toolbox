@@ -150,6 +150,54 @@ The Docker worker image is built using a multi-stage build:
 | `PORT` | Port for self-hosted MCP server | `3013` |
 | `API_KEY` | API key for server authentication | - |
 
+## Server Deployment
+
+Deploy the MCP server to a Linux host with systemd.
+
+### Prerequisites
+
+- Linux with systemd
+- Bun installed (`curl -fsSL https://bun.sh/install | bash`)
+
+### Install
+
+```bash
+git clone https://github.com/desplega-ai/agent-swarm.git
+cd agent-swarm
+sudo bun deploy/install.ts
+```
+
+This will:
+- Copy files to `/opt/agent-swarm`
+- Create `.env` file (edit to set `API_KEY`)
+- Install systemd service with health checks every 30s
+- Start the service on port 3013
+
+### Update
+
+After pulling new changes:
+
+```bash
+git pull
+sudo bun deploy/update.ts
+```
+
+### Management
+
+```bash
+# Check status
+sudo systemctl status agent-swarm
+
+# View logs
+sudo journalctl -u agent-swarm -f
+
+# Restart
+sudo systemctl restart agent-swarm
+
+# Stop
+sudo systemctl stop agent-swarm
+```
+
 ## Development
 
 Install dependencies:
