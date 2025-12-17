@@ -180,7 +180,7 @@ export const taskQueries = {
 
   updateStatus: () =>
     getDb().prepare<AgentTaskRow, [AgentTaskStatus, string | null, string]>(
-      `UPDATE agent_tasks SET status = ?, finishedAt = ?, lastUpdatedAt = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`,
+      `UPDATE agent_tasks SET status = ?, finishedAt = ?, lastUpdatedAt = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? RETURNING *`,
     ),
 
   setOutput: () =>
