@@ -1,11 +1,10 @@
 #!/usr/bin/env bun
 import { Spinner, TextInput } from "@inkjs/ui";
 import { Box, Text, useApp } from "ink";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import pkg from "../../package.json";
 
-// @ts-expect-error
-const SERVER_NAME = pkg.config?.name ?? "agent-swarm";
+const SERVER_NAME = (pkg as { config?: { name?: string } }).config?.name ?? "agent-swarm";
 const PKG_NAME = pkg.name;
 const DEFAULT_MCP_BASE_URL = "https://agent-swarm-mcp.desplega.sh";
 
@@ -25,6 +24,7 @@ type SetupStep =
 interface SetupProps {
   dryRun?: boolean;
   restore?: boolean;
+  yes?: boolean;
 }
 
 const BACKUP_FILES = [".claude/settings.local.json", ".mcp.json", ".gitignore"];
@@ -75,12 +75,12 @@ const createHooksConfig = () => {
   };
 };
 
-export function Setup({ dryRun = false, restore = false }: SetupProps) {
+export function Setup({ dryRun = false, restore = false, yes = false }: SetupProps) {
   const { exit } = useApp();
   const [state, setState] = useState<SetupState>({
     step: restore ? "restoring" : "check_dirs",
-    token: "",
-    agentId: "",
+    token: yes ? process.env.API_KEY || "" : "",
+    agentId: yes ? process.env.AGENT_ID || "" : "",
     existingToken: "",
     existingAgentId: "",
     error: null,
@@ -88,29 +88,40 @@ export function Setup({ dryRun = false, restore = false }: SetupProps) {
     isGitRepo: false,
   });
 
-  const addLog = (log: string, isDryRunAction = false) => {
-    const prefix = isDryRunAction && dryRun ? "[DRY-RUN] Would: " : "";
-    setState((s) => ({ ...s, logs: [...s.logs, `${prefix}${log}`] }));
-  };
+  // Track which steps have been executed to prevent duplicates
+  const executedSteps = useRef<Set<SetupStep>>(new Set());
+
+  const addLog = useCallback(
+    (log: string, isDryRunAction = false) => {
+      const prefix = isDryRunAction && dryRun ? "[DRY-RUN] Would: " : "";
+      setState((s) => ({ ...s, logs: [...s.logs, `${prefix}${log}`] }));
+    },
+    [dryRun],
+  );
 
   // Helper to create backup
-  const createBackup = async (filePath: string): Promise<boolean> => {
-    const file = Bun.file(filePath);
-    if (await file.exists()) {
-      const backupPath = `${filePath}.bak`;
-      if (!dryRun) {
-        const content = await file.text();
-        await Bun.write(backupPath, content);
+  const createBackup = useCallback(
+    async (filePath: string): Promise<boolean> => {
+      const file = Bun.file(filePath);
+      if (await file.exists()) {
+        const backupPath = `${filePath}.bak`;
+        if (!dryRun) {
+          const content = await file.text();
+          await Bun.write(backupPath, content);
+        }
+        addLog(`Backup: ${filePath} -> ${filePath}.bak`, true);
+        return true;
       }
-      addLog(`Backup: ${filePath} -> ${filePath}.bak`, true);
-      return true;
-    }
-    return false;
-  };
+      return false;
+    },
+    [dryRun, addLog],
+  );
 
   // Handle restore mode
   useEffect(() => {
     if (state.step !== "restoring") return;
+    if (executedSteps.current.has("restoring")) return;
+    executedSteps.current.add("restoring");
 
     const restoreFiles = async () => {
       const cwd = process.cwd();
@@ -153,6 +164,8 @@ export function Setup({ dryRun = false, restore = false }: SetupProps) {
   // Step 1: Check and create directories/files
   useEffect(() => {
     if (state.step !== "check_dirs") return;
+    if (executedSteps.current.has("check_dirs")) return;
+    executedSteps.current.add("check_dirs");
 
     const checkDirs = async () => {
       const cwd = process.cwd();
@@ -258,6 +271,31 @@ export function Setup({ dryRun = false, restore = false }: SetupProps) {
         // Ignore errors reading existing config
       }
 
+      // In non-interactive mode (yes=true), skip prompts and go directly to updating
+      if (yes) {
+        const token = process.env.API_KEY;
+        const agentId = process.env.AGENT_ID;
+
+        if (!token) {
+          setState((s) => ({
+            ...s,
+            step: "error",
+            error: "API_KEY environment variable is required in non-interactive mode (-y/--yes)",
+          }));
+          return;
+        }
+
+        addLog("Non-interactive mode: using environment variables");
+        setState((s) => ({
+          ...s,
+          step: "updating",
+          isGitRepo,
+          token,
+          agentId: agentId || "",
+        }));
+        return;
+      }
+
       setState((s) => ({
         ...s,
         step: "input_token",
@@ -270,11 +308,13 @@ export function Setup({ dryRun = false, restore = false }: SetupProps) {
     checkDirs().catch((err) => {
       setState((s) => ({ ...s, step: "error", error: err.message }));
     });
-  }, [state.step, dryRun, addLog, createBackup]);
+  }, [state.step, dryRun, yes, addLog, createBackup]);
 
   // Handle final update step
   useEffect(() => {
     if (state.step !== "updating") return;
+    if (executedSteps.current.has("updating")) return;
+    executedSteps.current.add("updating");
 
     const updateFiles = async () => {
       const cwd = process.cwd();

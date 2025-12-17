@@ -3,7 +3,6 @@
 import pkg from "../../package.json";
 import type { Agent } from "../types";
 
-// @ts-expect-error
 const SERVER_NAME = pkg.config?.name ?? "agent-swarm";
 
 type McpServerConfig = {
@@ -67,6 +66,11 @@ export async function handleHook(): Promise<void> {
     }
   };
 
+  const hasAgentIdHeader = (): boolean => {
+    if (!mcpConfig) return false;
+    return Boolean(mcpConfig.headers["X-Agent-ID"]);
+  }
+
   const ping = async (): Promise<void> => {
     if (!mcpConfig) return;
 
@@ -129,7 +133,9 @@ export async function handleHook(): Promise<void> {
     console.log(
       `You are not registered in the agent swarm yet. Use the join-swarm tool to register yourself, then check your status with my-agent-info.
 
-If the ${SERVER_NAME} server is not running or disabled, disregard this message.`,
+If the ${SERVER_NAME} server is not running or disabled, disregard this message.
+
+${hasAgentIdHeader() ? `You have a pre-defined agent ID via header: ${mcpConfig?.headers["X-Agent-ID"]}, it will be used automatically on join-swarm.` : "You do not have a pre-defined agent ID, you will receive one when you join the swarm, or optionally you can request one when calling join-swarm."}`,
     );
   }
 

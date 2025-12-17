@@ -6,6 +6,7 @@ import pkg from "../package.json";
 import { runClaude } from "./claude.ts";
 import { runHook } from "./commands/hook.ts";
 import { Setup } from "./commands/setup.tsx";
+import { runWorker } from "./commands/worker.ts";
 
 // Get CLI name from bin field (assumes single key)
 const binName = Object.keys(pkg.bin)[0];
@@ -26,6 +27,8 @@ interface ParsedArgs {
   headless: boolean;
   dryRun: boolean;
   restore: boolean;
+  yes: boolean;
+  yolo: boolean;
   additionalArgs: string[];
 }
 
@@ -37,6 +40,8 @@ function parseArgs(args: string[]): ParsedArgs {
   let headless = false;
   let dryRun = false;
   let restore = false;
+  let yes = false;
+  let yolo = false;
   let additionalArgs: string[] = [];
 
   // Find if there's a "--" separator for additional args
@@ -61,10 +66,14 @@ function parseArgs(args: string[]): ParsedArgs {
       dryRun = true;
     } else if (arg === "--restore") {
       restore = true;
+    } else if (arg === "-y" || arg === "--yes") {
+      yes = true;
+    } else if (arg === "--yolo") {
+      yolo = true;
     }
   }
 
-  return { command, port, key, msg, headless, dryRun, restore, additionalArgs };
+  return { command, port, key, msg, headless, dryRun, restore, yes, yolo, additionalArgs };
 }
 
 function Help() {
@@ -123,6 +132,12 @@ function Help() {
         </Box>
         <Box>
           <Box width={12}>
+            <Text color="green">worker</Text>
+          </Box>
+          <Text>Run Claude in headless loop mode</Text>
+        </Box>
+        <Box>
+          <Box width={12}>
             <Text color="green">version</Text>
           </Box>
           <Text>Show version number</Text>
@@ -148,6 +163,12 @@ function Help() {
             <Text color="yellow">--restore</Text>
           </Box>
           <Text>Restore files from .bak backups</Text>
+        </Box>
+        <Box>
+          <Box width={24}>
+            <Text color="yellow">-y, --yes</Text>
+          </Box>
+          <Text>Non-interactive mode (use env vars)</Text>
         </Box>
       </Box>
 
@@ -190,36 +211,80 @@ function Help() {
       </Box>
 
       <Box marginTop={1} flexDirection="column">
+        <Text bold>Options for 'worker':</Text>
+        <Box>
+          <Box width={24}>
+            <Text color="yellow">-m, --msg {"<prompt>"}</Text>
+          </Box>
+          <Text>Custom prompt (default: /agent-swarm:start-worker)</Text>
+        </Box>
+        <Box>
+          <Box width={24}>
+            <Text color="yellow">--yolo</Text>
+          </Box>
+          <Text>Continue on errors instead of stopping</Text>
+        </Box>
+        <Box>
+          <Box width={24}>
+            <Text color="yellow">-- {"<args...>"}</Text>
+          </Box>
+          <Text>Additional arguments to pass to Claude CLI</Text>
+        </Box>
+      </Box>
+
+      <Box marginTop={1} flexDirection="column">
         <Text bold>Examples:</Text>
         <Text dimColor> {binName} setup</Text>
         <Text dimColor> {binName} setup --dry-run</Text>
+        <Text dimColor> {binName} setup -y</Text>
         <Text dimColor> {binName} mcp</Text>
         <Text dimColor> {binName} mcp --port 8080</Text>
         <Text dimColor> {binName} mcp -p 8080 -k my-secret-key</Text>
         <Text dimColor> {binName} claude</Text>
         <Text dimColor> {binName} claude --headless -m "Hello"</Text>
         <Text dimColor> {binName} claude -- --resume</Text>
+        <Text dimColor> {binName} worker</Text>
+        <Text dimColor> {binName} worker --yolo</Text>
+        <Text dimColor> {binName} worker -m "Custom prompt"</Text>
       </Box>
 
       <Box marginTop={1} flexDirection="column">
         <Text bold>Environment variables:</Text>
         <Box>
-          <Box width={16}>
+          <Box width={24}>
             <Text color="magenta">PORT</Text>
           </Box>
           <Text>Default port for the MCP server</Text>
         </Box>
         <Box>
-          <Box width={16}>
+          <Box width={24}>
             <Text color="magenta">API_KEY</Text>
           </Box>
           <Text>API key for authentication (Bearer token)</Text>
         </Box>
         <Box>
-          <Box width={16}>
+          <Box width={24}>
             <Text color="magenta">MCP_BASE_URL</Text>
           </Box>
           <Text>Base URL for the MCP server (used by setup)</Text>
+        </Box>
+        <Box>
+          <Box width={24}>
+            <Text color="magenta">AGENT_ID</Text>
+          </Box>
+          <Text>UUID for agent identification</Text>
+        </Box>
+        <Box>
+          <Box width={24}>
+            <Text color="magenta">SESSION_ID</Text>
+          </Box>
+          <Text>Folder name for worker logs (auto-generated)</Text>
+        </Box>
+        <Box>
+          <Box width={24}>
+            <Text color="magenta">WORKER_YOLO</Text>
+          </Box>
+          <Text>If "true", worker continues on errors</Text>
         </Box>
       </Box>
     </Box>
@@ -298,6 +363,27 @@ function ClaudeRunner({ msg, headless, additionalArgs }: ClaudeRunnerProps) {
   return null;
 }
 
+interface WorkerRunnerProps {
+  prompt: string;
+  yolo: boolean;
+  additionalArgs: string[];
+}
+
+function WorkerRunner({ prompt, yolo, additionalArgs }: WorkerRunnerProps) {
+  const { exit } = useApp();
+
+  useEffect(() => {
+    runWorker({
+      prompt: prompt || undefined,
+      yolo,
+      additionalArgs,
+    }).catch((err) => exit(err));
+    // Note: runWorker runs indefinitely, so we don't call exit() on success
+  }, [prompt, yolo, additionalArgs, exit]);
+
+  return null;
+}
+
 function UnknownCommand({ command }: { command: string }) {
   const { exit } = useApp();
   useEffect(() => {
@@ -328,15 +414,17 @@ function Version() {
 }
 
 function App({ args }: { args: ParsedArgs }) {
-  const { command, port, key, msg, headless, dryRun, restore, additionalArgs } = args;
+  const { command, port, key, msg, headless, dryRun, restore, yes, yolo, additionalArgs } = args;
 
   switch (command) {
     case "setup":
-      return <Setup dryRun={dryRun} restore={restore} />;
+      return <Setup dryRun={dryRun} restore={restore} yes={yes} />;
     case "mcp":
       return <McpServer port={port} apiKey={key} />;
     case "claude":
       return <ClaudeRunner msg={msg} headless={headless} additionalArgs={additionalArgs} />;
+    case "worker":
+      return <WorkerRunner prompt={msg} yolo={yolo} additionalArgs={additionalArgs} />;
     case "version":
       return <Version />;
     case "help":

@@ -1,8 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import * as z from "zod";
-import { getTaskById } from "@/be/db";
+import { getLogsByTaskIdChronological, getTaskById } from "@/be/db";
 import { createToolRegistrar } from "@/tools/utils";
-import { AgentTaskSchema } from "@/types";
+import { AgentLogSchema, AgentTaskSchema } from "@/types";
 
 export const registerGetTaskDetailsTool = (server: McpServer) => {
   createToolRegistrar(server)(
@@ -10,7 +10,7 @@ export const registerGetTaskDetailsTool = (server: McpServer) => {
     {
       title: "Get task details",
       description:
-        "Returns detailed information about a specific task, including output and failure reason.",
+        "Returns detailed information about a specific task, including output, failure reason, and log history.",
       inputSchema: z.object({
         taskId: z.uuid().describe("The ID of the task to get details for."),
       }),
@@ -18,6 +18,7 @@ export const registerGetTaskDetailsTool = (server: McpServer) => {
         success: z.boolean(),
         message: z.string(),
         task: AgentTaskSchema.optional(),
+        logs: z.array(AgentLogSchema).optional(),
       }),
     },
     async ({ taskId }, requestInfo, _meta) => {
@@ -34,6 +35,8 @@ export const registerGetTaskDetailsTool = (server: McpServer) => {
         };
       }
 
+      const logs = getLogsByTaskIdChronological(taskId);
+
       return {
         content: [{ type: "text", text: `Task "${taskId}" details retrieved.` }],
         structuredContent: {
@@ -41,6 +44,7 @@ export const registerGetTaskDetailsTool = (server: McpServer) => {
           success: true,
           message: `Task "${taskId}" details retrieved.`,
           task,
+          logs,
         },
       };
     },

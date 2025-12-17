@@ -1,0 +1,83 @@
+# Agent Swarm Worker Dockerfile
+# Runs Claude in headless loop mode as a worker agent
+
+FROM oven/bun:latest
+
+# Install dependencies for Claude CLI installation
+RUN apt-get update && apt-get install -y curl ca-certificates git vim \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user (required for --dangerously-skip-permissions)
+RUN useradd -m -s /bin/bash worker
+USER worker
+WORKDIR /home/worker
+
+# Install Claude CLI using official installer (as non-root user)
+RUN curl -fsSL https://claude.ai/install.sh | bash
+
+# Add Claude to PATH (the installer puts it in ~/.local/bin)
+ENV PATH="/home/worker/.local/bin:${PATH}"
+
+# Create .claude directory structure
+RUN mkdir -p /home/worker/.claude/commands
+
+# Set up claude.json with onboarding complete
+RUN echo '{"hasCompletedOnboarding":true,"bypassPermissionsModeAccepted":true}' > /home/worker/.claude.json
+
+# Create settings.local.json with dev hooks (runs local hook.ts)
+RUN echo '{ \
+  "permissions": { "allow": ["mcp__agent-swarm__*"] }, \
+  "enableAllProjectMcpServers": true, \
+  "enabledMcpjsonServers": ["agent-swarm"], \
+  "hooks": { \
+    "SessionStart": [{"matcher": "*", "hooks": [{"type": "command", "command": "bun run /app/src/hooks/hook.ts"}]}], \
+    "UserPromptSubmit": [{"matcher": "*", "hooks": [{"type": "command", "command": "bun run /app/src/hooks/hook.ts"}]}], \
+    "PreToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "bun run /app/src/hooks/hook.ts"}]}], \
+    "PostToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "bun run /app/src/hooks/hook.ts"}]}], \
+    "PreCompact": [{"matcher": "*", "hooks": [{"type": "command", "command": "bun run /app/src/hooks/hook.ts"}]}], \
+    "Stop": [{"matcher": "*", "hooks": [{"type": "command", "command": "bun run /app/src/hooks/hook.ts"}]}] \
+  } \
+}' > /home/worker/.claude/settings.local.json
+
+# Note: .mcp.json will be created at runtime by entrypoint with dynamic MCP_BASE_URL
+
+# Copy cc-plugin commands to user's commands directory
+# Need to switch to root temporarily to copy files
+USER root
+COPY --chown=worker:worker cc-plugin/commands/* /home/worker/.claude/commands/
+
+# Set working directory for app and create with correct ownership
+WORKDIR /app
+RUN chown worker:worker /app
+
+# Copy package files first for better caching
+COPY --chown=worker:worker package.json bun.lock* ./
+USER worker
+RUN bun install --frozen-lockfile
+
+# Copy the rest of the project
+USER root
+COPY --chown=worker:worker . .
+
+# Create logs directory (will be mounted as volume)
+RUN mkdir -p /logs && chown worker:worker /logs
+
+USER worker
+
+# Volume for persistent logs
+VOLUME ["/logs"]
+
+# Copy and set up entrypoint
+COPY --chown=worker:worker docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
+# Switch back to non-root user
+USER worker
+
+# Set environment defaults
+ENV WORKER_YOLO=false
+ENV MCP_BASE_URL=http://host.docker.internal:3013
+ENV HOME=/home/worker
+ENV WORKER_LOG_DIR=/logs
+
+ENTRYPOINT ["/docker-entrypoint.sh"]

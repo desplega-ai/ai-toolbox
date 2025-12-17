@@ -3,6 +3,8 @@
 # Not the one inside cc-plugin/
 !cc-plugin/.mcp.json
 
+logs
+
 # dependencies (bun install)
 node_modules
 
@@ -26,6 +28,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .env.test.local
 .env.production.local
 .env.local
+.env.docker
 
 # caches
 .eslintcache

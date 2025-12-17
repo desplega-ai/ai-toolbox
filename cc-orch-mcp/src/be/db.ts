@@ -495,6 +495,15 @@ export function getLogsByTaskId(taskId: string): AgentLog[] {
   return logQueries.getByTaskId().all(taskId).map(rowToAgentLog);
 }
 
+export function getLogsByTaskIdChronological(taskId: string): AgentLog[] {
+  return getDb()
+    .prepare<AgentLogRow, [string]>(
+      "SELECT * FROM agent_log WHERE taskId = ? ORDER BY createdAt ASC",
+    )
+    .all(taskId)
+    .map(rowToAgentLog);
+}
+
 export function getAllLogs(limit?: number): AgentLog[] {
   if (limit) {
     return getDb()
