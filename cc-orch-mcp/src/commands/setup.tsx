@@ -198,20 +198,22 @@ export function Setup({ dryRun = false, restore = false }: SetupProps) {
 				addLog(".mcp.json exists");
 			}
 
-			// Check if it's a git repo
+			// Check if it's a git repo by finding the git root
 			let isGitRepo = false;
+			let gitRoot = "";
 			try {
-				const gitDir = Bun.file(`${cwd}/.git`);
-				isGitRepo = await gitDir.exists();
+				const result = await Bun.$`git -C ${cwd} rev-parse --show-toplevel`.quiet();
+				gitRoot = result.text().trim();
+				isGitRepo = result.exitCode === 0 && gitRoot.length > 0;
 			} catch {
 				isGitRepo = false;
 			}
 
 			if (isGitRepo) {
-				addLog("Git repository detected");
+				addLog(`Git repository detected (root: ${gitRoot})`);
 
-				// Check .gitignore
-				const gitignoreFile = Bun.file(`${cwd}/.gitignore`);
+				// Check .gitignore at git root
+				const gitignoreFile = Bun.file(`${gitRoot}/.gitignore`);
 				let gitignoreContent = "";
 
 				if (await gitignoreFile.exists()) {
@@ -228,7 +230,7 @@ export function Setup({ dryRun = false, restore = false }: SetupProps) {
 
 				if (entriesToAdd.length > 0) {
 					// Backup .gitignore before modifying
-					await createBackup(`${cwd}/.gitignore`);
+					await createBackup(`${gitRoot}/.gitignore`);
 					if (!dryRun) {
 						const newEntries = `# Added by ${SERVER_NAME} setup\n${entriesToAdd.join("\n")}\n\n`;
 						await Bun.write(gitignoreFile, newEntries + gitignoreContent);
