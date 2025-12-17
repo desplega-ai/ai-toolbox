@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import * as z from "zod";
-import { createTask, getAgentById, getDb, updateAgentStatus } from "@/be/db";
+import { createTask, getAgentById, getDb } from "@/be/db";
 import { createToolRegistrar } from "@/tools/utils";
 import { AgentTaskSchema } from "@/types";
 
@@ -21,6 +21,38 @@ export const registerSendTaskTool = (server: McpServer) => {
       }),
     },
     async ({ agentId, task }, requestInfo, _meta) => {
+      if (!requestInfo.agentId) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: 'Agent ID not found. The MCP client should define the "X-Agent-ID" header.',
+            },
+          ],
+          structuredContent: {
+            yourAgentId: requestInfo.agentId,
+            success: false,
+            message: 'Agent ID not found. The MCP client should define the "X-Agent-ID" header.',
+          },
+        };
+      }
+
+      if (agentId === requestInfo.agentId) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "Cannot send a task to yourself, are you drunk?",
+            },
+          ],
+          structuredContent: {
+            yourAgentId: requestInfo.agentId,
+            success: false,
+            message: "Cannot send a task to yourself, are you drunk?",
+          },
+        };
+      }
+
       const txn = getDb().transaction(() => {
         const agent = getAgentById(agentId);
 
@@ -28,6 +60,13 @@ export const registerSendTaskTool = (server: McpServer) => {
           return {
             success: false,
             message: `Agent with ID "${agentId}" not found.`,
+          };
+        }
+
+        if (agent.isLead) {
+          return {
+            success: false,
+            message: `Cannot assign tasks to the lead agent "${agent.name}", wtf?`,
           };
         }
 
@@ -39,7 +78,6 @@ export const registerSendTaskTool = (server: McpServer) => {
         }
 
         const newTask = createTask(agentId, task);
-        updateAgentStatus(agentId, "busy");
 
         return {
           success: true,

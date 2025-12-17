@@ -11,7 +11,10 @@ export const registerJoinSwarmTool = (server: McpServer) => {
       title: "Join the agent swarm",
       description: "Tool for an agent to join the swarm of agents.",
       inputSchema: z.object({
-        requestedId: z.string().optional().describe("Requested ID for the agent (overridden by X-Agent-ID header)."),
+        requestedId: z
+          .string()
+          .optional()
+          .describe("Requested ID for the agent (overridden by X-Agent-ID header)."),
         lead: z.boolean().default(false).describe("Whether this agent should be the lead."),
         name: z.string().min(1).describe("The name of the agent joining the swarm."),
       }),
@@ -34,7 +37,8 @@ export const registerJoinSwarmTool = (server: McpServer) => {
           structuredContent: {
             yourAgentId: requestInfo.agentId ?? requestedId,
             success: false,
-            message: 'Agent ID not found. The MCP client should define the "X-Agent-ID" header, or provide a requestedId.',
+            message:
+              'Agent ID not found. The MCP client should define the "X-Agent-ID" header, or provide a requestedId.',
           },
         };
       }
@@ -80,13 +84,13 @@ export const registerJoinSwarmTool = (server: McpServer) => {
           content: [
             {
               type: "text",
-              text: `Successfully joined swarm as ${agent.isLead ? 'Lead' : 'Worker'} agent "${agent.name}" (ID: ${agent.id}).`,
+              text: `Successfully joined swarm as ${agent.isLead ? "Lead" : "Worker"} agent "${agent.name}" (ID: ${agent.id}).`,
             },
           ],
           structuredContent: {
             yourAgentId: agent.id,
             success: true,
-            message: `Successfully joined swarm as ${agent.isLead ? 'Lead' : 'Worker'} agent "${agent.name}" (ID: ${agent.id}).`,
+            message: `Successfully joined swarm as ${agent.isLead ? "Lead" : "Worker"} agent "${agent.name}" (ID: ${agent.id}).`,
             agent,
           },
         };

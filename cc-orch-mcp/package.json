@@ -1,6 +1,6 @@
 {
   "name": "@desplega.ai/agent-swarm",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Agent orchestration layer MCP for Claude Code, Codex, Gemini CLI, and more!",
   "module": "src/stdio.ts",
   "type": "module",
@@ -28,6 +28,8 @@
     "lint": "biome check src",
     "lint:fix": "biome check --write src",
     "format": "biome format --write src",
+    "build:binary": "bun build ./src/cli.tsx --compile --target=bun-linux-x64 --outfile ./dist/agent-swarm",
+    "build:binary:arm64": "bun build ./src/cli.tsx --compile --target=bun-linux-arm64 --outfile ./dist/agent-swarm",
     "docker:build:worker": "docker build -f Dockerfile.worker -t agent-swarm-worker .",
     "docker:run:worker": "docker run --rm -it --env-file .env.docker -v ./logs:/logs agent-swarm-worker"
   },
@@ -45,6 +47,7 @@
     "date-fns": "^4.1.0",
     "ink": "^6.5.1",
     "react": "^19.2.3",
+    "react-devtools-core": "^7.0.1",
     "zod": "^4.2.1"
   }
 }

@@ -3,6 +3,7 @@ import * as z from "zod";
 import {
   completeTask,
   failTask,
+  getAgentById,
   getDb,
   getTaskById,
   updateAgentStatus,
@@ -38,7 +39,32 @@ export const registerStoreProgressTool = (server: McpServer) => {
       }),
     },
     async ({ taskId, progress, status, output, failureReason }, requestInfo, _meta) => {
+      if (!requestInfo.agentId) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: 'Agent ID not found. The MCP client should define the "X-Agent-ID" header.',
+            },
+          ],
+          structuredContent: {
+            yourAgentId: requestInfo.agentId,
+            success: false,
+            message: 'Agent ID not found. The MCP client should define the "X-Agent-ID" header.',
+          },
+        };
+      }
+
       const txn = getDb().transaction(() => {
+        const agent = getAgentById(requestInfo.agentId ?? "");
+
+        if (!agent) {
+          return {
+            success: false,
+            message: `Agent with ID "${requestInfo.agentId}" not found in the swarm, register before storing task progress.`,
+          };
+        }
+
         const existingTask = getTaskById(taskId);
 
         if (!existingTask) {
@@ -69,6 +95,9 @@ export const registerStoreProgressTool = (server: McpServer) => {
             updatedTask = result;
             updateAgentStatus(existingTask.agentId, "idle");
           }
+        } else {
+          // Keep it busy if just updating progress
+          updateAgentStatus(existingTask.agentId, "busy");
         }
 
         return {

@@ -69,7 +69,7 @@ export async function handleHook(): Promise<void> {
   const hasAgentIdHeader = (): boolean => {
     if (!mcpConfig) return false;
     return Boolean(mcpConfig.headers["X-Agent-ID"]);
-  }
+  };
 
   const ping = async (): Promise<void> => {
     if (!mcpConfig) return;

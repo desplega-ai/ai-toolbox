@@ -1,83 +1,112 @@
 # Agent Swarm Worker Dockerfile
 # Runs Claude in headless loop mode as a worker agent
+# Multi-stage build: compiles to standalone binary with full dev environment
 
-FROM oven/bun:latest
+# Stage 1: Build the binary
+FROM oven/bun:latest AS builder
+WORKDIR /build
+COPY package.json bun.lock* ./
+RUN bun install --frozen-lockfile
+COPY src/ ./src/
+COPY tsconfig.json ./
+RUN bun build ./src/cli.tsx --compile --outfile ./agent-swarm
 
-# Install dependencies for Claude CLI installation
-RUN apt-get update && apt-get install -y curl ca-certificates git vim \
+# Stage 2: Full development environment
+FROM ubuntu:24.04
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install comprehensive development tools
+RUN apt-get update && apt-get install -y \
+    # Essential tools
+    curl wget ca-certificates gnupg lsb-release \
+    # Version control
+    git git-lfs \
+    # Editors
+    vim nano \
+    # Build tools
+    build-essential make cmake gcc g++ \
+    # Python
+    python3 python3-pip python3-venv \
+    # Common utilities
+    jq tree htop unzip zip tar gzip \
+    # Network tools
+    openssh-client \
+    # sudo for package installation
+    sudo \
     && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user (required for --dangerously-skip-permissions)
-RUN useradd -m -s /bin/bash worker
+# Install Node.js 22.x (LTS)
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Bun (for running JS/TS projects)
+RUN curl -fsSL https://bun.sh/install | bash
+ENV BUN_INSTALL="/root/.bun"
+ENV PATH="$BUN_INSTALL/bin:$PATH"
+
+# Create non-root user with sudo access (passwordless)
+# NOTE: Claude requires non-root for --dangerously-skip-permissions
+# Worker runs as non-root but CAN use sudo for installing packages
+RUN useradd -m -s /bin/bash -G sudo worker \
+    && echo "worker ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
 USER worker
 WORKDIR /home/worker
+ENV HOME=/home/worker
+ENV BUN_INSTALL="/home/worker/.bun"
 
-# Install Claude CLI using official installer (as non-root user)
-RUN curl -fsSL https://claude.ai/install.sh | bash
+# Install Bun for worker user (need to set HOME explicitly in RUN)
+RUN HOME=/home/worker BUN_INSTALL=/home/worker/.bun curl -fsSL https://bun.sh/install | bash
+ENV PATH="/home/worker/.bun/bin:$PATH"
 
-# Add Claude to PATH (the installer puts it in ~/.local/bin)
-ENV PATH="/home/worker/.local/bin:${PATH}"
+# Install Claude CLI using official installer
+RUN HOME=/home/worker curl -fsSL https://claude.ai/install.sh | bash
+ENV PATH="/home/worker/.local/bin:$PATH"
 
-# Create .claude directory structure
+# Setup .claude directory
 RUN mkdir -p /home/worker/.claude/commands
-
-# Set up claude.json with onboarding complete
 RUN echo '{"hasCompletedOnboarding":true,"bypassPermissionsModeAccepted":true}' > /home/worker/.claude.json
 
-# Create settings.local.json with dev hooks (runs local hook.ts)
+# Settings with hooks pointing to compiled binary
 RUN echo '{ \
   "permissions": { "allow": ["mcp__agent-swarm__*"] }, \
   "enableAllProjectMcpServers": true, \
   "enabledMcpjsonServers": ["agent-swarm"], \
   "hooks": { \
-    "SessionStart": [{"matcher": "*", "hooks": [{"type": "command", "command": "bun run /app/src/hooks/hook.ts"}]}], \
-    "UserPromptSubmit": [{"matcher": "*", "hooks": [{"type": "command", "command": "bun run /app/src/hooks/hook.ts"}]}], \
-    "PreToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "bun run /app/src/hooks/hook.ts"}]}], \
-    "PostToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "bun run /app/src/hooks/hook.ts"}]}], \
-    "PreCompact": [{"matcher": "*", "hooks": [{"type": "command", "command": "bun run /app/src/hooks/hook.ts"}]}], \
-    "Stop": [{"matcher": "*", "hooks": [{"type": "command", "command": "bun run /app/src/hooks/hook.ts"}]}] \
+    "SessionStart": [{"matcher": "*", "hooks": [{"type": "command", "command": "/usr/local/bin/agent-swarm hook"}]}], \
+    "UserPromptSubmit": [{"matcher": "*", "hooks": [{"type": "command", "command": "/usr/local/bin/agent-swarm hook"}]}], \
+    "PreToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "/usr/local/bin/agent-swarm hook"}]}], \
+    "PostToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "/usr/local/bin/agent-swarm hook"}]}], \
+    "PreCompact": [{"matcher": "*", "hooks": [{"type": "command", "command": "/usr/local/bin/agent-swarm hook"}]}], \
+    "Stop": [{"matcher": "*", "hooks": [{"type": "command", "command": "/usr/local/bin/agent-swarm hook"}]}] \
   } \
-}' > /home/worker/.claude/settings.local.json
+}' > /home/worker/.claude/settings.json
 
-# Note: .mcp.json will be created at runtime by entrypoint with dynamic MCP_BASE_URL
-
-# Copy cc-plugin commands to user's commands directory
-# Need to switch to root temporarily to copy files
+# Copy binary from builder
 USER root
+COPY --from=builder /build/agent-swarm /usr/local/bin/agent-swarm
+RUN chmod +x /usr/local/bin/agent-swarm
+
+# Copy commands
 COPY --chown=worker:worker cc-plugin/commands/* /home/worker/.claude/commands/
 
-# Set working directory for app and create with correct ownership
-WORKDIR /app
-RUN chown worker:worker /app
+# Create directories
+RUN mkdir -p /workspace /logs && chown worker:worker /workspace /logs
 
-# Copy package files first for better caching
-COPY --chown=worker:worker package.json bun.lock* ./
-USER worker
-RUN bun install --frozen-lockfile
-
-# Copy the rest of the project
-USER root
-COPY --chown=worker:worker . .
-
-# Create logs directory (will be mounted as volume)
-RUN mkdir -p /logs && chown worker:worker /logs
-
-USER worker
-
-# Volume for persistent logs
-VOLUME ["/logs"]
-
-# Copy and set up entrypoint
 COPY --chown=worker:worker docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
-# Switch back to non-root user
 USER worker
+WORKDIR /workspace
+VOLUME ["/logs"]
 
-# Set environment defaults
+# Environment
 ENV WORKER_YOLO=false
 ENV MCP_BASE_URL=http://host.docker.internal:3013
-ENV HOME=/home/worker
 ENV WORKER_LOG_DIR=/logs
+ENV PATH="/home/worker/.local/bin:/home/worker/.bun/bin:$PATH"
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

@@ -83,6 +83,65 @@ bunx @desplega.ai/agent-swarm hook
 bunx @desplega.ai/agent-swarm help
 ```
 
+## Docker Worker
+
+Run Claude as a containerized worker agent in the swarm.
+
+### Build
+
+```bash
+# Build the worker image
+docker build -f Dockerfile.worker -t agent-swarm-worker .
+
+# Or using npm script
+bun run docker:build:worker
+```
+
+### Run
+
+```bash
+# Using docker run
+docker run --rm -it \
+  -e CLAUDE_CODE_OAUTH_TOKEN=your-token \
+  -e API_KEY=your-api-key \
+  -v ./logs:/logs \
+  agent-swarm-worker
+
+# Using docker-compose
+docker-compose -f docker-compose.worker.yml up
+
+# Using npm script (requires .env.docker file)
+bun run docker:run:worker
+```
+
+### Environment Variables (Docker)
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `CLAUDE_CODE_OAUTH_TOKEN` | Yes | OAuth token for Claude CLI |
+| `API_KEY` | Yes | API key for MCP server |
+| `AGENT_ID` | No | Agent UUID (assigned on join if not set) |
+| `MCP_BASE_URL` | No | MCP server URL (default: `http://host.docker.internal:3013`) |
+| `SESSION_ID` | No | Log folder name (auto-generated if not provided) |
+| `WORKER_YOLO` | No | Continue on errors (default: `false`) |
+
+### Architecture
+
+The Docker worker image is built using a multi-stage build:
+
+1. **Builder stage**: Compiles `src/cli.tsx` into a standalone binary using Bun
+2. **Runtime stage**: Ubuntu 24.04 with full development environment
+
+**Pre-installed tools:**
+- **Languages**: Python 3, Node.js 22, Bun
+- **Build tools**: gcc, g++, make, cmake
+- **Utilities**: git, git-lfs, vim, nano, jq, curl, wget, ssh
+- **Sudo access**: Worker can install packages with `sudo apt-get install`
+
+**Working directory**: `/workspace` (empty, for cloning repos)
+
+**Logs**: `/logs` (mount as volume for persistence)
+
 ## Environment Variables
 
 | Variable | Description | Default |

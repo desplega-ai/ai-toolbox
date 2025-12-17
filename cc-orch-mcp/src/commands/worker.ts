@@ -68,23 +68,32 @@ async function runClaudeIteration(opts: RunClaudeIterationOptions): Promise<numb
             // Log a summary of what's happening
             if (json.type === "assistant" && json.message) {
               const preview = json.message.slice(0, 100);
-              console.log(`[worker] Assistant: ${preview}${json.message.length > 100 ? "..." : ""}`);
+              console.log(
+                `[worker] Assistant: ${preview}${json.message.length > 100 ? "..." : ""}`,
+              );
             } else if (json.type === "tool_use") {
               console.log(`[worker] Tool: ${json.tool || json.name || "unknown"}`);
             } else if (json.type === "result") {
               // Log result details
               const resultPreview = JSON.stringify(json).slice(0, 200);
-              console.log(`[worker] Result: ${resultPreview}${JSON.stringify(json).length > 200 ? "..." : ""}`);
+              console.log(
+                `[worker] Result: ${resultPreview}${JSON.stringify(json).length > 200 ? "..." : ""}`,
+              );
             } else if (json.type === "error") {
-              console.error(`[worker] Error from Claude: ${json.error || json.message || JSON.stringify(json)}`);
+              console.error(
+                `[worker] Error from Claude: ${json.error || json.message || JSON.stringify(json)}`,
+              );
             } else if (json.type === "system") {
               // Log system message details
               const msg = json.message || json.content || "";
-              const preview = typeof msg === "string" ? msg.slice(0, 150) : JSON.stringify(msg).slice(0, 150);
+              const preview =
+                typeof msg === "string" ? msg.slice(0, 150) : JSON.stringify(msg).slice(0, 150);
               console.log(`[worker] System: ${preview}${preview.length >= 150 ? "..." : ""}`);
             } else {
               // Log unknown event types with content
-              console.log(`[worker] Event type: ${json.type} - ${JSON.stringify(json).slice(0, 100)}`);
+              console.log(
+                `[worker] Event type: ${json.type} - ${JSON.stringify(json).slice(0, 100)}`,
+              );
             }
           } catch {
             // Non-JSON line, just log it
@@ -109,7 +118,7 @@ async function runClaudeIteration(opts: RunClaudeIterationOptions): Promise<numb
         console.error(`[worker] stderr chunk #${stderrChunks}: ${text.trim()}`);
         logFileHandle.write(
           JSON.stringify({ type: "stderr", content: text, timestamp: new Date().toISOString() }) +
-          "\n",
+            "\n",
         );
       }
       console.log(`[worker] stderr stream ended (total ${stderrChunks} chunks)`);
@@ -149,8 +158,7 @@ export async function runWorker(opts: WorkerOptions) {
   // Create log directory
   await mkdir(logDir, { recursive: true });
 
-  const defaultPrompt =
-    "/start-worker Start or continue the tasks your leader assigned you!";
+  const defaultPrompt = "/start-worker Start or continue the tasks your leader assigned you!";
   const prompt = opts.prompt || defaultPrompt;
 
   const isYolo = opts.yolo || process.env.WORKER_YOLO === "true";
@@ -180,7 +188,7 @@ export async function runWorker(opts: WorkerOptions) {
       prompt,
       yolo: isYolo,
     };
-    await Bun.write(logFile, JSON.stringify(metadata) + "\n");
+    await Bun.write(logFile, `${JSON.stringify(metadata)}\n`);
 
     const exitCode = await runClaudeIteration({
       prompt,
@@ -201,7 +209,7 @@ export async function runWorker(opts: WorkerOptions) {
       const existingErrors = (await Bun.file(errorsFile).exists())
         ? await Bun.file(errorsFile).text()
         : "";
-      await Bun.write(errorsFile, existingErrors + JSON.stringify(errorLog) + "\n");
+      await Bun.write(errorsFile, `${existingErrors + JSON.stringify(errorLog)}\n`);
 
       if (!isYolo) {
         console.error(`[worker] Claude exited with code ${exitCode}. Stopping.`);

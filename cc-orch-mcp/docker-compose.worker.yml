@@ -3,13 +3,13 @@
 # Usage:
 #   docker-compose -f docker-compose.worker.yml up --build
 #
-# Required environment variables (in .env or passed directly):
+# Required environment variables (in .env.docker or passed directly):
 #   - CLAUDE_CODE_OAUTH_TOKEN: OAuth token for Claude CLI
 #   - API_KEY: API key for MCP server authentication
-#   - AGENT_ID: UUID for agent identification
 #
 # Optional environment variables:
-#   - MCP_BASE_URL: MCP server URL (default: https://agent-swarm-mcp.desplega.sh)
+#   - AGENT_ID: UUID for agent identification (assigned on join if not set)
+#   - MCP_BASE_URL: MCP server URL (default: http://host.docker.internal:3013)
 #   - SESSION_ID: Folder name for logs (auto-generated if not provided)
 #   - WORKER_YOLO: If "true", continue on errors (default: false)
 
@@ -21,7 +21,7 @@ services:
     environment:
       - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN}
       - API_KEY=${API_KEY}
-      - AGENT_ID=${AGENT_ID}
+      - AGENT_ID=${AGENT_ID:-}
       # Use host.docker.internal to reach host's localhost on Mac/Windows
       # On Linux, use --add-host=host.docker.internal:host-gateway or --network host
       - MCP_BASE_URL=${MCP_BASE_URL:-http://host.docker.internal:3013}
@@ -29,5 +29,7 @@ services:
       - WORKER_YOLO=${WORKER_YOLO:-false}
     volumes:
       - ./logs:/logs
+      # Optional: mount a workspace directory for persistent work
+      # - ./workspace:/workspace
     restart: unless-stopped
     # No port mappings needed - worker only makes outbound connections

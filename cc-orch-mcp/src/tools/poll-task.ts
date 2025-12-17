@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { addMinutes } from "date-fns";
 import * as z from "zod";
-import { getDb, getPendingTaskForAgent, startTask } from "@/be/db";
+import { getAgentById, getDb, getPendingTaskForAgent, startTask, updateAgentStatus } from "@/be/db";
 import { createToolRegistrar } from "@/tools/utils";
 import { AgentTaskSchema } from "@/types";
 
@@ -46,13 +46,45 @@ export const registerPollTaskTool = (server: McpServer) => {
       const now = new Date();
       const maxTime = addMinutes(now, MAX_POLL_DURATION_MS / 60000);
 
+      const agent = getAgentById(agentId);
+      if (!agent) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Agent with ID "${agentId}" not found in the swarm.`,
+            },
+          ],
+          structuredContent: {
+            yourAgentId: requestInfo.agentId,
+            success: false,
+            message: `Agent with ID "${agentId}" not found in the swarm.`,
+            waitedForSeconds: 0,
+          },
+        };
+      }
+
       // Poll for pending tasks
       while (new Date() < maxTime) {
         // Fetch and update in a single transaction to avoid race conditions
         const startedTask = getDb().transaction(() => {
+          const agentNow = getAgentById(agentId)!;
+
+          if (agentNow.status !== "busy") {
+            updateAgentStatus(agentId, "idle");
+          }
+
           const pendingTask = getPendingTaskForAgent(agentId);
           if (!pendingTask) return null;
-          return startTask(pendingTask.id);
+
+          const maybeTask = startTask(pendingTask.id);
+
+          if (maybeTask) {
+            // Update automatically in case the agent forgets xd
+            updateAgentStatus(agentId, "busy");
+          }
+
+          return maybeTask;
         })();
 
         if (startedTask) {
