@@ -28,13 +28,16 @@ Then install the plugin inside it with:
 /plugin install agent-swarm@desplega-ai-toolbox
 ```
 
+### MCP Installation
+
+Please refer to [this guide](https://github.com/desplega-ai/ai-toolbox/blob/main/cc-orch-mcp/README.md#quick-start) on how to install MCP servers.
+
 ### What's inside?
 
 Inside you will find:
 
 - [commands](./commands) - Leader and worker commands
 - [hooks](./hooks) - Hooks to help swarm agents collaborate better
-- [.mcp.json](./.mcp.json) - MCP server configuration for agent-swarm (placeholder, you need to provide your own server and credentials)
 
 #### Commands
 
