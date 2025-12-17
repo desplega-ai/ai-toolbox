@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import pkg from "../package.json";
 import { initDb } from "./be/db";
 import { registerGetSwarmTool } from "./tools/get-swarm";
 import { registerGetTaskDetailsTool } from "./tools/get-task-details";
@@ -8,8 +9,6 @@ import { registerMyAgentInfoTool } from "./tools/my-agent-info";
 import { registerPollTaskTool } from "./tools/poll-task";
 import { registerSendTaskTool } from "./tools/send-task";
 import { registerStoreProgressTool } from "./tools/store-progress";
-import pkg from "../package.json";
-
 
 export function createServer() {
   // Initialize database with WAL mode

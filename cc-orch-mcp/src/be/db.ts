@@ -1,5 +1,13 @@
 import { Database } from "bun:sqlite";
-import type { Agent, AgentLog, AgentLogEventType, AgentStatus, AgentTask, AgentTaskStatus, AgentWithTasks } from "../types";
+import type {
+  Agent,
+  AgentLog,
+  AgentLogEventType,
+  AgentStatus,
+  AgentTask,
+  AgentTaskStatus,
+  AgentWithTasks,
+} from "../types";
 
 let db: Database | null = null;
 
@@ -141,7 +149,12 @@ export function updateAgentStatus(id: string, status: AgentStatus): Agent | null
   const row = agentQueries.updateStatus().get(status, id);
   if (row && oldAgent) {
     try {
-      createLogEntry({ eventType: "agent_status_change", agentId: id, oldValue: oldAgent.status, newValue: status });
+      createLogEntry({
+        eventType: "agent_status_change",
+        agentId: id,
+        oldValue: oldAgent.status,
+        newValue: status,
+      });
     } catch {}
   }
   return row ? rowToAgent(row) : null;
@@ -262,7 +275,13 @@ export function startTask(taskId: string): AgentTask | null {
     .get(taskId);
   if (row && oldTask) {
     try {
-      createLogEntry({ eventType: "task_status_change", taskId, agentId: row.agentId, oldValue: oldTask.status, newValue: "in_progress" });
+      createLogEntry({
+        eventType: "task_status_change",
+        taskId,
+        agentId: row.agentId,
+        oldValue: oldTask.status,
+        newValue: "in_progress",
+      });
     } catch {}
   }
   return row ? rowToAgentTask(row) : null;
@@ -308,7 +327,13 @@ export function completeTask(id: string, output?: string): AgentTask | null {
 
   if (row && oldTask) {
     try {
-      createLogEntry({ eventType: "task_status_change", taskId: id, agentId: row.agentId, oldValue: oldTask.status, newValue: "completed" });
+      createLogEntry({
+        eventType: "task_status_change",
+        taskId: id,
+        agentId: row.agentId,
+        oldValue: oldTask.status,
+        newValue: "completed",
+      });
     } catch {}
   }
 
@@ -321,7 +346,14 @@ export function failTask(id: string, reason: string): AgentTask | null {
   const row = taskQueries.setFailure().get(reason, finishedAt, id);
   if (row && oldTask) {
     try {
-      createLogEntry({ eventType: "task_status_change", taskId: id, agentId: row.agentId, oldValue: oldTask.status, newValue: "failed", metadata: { reason } });
+      createLogEntry({
+        eventType: "task_status_change",
+        taskId: id,
+        agentId: row.agentId,
+        oldValue: oldTask.status,
+        newValue: "failed",
+        metadata: { reason },
+      });
     } catch {}
   }
   return row ? rowToAgentTask(row) : null;
@@ -336,7 +368,12 @@ export function updateTaskProgress(id: string, progress: string): AgentTask | nu
   const row = taskQueries.setProgress().get(progress, id);
   if (row) {
     try {
-      createLogEntry({ eventType: "task_progress", taskId: id, agentId: row.agentId, newValue: progress });
+      createLogEntry({
+        eventType: "task_progress",
+        taskId: id,
+        agentId: row.agentId,
+        newValue: progress,
+      });
     } catch {}
   }
   return row ? rowToAgentTask(row) : null;
@@ -400,7 +437,10 @@ function rowToAgentLog(row: AgentLogRow): AgentLog {
 
 export const logQueries = {
   insert: () =>
-    getDb().prepare<AgentLogRow, [string, string, string | null, string | null, string | null, string | null, string | null]>(
+    getDb().prepare<
+      AgentLogRow,
+      [string, string, string | null, string | null, string | null, string | null, string | null]
+    >(
       `INSERT INTO agent_log (id, eventType, agentId, taskId, oldValue, newValue, metadata, createdAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) RETURNING *`,
     ),
@@ -420,10 +460,7 @@ export const logQueries = {
       "SELECT * FROM agent_log WHERE eventType = ? ORDER BY createdAt DESC",
     ),
 
-  getAll: () =>
-    getDb().prepare<AgentLogRow, []>(
-      "SELECT * FROM agent_log ORDER BY createdAt DESC",
-    ),
+  getAll: () => getDb().prepare<AgentLogRow, []>("SELECT * FROM agent_log ORDER BY createdAt DESC"),
 };
 
 export function createLogEntry(entry: {
@@ -435,15 +472,17 @@ export function createLogEntry(entry: {
   metadata?: Record<string, unknown>;
 }): AgentLog {
   const id = crypto.randomUUID();
-  const row = logQueries.insert().get(
-    id,
-    entry.eventType,
-    entry.agentId ?? null,
-    entry.taskId ?? null,
-    entry.oldValue ?? null,
-    entry.newValue ?? null,
-    entry.metadata ? JSON.stringify(entry.metadata) : null,
-  );
+  const row = logQueries
+    .insert()
+    .get(
+      id,
+      entry.eventType,
+      entry.agentId ?? null,
+      entry.taskId ?? null,
+      entry.oldValue ?? null,
+      entry.newValue ?? null,
+      entry.metadata ? JSON.stringify(entry.metadata) : null,
+    );
   if (!row) throw new Error("Failed to create log entry");
   return rowToAgentLog(row);
 }

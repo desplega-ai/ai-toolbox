@@ -351,7 +351,7 @@ const args = parseArgs(process.argv.slice(2));
 
 // Handle hook command separately (no UI needed)
 if (args.command === "hook") {
-	runHook();
+  runHook();
 } else {
-	render(<App args={args} />);
+  render(<App args={args} />);
 }
