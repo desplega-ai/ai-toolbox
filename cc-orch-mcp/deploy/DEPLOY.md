@@ -32,6 +32,9 @@ sudo systemctl stop agent-swarm
 sudo systemctl status agent-swarm
 journalctl -u agent-swarm -f
 
+# Health check timer (runs every 30s, auto-restarts on failure)
+sudo systemctl status agent-swarm-healthcheck.timer
+
 # Uninstall
 sudo bun deploy/uninstall.ts
 ```
