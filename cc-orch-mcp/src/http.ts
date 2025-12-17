@@ -1,12 +1,31 @@
 import { randomUUID } from "node:crypto";
-import { createServer as createHttpServer, type ServerResponse } from "node:http";
+import {
+  createServer as createHttpServer,
+  type IncomingMessage,
+  type Server,
+  type ServerResponse,
+} from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { createServer } from "@/server";
 import { closeDb } from "./be/db";
 
 const port = parseInt(process.env.PORT || process.argv[2] || "3013", 10);
-const transports: Record<string, StreamableHTTPServerTransport> = {};
+
+// Use globalThis to persist state across hot reloads
+const globalState = globalThis as typeof globalThis & {
+  __httpServer?: Server<typeof IncomingMessage, typeof ServerResponse>;
+  __transports?: Record<string, StreamableHTTPServerTransport>;
+  __sigintRegistered?: boolean;
+};
+
+// Clean up previous server on hot reload
+if (globalState.__httpServer) {
+  console.log("[HTTP] Hot reload detected, closing previous server...");
+  globalState.__httpServer.close();
+}
+
+const transports: Record<string, StreamableHTTPServerTransport> = globalState.__transports ?? {};
 
 function setCorsHeaders(res: ServerResponse) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -30,10 +49,12 @@ const httpServer = createHttpServer(async (req, res) => {
     const version = (await Bun.file("package.json").json()).version;
 
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({
-      status: "ok",
-      version,
-    }));
+    res.end(
+      JSON.stringify({
+        status: "ok",
+        version,
+      }),
+    );
 
     return;
   }
@@ -116,14 +137,39 @@ const httpServer = createHttpServer(async (req, res) => {
   res.end("Method not allowed");
 });
 
+// Store references in globalThis for hot reload persistence
+globalState.__httpServer = httpServer;
+globalState.__transports = transports;
+
+function shutdown() {
+  console.log("Shutting down HTTP server...");
+
+  // Close all active transports (SSE connections, etc.)
+  for (const [id, transport] of Object.entries(transports)) {
+    console.log(`[HTTP] Closing transport ${id}`);
+    transport.close();
+    delete transports[id];
+  }
+
+  // Close all active connections forcefully
+  httpServer.closeAllConnections();
+  httpServer.close(() => {
+    closeDb();
+    console.log("MCP HTTP server closed, and database connection closed");
+    process.exit(0);
+  });
+}
+
+// Only register SIGINT handler once (avoid duplicates on hot reload)
+if (!globalState.__sigintRegistered) {
+  globalState.__sigintRegistered = true;
+  process.on("SIGINT", shutdown);
+}
+
 httpServer
   .listen(port, () => {
     console.log(`MCP HTTP server running on http://localhost:${port}/mcp`);
   })
   .on("error", (err) => {
     console.error("HTTP Server Error:", err);
-  })
-  .on("close", () => {
-    closeDb();
-    console.log("MCP HTTP server closed, and database connection closed");
   });
