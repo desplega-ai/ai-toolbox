@@ -1,0 +1,33 @@
+{
+  "name": "cc-orch-mcp",
+  "version": "1.0.0",
+  "description": "Agent orchestration MCP!",
+  "module": "src/stdio.ts",
+  "type": "module",
+  "bin": {
+    "cc-orch-mcp": "./src/stdio.ts"
+  },
+  "scripts": {
+    "tsc:check": "bun tsc --noEmit",
+    "dev": "bun --hot src/stdio.ts",
+    "dev:http": "bun --hot src/http.ts",
+    "start": "bun src/stdio.ts",
+    "start:http": "bun src/http.ts",
+    "inspector": "bunx @modelcontextprotocol/inspector --transport stdio bun src/stdio.ts",
+    "lint": "biome check src",
+    "lint:fix": "biome check --write src",
+    "format": "biome format --write src"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.9",
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.1",
+    "date-fns": "^4.1.0",
+    "zod": "^4.2.1"
+  }
+}
