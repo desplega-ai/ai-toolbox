@@ -29,7 +29,7 @@ API_KEY=
 }
 
 // Set ownership
-await $`chown -R www-data:www-data ${APP_DIR}`;
+await $`chown -R root:root ${APP_DIR}`;
 
 // Install systemd service with detected bun path
 const serviceContent = `[Unit]
@@ -38,8 +38,8 @@ After=network.target
 
 [Service]
 Type=simple
-User=www-data
-Group=www-data
+User=root
+Group=root
 WorkingDirectory=${APP_DIR}
 ExecStart=${bunPath} run start:http
 Restart=always

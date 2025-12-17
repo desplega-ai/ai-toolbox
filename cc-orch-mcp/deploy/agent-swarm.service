@@ -4,8 +4,8 @@ After=network.target
 
 [Service]
 Type=simple
-User=www-data
-Group=www-data
+User=root
+Group=root
 WorkingDirectory=/opt/agent-swarm
 ExecStart=/usr/local/bin/bun run start:http
 Restart=always
