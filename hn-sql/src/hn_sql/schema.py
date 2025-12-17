@@ -45,8 +45,14 @@ def item_to_row(item: dict, include_partitions: bool = False) -> dict:
     ts = item.get("time")
     dt = datetime.fromtimestamp(ts, tz=timezone.utc) if ts else None
 
+    # Sanitize boolean fields - HN API sometimes returns unexpected types
+    dead = item.get("dead")
+    deleted = item.get("deleted")
+    is_dead = dead is True or dead == 1
+    is_deleted = deleted is True or deleted == 1
+
     # Handle deleted/dead items with minimal data
-    if item.get("deleted") or item.get("dead"):
+    if is_deleted or is_dead:
         row = {
             "id": item.get("id"),
             "type": item.get("type"),
@@ -59,8 +65,8 @@ def item_to_row(item: dict, include_partitions: bool = False) -> dict:
             "descendants": None,
             "parent": item.get("parent"),
             "kids": None,
-            "dead": item.get("dead", False),
-            "deleted": item.get("deleted", False),
+            "dead": is_dead,
+            "deleted": is_deleted,
             "poll": None,
             "parts": None,
         }
@@ -77,8 +83,8 @@ def item_to_row(item: dict, include_partitions: bool = False) -> dict:
             "descendants": item.get("descendants"),
             "parent": item.get("parent"),
             "kids": item.get("kids"),
-            "dead": item.get("dead", False),
-            "deleted": item.get("deleted", False),
+            "dead": is_dead,
+            "deleted": is_deleted,
             "poll": item.get("poll"),
             "parts": item.get("parts"),
         }
