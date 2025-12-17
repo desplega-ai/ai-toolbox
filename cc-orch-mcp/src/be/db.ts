@@ -1,9 +1,9 @@
 import { Database } from "bun:sqlite";
-import type { Agent, AgentStatus, AgentTask, AgentTaskStatus, AgentWithTasks } from "../types";
+import type { Agent, AgentLog, AgentLogEventType, AgentStatus, AgentTask, AgentTaskStatus, AgentWithTasks } from "../types";
 
 let db: Database | null = null;
 
-export function initDb(dbPath = "./cc-orch.sqlite"): Database {
+export function initDb(dbPath = "./agent-swarm-db.sqlite"): Database {
   if (db) {
     return db;
   }
@@ -38,6 +38,22 @@ export function initDb(dbPath = "./cc-orch.sqlite"): Database {
 
     CREATE INDEX IF NOT EXISTS idx_agent_tasks_agentId ON agent_tasks(agentId);
     CREATE INDEX IF NOT EXISTS idx_agent_tasks_status ON agent_tasks(status);
+
+    CREATE TABLE IF NOT EXISTS agent_log (
+      id TEXT PRIMARY KEY,
+      eventType TEXT NOT NULL,
+      agentId TEXT,
+      taskId TEXT,
+      oldValue TEXT,
+      newValue TEXT,
+      metadata TEXT,
+      createdAt TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_agent_log_agentId ON agent_log(agentId);
+    CREATE INDEX IF NOT EXISTS idx_agent_log_taskId ON agent_log(taskId);
+    CREATE INDEX IF NOT EXISTS idx_agent_log_eventType ON agent_log(eventType);
+    CREATE INDEX IF NOT EXISTS idx_agent_log_createdAt ON agent_log(createdAt);
   `);
 
   return db;
@@ -105,6 +121,9 @@ export function createAgent(
   const id = agent.id ?? crypto.randomUUID();
   const row = agentQueries.insert().get(id, agent.name, agent.isLead ? 1 : 0, agent.status);
   if (!row) throw new Error("Failed to create agent");
+  try {
+    createLogEntry({ eventType: "agent_joined", agentId: id, newValue: agent.status });
+  } catch {}
   return rowToAgent(row);
 }
 
@@ -118,11 +137,23 @@ export function getAllAgents(): Agent[] {
 }
 
 export function updateAgentStatus(id: string, status: AgentStatus): Agent | null {
+  const oldAgent = getAgentById(id);
   const row = agentQueries.updateStatus().get(status, id);
+  if (row && oldAgent) {
+    try {
+      createLogEntry({ eventType: "agent_status_change", agentId: id, oldValue: oldAgent.status, newValue: status });
+    } catch {}
+  }
   return row ? rowToAgent(row) : null;
 }
 
 export function deleteAgent(id: string): boolean {
+  const agent = getAgentById(id);
+  if (agent) {
+    try {
+      createLogEntry({ eventType: "agent_left", agentId: id, oldValue: agent.status });
+    } catch {}
+  }
   const result = getDb().run("DELETE FROM agents WHERE id = ?", [id]);
   return result.changes > 0;
 }
@@ -206,6 +237,9 @@ export function createTask(agentId: string, task: string): AgentTask {
   const id = crypto.randomUUID();
   const row = taskQueries.insert().get(id, agentId, task, "pending");
   if (!row) throw new Error("Failed to create task");
+  try {
+    createLogEntry({ eventType: "task_created", agentId, taskId: id, newValue: "pending" });
+  } catch {}
   return rowToAgentTask(row);
 }
 
@@ -219,12 +253,18 @@ export function getPendingTaskForAgent(agentId: string): AgentTask | null {
 }
 
 export function startTask(taskId: string): AgentTask | null {
+  const oldTask = getTaskById(taskId);
   const row = getDb()
     .prepare<AgentTaskRow, [string]>(
       `UPDATE agent_tasks SET status = 'in_progress', lastUpdatedAt = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
        WHERE id = ? RETURNING *`,
     )
     .get(taskId);
+  if (row && oldTask) {
+    try {
+      createLogEntry({ eventType: "task_status_change", taskId, agentId: row.agentId, oldValue: oldTask.status, newValue: "in_progress" });
+    } catch {}
+  }
   return row ? rowToAgentTask(row) : null;
 }
 
@@ -257,6 +297,7 @@ export function getAllTasks(status?: AgentTaskStatus): AgentTask[] {
 }
 
 export function completeTask(id: string, output?: string): AgentTask | null {
+  const oldTask = getTaskById(id);
   const finishedAt = new Date().toISOString();
   let row = taskQueries.updateStatus().get("completed", finishedAt, id);
   if (!row) return null;
@@ -265,12 +306,24 @@ export function completeTask(id: string, output?: string): AgentTask | null {
     row = taskQueries.setOutput().get(output, id);
   }
 
+  if (row && oldTask) {
+    try {
+      createLogEntry({ eventType: "task_status_change", taskId: id, agentId: row.agentId, oldValue: oldTask.status, newValue: "completed" });
+    } catch {}
+  }
+
   return row ? rowToAgentTask(row) : null;
 }
 
 export function failTask(id: string, reason: string): AgentTask | null {
+  const oldTask = getTaskById(id);
   const finishedAt = new Date().toISOString();
   const row = taskQueries.setFailure().get(reason, finishedAt, id);
+  if (row && oldTask) {
+    try {
+      createLogEntry({ eventType: "task_status_change", taskId: id, agentId: row.agentId, oldValue: oldTask.status, newValue: "failed", metadata: { reason } });
+    } catch {}
+  }
   return row ? rowToAgentTask(row) : null;
 }
 
@@ -281,6 +334,11 @@ export function deleteTask(id: string): boolean {
 
 export function updateTaskProgress(id: string, progress: string): AgentTask | null {
   const row = taskQueries.setProgress().get(progress, id);
+  if (row) {
+    try {
+      createLogEntry({ eventType: "task_progress", taskId: id, agentId: row.agentId, newValue: progress });
+    } catch {}
+  }
   return row ? rowToAgentTask(row) : null;
 }
 
@@ -310,4 +368,100 @@ export function getAllAgentsWithTasks(): AgentWithTasks[] {
   });
 
   return txn();
+}
+
+// ============================================================================
+// Agent Log Queries
+// ============================================================================
+
+type AgentLogRow = {
+  id: string;
+  eventType: AgentLogEventType;
+  agentId: string | null;
+  taskId: string | null;
+  oldValue: string | null;
+  newValue: string | null;
+  metadata: string | null;
+  createdAt: string;
+};
+
+function rowToAgentLog(row: AgentLogRow): AgentLog {
+  return {
+    id: row.id,
+    eventType: row.eventType,
+    agentId: row.agentId ?? undefined,
+    taskId: row.taskId ?? undefined,
+    oldValue: row.oldValue ?? undefined,
+    newValue: row.newValue ?? undefined,
+    metadata: row.metadata ?? undefined,
+    createdAt: row.createdAt,
+  };
+}
+
+export const logQueries = {
+  insert: () =>
+    getDb().prepare<AgentLogRow, [string, string, string | null, string | null, string | null, string | null, string | null]>(
+      `INSERT INTO agent_log (id, eventType, agentId, taskId, oldValue, newValue, metadata, createdAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) RETURNING *`,
+    ),
+
+  getByAgentId: () =>
+    getDb().prepare<AgentLogRow, [string]>(
+      "SELECT * FROM agent_log WHERE agentId = ? ORDER BY createdAt DESC",
+    ),
+
+  getByTaskId: () =>
+    getDb().prepare<AgentLogRow, [string]>(
+      "SELECT * FROM agent_log WHERE taskId = ? ORDER BY createdAt DESC",
+    ),
+
+  getByEventType: () =>
+    getDb().prepare<AgentLogRow, [string]>(
+      "SELECT * FROM agent_log WHERE eventType = ? ORDER BY createdAt DESC",
+    ),
+
+  getAll: () =>
+    getDb().prepare<AgentLogRow, []>(
+      "SELECT * FROM agent_log ORDER BY createdAt DESC",
+    ),
+};
+
+export function createLogEntry(entry: {
+  eventType: AgentLogEventType;
+  agentId?: string;
+  taskId?: string;
+  oldValue?: string;
+  newValue?: string;
+  metadata?: Record<string, unknown>;
+}): AgentLog {
+  const id = crypto.randomUUID();
+  const row = logQueries.insert().get(
+    id,
+    entry.eventType,
+    entry.agentId ?? null,
+    entry.taskId ?? null,
+    entry.oldValue ?? null,
+    entry.newValue ?? null,
+    entry.metadata ? JSON.stringify(entry.metadata) : null,
+  );
+  if (!row) throw new Error("Failed to create log entry");
+  return rowToAgentLog(row);
+}
+
+export function getLogsByAgentId(agentId: string): AgentLog[] {
+  return logQueries.getByAgentId().all(agentId).map(rowToAgentLog);
+}
+
+export function getLogsByTaskId(taskId: string): AgentLog[] {
+  return logQueries.getByTaskId().all(taskId).map(rowToAgentLog);
+}
+
+export function getAllLogs(limit?: number): AgentLog[] {
+  if (limit) {
+    return getDb()
+      .prepare<AgentLogRow, [number]>("SELECT * FROM agent_log ORDER BY createdAt DESC LIMIT ?")
+      .all(limit)
+      .map(rowToAgentLog);
+  }
+  return logQueries.getAll().all().map(rowToAgentLog);
 }

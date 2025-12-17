@@ -1,0 +1,16 @@
+[Unit]
+Description=Agent Swarm MCP Server
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/agent-swarm
+ExecStart=/usr/local/bin/bun run start:http
+Restart=always
+RestartSec=5
+EnvironmentFile=/opt/agent-swarm/.env
+
+[Install]
+WantedBy=multi-user.target

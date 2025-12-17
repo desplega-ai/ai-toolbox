@@ -8,7 +8,8 @@ import {
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { createServer } from "@/server";
-import { closeDb } from "./be/db";
+import { closeDb, getAgentById, getDb, updateAgentStatus } from "./be/db";
+import type { AgentStatus } from "./types";
 
 const port = parseInt(process.env.PORT || process.argv[2] || "3013", 10);
 const apiKey = process.env.API_KEY || "";
@@ -45,6 +46,13 @@ const httpServer = createHttpServer(async (req, res) => {
     return;
   }
 
+  const sessionId = req.headers["mcp-session-id"] as string | undefined;
+  const myAgentId = req.headers["x-agent-id"] as string | undefined;
+
+  console.log(
+    `[HTTP] ${req.method} ${req.url} (sessionId=${sessionId || ""}, agentId=${myAgentId || ""})`,
+  );
+
   if (req.url === "/health") {
     // Read version from package.json
     const version = (await Bun.file("package.json").json()).version;
@@ -60,16 +68,11 @@ const httpServer = createHttpServer(async (req, res) => {
     return;
   }
 
-  if (req.url !== "/mcp") {
-    res.writeHead(404);
-    res.end("Not Found");
-    return;
-  }
-
-  // API key authentication for /mcp endpoint (if API_KEY is configured)
+  // API key authentication (if API_KEY is configured)
   if (apiKey) {
     const authHeader = req.headers.authorization;
     const providedKey = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
     if (providedKey !== apiKey) {
       res.writeHead(401, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Unauthorized" }));
@@ -77,8 +80,97 @@ const httpServer = createHttpServer(async (req, res) => {
     }
   }
 
-  const sessionId = req.headers["mcp-session-id"] as string | undefined;
-  console.log(`[HTTP] ${req.method} ${req.url} - Session ID: ${sessionId || "N/A"}`);
+  if (req.method === "GET" && req.url === "/me") {
+    if (!myAgentId) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Missing X-Agent-ID header" }));
+      return;
+    }
+
+    const agent = getAgentById(myAgentId);
+
+    if (!agent) {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Agent not found" }));
+      return;
+    }
+
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(agent));
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/ping") {
+    if (!myAgentId) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Missing X-Agent-ID header" }));
+      return;
+    }
+
+    const tx = getDb().transaction(() => {
+      const agent = getAgentById(myAgentId);
+
+      if (!agent) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Agent not found" }));
+        return false;
+      }
+
+      let status: AgentStatus = "idle";
+
+      if (agent.status === "busy") {
+        status = "busy";
+      }
+
+      updateAgentStatus(agent.id, status);
+
+      return true;
+    });
+
+    if (!tx()) {
+      return;
+    }
+
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/close") {
+    if (!myAgentId) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Missing X-Agent-ID header" }));
+      return;
+    }
+
+    const tx = getDb().transaction(() => {
+      const agent = getAgentById(myAgentId);
+
+      if (!agent) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Agent not found" }));
+        return false;
+      }
+
+      updateAgentStatus(agent.id, "offline");
+
+      return true;
+    });
+
+    if (!tx()) {
+      return;
+    }
+
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  if (req.url !== "/mcp") {
+    res.writeHead(404);
+    res.end("Not Found");
+    return;
+  }
 
   if (req.method === "POST") {
     const chunks: Buffer[] = [];

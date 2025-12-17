@@ -1,52 +1,140 @@
-# Coding Agent Orchestrator MCP
+# Agent Swarm MCP
 
-> ...
+> Agent orchestration layer MCP for Claude Code, Codex, Gemini CLI, and more!
 
 ## Overview
 
-...
+Agent Swarm MCP enables multi-agent coordination for AI coding assistants. It provides tools for agents to join a swarm, receive tasks, report progress, and coordinate with a lead agent.
 
-## MCP installation
+## Quick Start
 
-Standard MCP installation, add to your `.mcp.json`:
+### Setup (Recommended)
+
+Run the setup command in your project directory:
+
+```bash
+bunx @desplega.ai/agent-swarm@latest setup
+```
+
+This will:
+- Create `.claude` directory and `settings.local.json` if needed
+- Create `.mcp.json` if needed
+- Add entries to `.gitignore`
+- Configure permissions and hooks
+- Prompt for your API token and Agent ID
+
+Options:
+- `--dry-run` - Preview changes without writing
+- `--restore` - Restore files from `.bak` backups
+
+### Manual Installation
+
+Add to your `.mcp.json`:
 
 ```json
 {
   "mcpServers": {
-    "cc-orch-mcp": {
-      "command": "bunx",
-      "args": ["@desplega.ai/cc-orch-mcp"]
+    "agent-swarm": {
+      "type": "http",
+      "url": "https://agent-swarm-mcp.desplega.sh/mcp",
+      "headers": {
+        "Authorization": "Bearer <your-token>",
+        "X-Agent-ID": "<your-agent-id>"
+      }
     }
   }
 }
 ```
 
-## Develop 
+## CLI Commands
 
-To install dependencies:
+```bash
+# Run setup wizard
+bunx @desplega.ai/agent-swarm setup
+
+# Preview setup changes
+bunx @desplega.ai/agent-swarm setup --dry-run
+
+# Restore from backups
+bunx @desplega.ai/agent-swarm setup --restore
+
+# Start MCP HTTP server (for self-hosting)
+bunx @desplega.ai/agent-swarm mcp
+bunx @desplega.ai/agent-swarm mcp --port 8080 --key my-api-key
+
+# Run Claude CLI with swarm integration
+bunx @desplega.ai/agent-swarm claude
+bunx @desplega.ai/agent-swarm claude --headless -m "Hello"
+
+# Hook handler (called by Claude Code hooks)
+bunx @desplega.ai/agent-swarm hook
+
+# Show help
+bunx @desplega.ai/agent-swarm help
+```
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MCP_BASE_URL` | Base URL for the MCP server | `https://agent-swarm-mcp.desplega.sh` |
+| `PORT` | Port for self-hosted MCP server | `3013` |
+| `API_KEY` | API key for server authentication | - |
+
+## Development
+
+Install dependencies:
 
 ```bash
 bun install
 ```
 
-To run the STDIO server:
+Run the STDIO server:
 
 ```bash
 bun run start
 ```
 
-to run the HTTP server:
+Run the HTTP server:
 
 ```bash
 bun run start:http
 ```
 
-and to run the inspector (connected to the HTTP server):
+Run with hot reload:
 
 ```bash
-bun run inspect
+bun run dev      # STDIO
+bun run dev:http # HTTP
 ```
 
+Run the MCP inspector:
+
+```bash
+bun run inspector      # STDIO
+bun run inspector:http # HTTP
+```
+
+Run the CLI locally:
+
+```bash
+bun run cli setup
+bun run cli setup --dry-run
+bun run hook  # Hook handler
+```
+
+## MCP Tools
+
+The server provides these tools for agent coordination:
+
+- `join-swarm` - Register an agent in the swarm
+- `poll-task` - Poll for assigned tasks (worker agents)
+- `send-task` - Assign a task to an agent (lead agent)
+- `get-swarm` - List all agents in the swarm
+- `get-tasks` - List tasks filtered by status
+- `get-task-details` - Get detailed info about a task
+- `store-progress` - Update task progress or mark complete/failed
+- `my-agent-info` - Get current agent's info
 
 ## License
 

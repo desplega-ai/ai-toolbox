@@ -40,3 +40,27 @@ export type AgentTask = z.infer<typeof AgentTaskSchema>;
 export type AgentStatus = z.infer<typeof AgentStatusSchema>;
 export type Agent = z.infer<typeof AgentSchema>;
 export type AgentWithTasks = z.infer<typeof AgentWithTasksSchema>;
+
+// Agent Log Types
+export const AgentLogEventTypeSchema = z.enum([
+  "agent_joined",
+  "agent_status_change",
+  "agent_left",
+  "task_created",
+  "task_status_change",
+  "task_progress",
+]);
+
+export const AgentLogSchema = z.object({
+  id: z.uuid(),
+  eventType: AgentLogEventTypeSchema,
+  agentId: z.string().optional(),
+  taskId: z.string().optional(),
+  oldValue: z.string().optional(),
+  newValue: z.string().optional(),
+  metadata: z.string().optional(),
+  createdAt: z.iso.datetime(),
+});
+
+export type AgentLogEventType = z.infer<typeof AgentLogEventTypeSchema>;
+export type AgentLog = z.infer<typeof AgentLogSchema>;

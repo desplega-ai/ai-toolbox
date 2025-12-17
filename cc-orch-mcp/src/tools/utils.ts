@@ -40,20 +40,20 @@ export const getRequestInfo = (req: Meta): RequestInfo => {
 // Infer the input type from the schema
 type InferInput<Args extends undefined | ZodRawShapeCompat | AnySchema> =
   Args extends ZodRawShapeCompat
-  ? ShapeOutput<Args>
-  : Args extends AnySchema
-  ? SchemaOutput<Args>
-  : undefined;
+    ? ShapeOutput<Args>
+    : Args extends AnySchema
+      ? SchemaOutput<Args>
+      : undefined;
 
 // Callback type with requestInfo injected as second parameter
 type ToolCallbackWithInfo<Args extends undefined | ZodRawShapeCompat | AnySchema = undefined> =
   Args extends undefined
-  ? (requestInfo: RequestInfo, meta: Meta) => CallToolResult | Promise<CallToolResult>
-  : (
-    args: InferInput<Args>,
-    requestInfo: RequestInfo,
-    meta: Meta,
-  ) => CallToolResult | Promise<CallToolResult>;
+    ? (requestInfo: RequestInfo, meta: Meta) => CallToolResult | Promise<CallToolResult>
+    : (
+        args: InferInput<Args>,
+        requestInfo: RequestInfo,
+        meta: Meta,
+      ) => CallToolResult | Promise<CallToolResult>;
 
 type ToolConfig<
   InputArgs extends undefined | ZodRawShapeCompat | AnySchema,

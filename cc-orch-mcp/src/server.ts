@@ -8,6 +8,8 @@ import { registerMyAgentInfoTool } from "./tools/my-agent-info";
 import { registerPollTaskTool } from "./tools/poll-task";
 import { registerSendTaskTool } from "./tools/send-task";
 import { registerStoreProgressTool } from "./tools/store-progress";
+import pkg from "../package.json";
+
 
 export function createServer() {
   // Initialize database with WAL mode
@@ -15,9 +17,9 @@ export function createServer() {
 
   const server = new McpServer(
     {
-      name: "cc-orch-mcp",
-      version: "1.0.0",
-      description: "Agent Orchestrator MCP Server",
+      name: pkg.name,
+      version: pkg.version,
+      description: pkg.description,
     },
     {
       capabilities: {

@@ -1,14 +1,22 @@
 {
-  "name": "cc-orch-mcp",
-  "version": "1.0.0",
-  "description": "Agent orchestration MCP!",
+  "name": "@desplega.ai/agent-swarm",
+  "version": "1.0.1",
+  "description": "Agent orchestration layer MCP for Claude Code, Codex, Gemini CLI, and more!",
   "module": "src/stdio.ts",
   "type": "module",
   "bin": {
-    "cc-orch-mcp": "./src/stdio.ts"
+    "agent-swarm": "./src/cli.tsx"
+  },
+  "@desplega.ai/agent-swarm": "link:@desplega.ai/agent-swarm",
+  "config": {
+    "name": "agent-swarm"
   },
   "scripts": {
     "tsc:check": "bun tsc --noEmit",
+    "cli": "bun src/cli.tsx",
+    "hook": "bun src/hooks/hook.ts",
+    "claude": "bun src/cli.tsx claude",
+    "claude:headless": "bun src/cli.tsx claude --headless",
     "dev": "bun --hot src/stdio.ts",
     "dev:http": "bun --hot src/http.ts",
     "start": "bun src/stdio.ts",
@@ -27,8 +35,12 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@inkjs/ui": "^2.0.0",
     "@modelcontextprotocol/sdk": "^1.25.1",
+    "@types/react": "^19.2.7",
     "date-fns": "^4.1.0",
+    "ink": "^6.5.1",
+    "react": "^19.2.3",
     "zod": "^4.2.1"
   }
 }
