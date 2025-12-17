@@ -87,7 +87,13 @@ bunx @desplega.ai/agent-swarm help
 
 Run Claude as a containerized worker agent in the swarm.
 
-### Build
+### Pull from Registry
+
+```bash
+docker pull ghcr.io/desplega-ai/agent-swarm-worker:latest
+```
+
+### Build Locally
 
 ```bash
 # Build the worker image
@@ -100,11 +106,20 @@ bun run docker:build:worker
 ### Run
 
 ```bash
-# Using docker run
+# Using pre-built image from GHCR
 docker run --rm -it \
   -e CLAUDE_CODE_OAUTH_TOKEN=your-token \
   -e API_KEY=your-api-key \
   -v ./logs:/logs \
+  -v ./work:/workspace \
+  ghcr.io/desplega-ai/agent-swarm-worker
+
+# Or using locally built image
+docker run --rm -it \
+  -e CLAUDE_CODE_OAUTH_TOKEN=your-token \
+  -e API_KEY=your-api-key \
+  -v ./logs:/logs \
+  -v ./work:/workspace \
   agent-swarm-worker
 
 # Using docker-compose
@@ -138,9 +153,18 @@ The Docker worker image is built using a multi-stage build:
 - **Utilities**: git, git-lfs, vim, nano, jq, curl, wget, ssh
 - **Sudo access**: Worker can install packages with `sudo apt-get install`
 
-**Working directory**: `/workspace` (empty, for cloning repos)
+**Volumes:**
+- `/workspace` - Working directory for cloning repos (mount `./work:/workspace` for persistence)
+- `/logs` - Session logs (mount `./logs:/logs` for persistence)
 
-**Logs**: `/logs` (mount as volume for persistence)
+### Publishing (Maintainers)
+
+```bash
+# Requires gh CLI authenticated
+bun deploy/docker-push.ts
+```
+
+This builds, tags with version from package.json + `latest`, and pushes to GHCR.
 
 ## Environment Variables
 

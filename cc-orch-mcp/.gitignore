@@ -3,7 +3,9 @@
 # Not the one inside cc-plugin/
 !cc-plugin/.mcp.json
 
+# Docker agent bindings
 logs
+work
 
 # dependencies (bun install)
 node_modules

@@ -68,6 +68,7 @@ export const registerPollTaskTool = (server: McpServer) => {
       while (new Date() < maxTime) {
         // Fetch and update in a single transaction to avoid race conditions
         const startedTask = getDb().transaction(() => {
+          // biome-ignore lint/style/noNonNullAssertion: agent existence verified above
           const agentNow = getAgentById(agentId)!;
 
           if (agentNow.status !== "busy") {

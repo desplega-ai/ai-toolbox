@@ -129,6 +129,12 @@ export async function handleHook(): Promise<void> {
     console.log(
       `You are registered as ${agentInfo.isLead ? "lead" : "worker"} agent "${agentInfo.name}" with ID: ${agentInfo.id} (status: ${agentInfo.status}) as of ${new Date().toISOString()}.`,
     );
+
+    if (!agentInfo.isLead && agentInfo.status === "busy") {
+      console.log(
+        `Remember to call store-progress periodically to update the lead agent on your progress as you are currently marked as busy. The comments you leave will be helpful for the lead agent to monitor your work.`,
+      );
+    }
   } else {
     console.log(
       `You are not registered in the agent swarm yet. Use the join-swarm tool to register yourself, then check your status with my-agent-info.

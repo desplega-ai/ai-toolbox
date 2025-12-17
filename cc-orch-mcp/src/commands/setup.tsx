@@ -434,7 +434,7 @@ export function Setup({ dryRun = false, restore = false, yes = false }: SetupPro
       <Box flexDirection="column" padding={1}>
         <Box flexDirection="column" marginBottom={1}>
           {state.logs.map((log, i) => (
-            <Text key={i} dimColor>
+            <Text key={`log-${i}-${log.slice(0, 20)}`} dimColor>
               {log}
             </Text>
           ))}
@@ -457,7 +457,7 @@ export function Setup({ dryRun = false, restore = false, yes = false }: SetupPro
       <Box flexDirection="column" padding={1}>
         <Box flexDirection="column" marginBottom={1}>
           {state.logs.map((log, i) => (
-            <Text key={i} dimColor>
+            <Text key={`log-${i}-${log.slice(0, 20)}`} dimColor>
               {log}
             </Text>
           ))}
@@ -496,7 +496,7 @@ export function Setup({ dryRun = false, restore = false, yes = false }: SetupPro
       <Box flexDirection="column" padding={1}>
         <Box flexDirection="column" marginBottom={1}>
           {state.logs.map((log, i) => (
-            <Text key={i} dimColor>
+            <Text key={`log-${i}-${log.slice(0, 20)}`} dimColor>
               {log}
             </Text>
           ))}
@@ -534,7 +534,7 @@ export function Setup({ dryRun = false, restore = false, yes = false }: SetupPro
       <Box flexDirection="column" padding={1}>
         <Box flexDirection="column" marginBottom={1}>
           {state.logs.map((log, i) => (
-            <Text key={i} dimColor>
+            <Text key={`log-${i}-${log.slice(0, 20)}`} dimColor>
               {log}
             </Text>
           ))}
@@ -565,7 +565,7 @@ export function Setup({ dryRun = false, restore = false, yes = false }: SetupPro
         )}
         <Box flexDirection="column" marginBottom={1}>
           {state.logs.map((log, i) => (
-            <Text key={i} dimColor>
+            <Text key={`log-${i}-${log.slice(0, 20)}`} dimColor>
               {log}
             </Text>
           ))}
