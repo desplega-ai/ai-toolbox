@@ -4,6 +4,7 @@ import { registerGetSwarmTool } from "./tools/get-swarm";
 import { registerGetTaskDetailsTool } from "./tools/get-task-details";
 import { registerGetTasksTool } from "./tools/get-tasks";
 import { registerJoinSwarmTool } from "./tools/join-swarm";
+import { registerMyAgentInfoTool } from "./tools/my-agent-info";
 import { registerPollTaskTool } from "./tools/poll-task";
 import { registerSendTaskTool } from "./tools/send-task";
 import { registerStoreProgressTool } from "./tools/store-progress";
@@ -32,6 +33,7 @@ export function createServer() {
   registerSendTaskTool(server);
   registerGetTaskDetailsTool(server);
   registerStoreProgressTool(server);
+  registerMyAgentInfoTool(server);
 
   return server;
 }

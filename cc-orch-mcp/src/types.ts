@@ -1,6 +1,6 @@
 import * as z from "zod";
 
-export const AgentTaskStatusSchema = z.enum(["in_progress", "completed", "failed"]);
+export const AgentTaskStatusSchema = z.enum(["pending", "in_progress", "completed", "failed"]);
 
 export const AgentTaskSchema = z.object({
   id: z.uuid(),

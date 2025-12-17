@@ -1,10 +1,11 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import * as z from "zod";
 import { createAgent, getAllAgents, getDb } from "@/be/db";
+import { createToolRegistrar } from "@/tools/utils";
 import { AgentSchema } from "@/types";
 
 export const registerJoinSwarmTool = (server: McpServer) => {
-  server.registerTool(
+  createToolRegistrar(server)(
     "join-swarm",
     {
       title: "Join the agent swarm",
@@ -19,8 +20,25 @@ export const registerJoinSwarmTool = (server: McpServer) => {
         agent: AgentSchema.optional(),
       }),
     },
-    async ({ lead, name }, meta) => {
-      await Bun.write(`dump-${Date.now()}.json`, JSON.stringify({ lead, name, meta }, null, 2));
+    async ({ lead, name }, requestInfo, _meta) => {
+      // Check if agent ID is set
+      if (!requestInfo.agentId) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: 'Agent ID not found. The MCP client should define the "X-Agent-ID" header.',
+            },
+          ],
+          structuredContent: {
+            yourAgentId: requestInfo.agentId,
+            success: false,
+            message: 'Agent ID not found. The MCP client should define the "X-Agent-ID" header.',
+          },
+        };
+      }
+
+      const agentId = requestInfo.agentId;
 
       try {
         const agentTx = getDb().transaction(() => {
@@ -41,8 +59,7 @@ export const registerJoinSwarmTool = (server: McpServer) => {
           }
 
           return createAgent({
-            // Re-use session ID as agent ID
-            id: meta.sessionId,
+            id: agentId,
             name,
             isLead: lead,
             status: "idle",
@@ -59,6 +76,7 @@ export const registerJoinSwarmTool = (server: McpServer) => {
             },
           ],
           structuredContent: {
+            yourAgentId: requestInfo.agentId,
             success: true,
             message: `Successfully joined swarm as agent "${agent.name}" (ID: ${agent.id}).`,
             agent,
@@ -73,6 +91,7 @@ export const registerJoinSwarmTool = (server: McpServer) => {
             },
           ],
           structuredContent: {
+            yourAgentId: requestInfo.agentId,
             success: false,
             message: `Failed to join swarm: ${(error as Error).message}`,
           },

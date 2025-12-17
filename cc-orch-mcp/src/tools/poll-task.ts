@@ -1,12 +1,15 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { addMinutes } from "date-fns";
 import * as z from "zod";
+import { getDb, getPendingTaskForAgent, startTask } from "@/be/db";
+import { createToolRegistrar } from "@/tools/utils";
+import { AgentTaskSchema } from "@/types";
 
 const DEFAULT_POLL_INTERVAL_MS = 2000;
 const MAX_POLL_DURATION_MS = 1 * 60 * 1000;
 
 export const registerPollTaskTool = (server: McpServer) => {
-  server.registerTool(
+  createToolRegistrar(server)(
     "poll-task",
     {
       title: "Poll for a task",
@@ -14,34 +17,60 @@ export const registerPollTaskTool = (server: McpServer) => {
         "Tool for an agent to poll for a new task assignment, to be used recursively until a task is assigned.",
       inputSchema: z.object({}),
       outputSchema: z.object({
+        success: z.boolean(),
         message: z.string(),
-        task: z.string().describe("The task assigned to the agent.").optional(),
+        task: AgentTaskSchema.optional(),
         waitedForSeconds: z.number().describe("Seconds waited before receiving the task."),
       }),
     },
-    async (_input, meta) => {
+    async (_input, requestInfo, meta) => {
+      // Check if agent ID is set
+      if (!requestInfo.agentId) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: 'Agent ID not found. The MCP client should define the "X-Agent-ID" header.',
+            },
+          ],
+          structuredContent: {
+            yourAgentId: requestInfo.agentId,
+            success: false,
+            message: 'Agent ID not found. The MCP client should define the "X-Agent-ID" header.',
+            waitedForSeconds: 0,
+          },
+        };
+      }
+
+      const agentId = requestInfo.agentId;
       const now = new Date();
       const maxTime = addMinutes(now, MAX_POLL_DURATION_MS / 60000);
 
-      // Simulate polling for a task
+      // Poll for pending tasks
       while (new Date() < maxTime) {
-        // In a real implementation, check a database or message queue for tasks
-        const hasTask = Math.random() < 0.0001;
+        // Fetch and update in a single transaction to avoid race conditions
+        const startedTask = getDb().transaction(() => {
+          const pendingTask = getPendingTaskForAgent(agentId);
+          if (!pendingTask) return null;
+          return startTask(pendingTask.id);
+        })();
 
-        if (hasTask) {
-          const task = `Task assigned at ${new Date().toISOString()}`;
+        if (startedTask) {
           const waitedFor = Math.round((Date.now() - now.getTime()) / 1000);
 
           return {
-            content: [],
+            content: [
+              {
+                type: "text",
+                text: `Task "${startedTask.id}" assigned and started.`,
+              },
+            ],
             structuredContent: {
-              message: `New task assigned to agent.`,
-              task,
+              yourAgentId: requestInfo.agentId,
+              success: true,
+              message: `Task "${startedTask.id}" assigned and started.`,
+              task: startedTask,
               waitedForSeconds: waitedFor,
-            },
-            _meta: {
-              serverTimestamp: Date.now(),
-              usedSessionId: meta.sessionId,
             },
           };
         }
@@ -62,14 +91,17 @@ export const registerPollTaskTool = (server: McpServer) => {
 
       // If no task was found within the time limit
       return {
-        content: [],
+        content: [
+          {
+            type: "text",
+            text: `No task assigned within the polling duration.`,
+          },
+        ],
         structuredContent: {
+          yourAgentId: requestInfo.agentId,
+          success: false,
           message: `No task assigned within the polling duration, please keep polling until a task is assigned.`,
           waitedForSeconds,
-        },
-        _meta: {
-          serverTimestamp: Date.now(),
-          usedSessionId: meta.sessionId,
         },
       };
     },

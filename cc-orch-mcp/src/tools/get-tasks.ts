@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import * as z from "zod";
 import { getAllTasks } from "@/be/db";
+import { createToolRegistrar } from "@/tools/utils";
 import { AgentTaskStatusSchema } from "@/types";
 
 const TaskSummarySchema = z.object({
@@ -14,7 +15,7 @@ const TaskSummarySchema = z.object({
 });
 
 export const registerGetTasksTool = (server: McpServer) => {
-  server.registerTool(
+  createToolRegistrar(server)(
     "get-tasks",
     {
       title: "Get tasks",
@@ -24,14 +25,30 @@ export const registerGetTasksTool = (server: McpServer) => {
         status: AgentTaskStatusSchema.optional().describe(
           "Filter by task status. Defaults to 'in_progress'.",
         ),
+        mineOnly: z
+          .boolean()
+          .optional()
+          .describe(
+            "If true, only return tasks assigned to your agent. Requires X-Agent-ID header.",
+          ),
       }),
       outputSchema: z.object({
         tasks: z.array(TaskSummarySchema),
       }),
     },
-    async ({ status }) => {
+    async ({ status, mineOnly }, requestInfo, _meta) => {
       const filterStatus = status ?? "in_progress";
-      const tasks = getAllTasks(filterStatus);
+      let tasks = getAllTasks(filterStatus);
+
+      // Filter to only tasks assigned to this agent if mineOnly is true
+      if (mineOnly) {
+        if (!requestInfo.agentId) {
+          // No agent ID set, return empty list
+          tasks = [];
+        } else {
+          tasks = tasks.filter((t) => t.agentId === requestInfo.agentId);
+        }
+      }
 
       const taskSummaries = tasks.map((t) => ({
         id: t.id,
@@ -43,14 +60,16 @@ export const registerGetTasksTool = (server: McpServer) => {
         progress: t.progress,
       }));
 
+      const mineOnlyMsg = mineOnly ? " (mine only)" : "";
       return {
         content: [
           {
             type: "text",
-            text: `Found ${taskSummaries.length} task(s) with status '${filterStatus}'.`,
+            text: `Found ${taskSummaries.length} task(s) with status '${filterStatus}'${mineOnlyMsg}.`,
           },
         ],
         structuredContent: {
+          yourAgentId: requestInfo.agentId,
           tasks: taskSummaries,
         },
       };

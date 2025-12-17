@@ -8,10 +8,11 @@ import {
   updateAgentStatus,
   updateTaskProgress,
 } from "@/be/db";
+import { createToolRegistrar } from "@/tools/utils";
 import { AgentTaskSchema } from "@/types";
 
 export const registerStoreProgressTool = (server: McpServer) => {
-  server.registerTool(
+  createToolRegistrar(server)(
     "store-progress",
     {
       title: "Store task progress",
@@ -36,7 +37,7 @@ export const registerStoreProgressTool = (server: McpServer) => {
         task: AgentTaskSchema.optional(),
       }),
     },
-    async ({ taskId, progress, status, output, failureReason }) => {
+    async ({ taskId, progress, status, output, failureReason }, requestInfo, _meta) => {
       const txn = getDb().transaction(() => {
         const existingTask = getTaskById(taskId);
 
@@ -83,7 +84,10 @@ export const registerStoreProgressTool = (server: McpServer) => {
 
       return {
         content: [{ type: "text", text: result.message }],
-        structuredContent: result,
+        structuredContent: {
+          yourAgentId: requestInfo.agentId,
+          ...result,
+        },
       };
     },
   );

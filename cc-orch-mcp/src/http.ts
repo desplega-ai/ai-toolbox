@@ -11,6 +11,7 @@ import { createServer } from "@/server";
 import { closeDb } from "./be/db";
 
 const port = parseInt(process.env.PORT || process.argv[2] || "3013", 10);
+const apiKey = process.env.API_KEY || "";
 
 // Use globalThis to persist state across hot reloads
 const globalState = globalThis as typeof globalThis & {
@@ -65,6 +66,17 @@ const httpServer = createHttpServer(async (req, res) => {
     return;
   }
 
+  // API key authentication for /mcp endpoint (if API_KEY is configured)
+  if (apiKey) {
+    const authHeader = req.headers.authorization;
+    const providedKey = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    if (providedKey !== apiKey) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Unauthorized" }));
+      return;
+    }
+  }
+
   const sessionId = req.headers["mcp-session-id"] as string | undefined;
   console.log(`[HTTP] ${req.method} ${req.url} - Session ID: ${sessionId || "N/A"}`);
 
@@ -108,15 +120,6 @@ const httpServer = createHttpServer(async (req, res) => {
         }),
       );
       return;
-    }
-
-    // Check if the URL has a `ccId` query parameter, and if so add
-    // it to the request headers
-    const url = new URL(req.url || "", `http://${req.headers.host}`);
-    const ccId = url.searchParams.get("ccId");
-
-    if (ccId) {
-      req.headers["mcp-cc-id"] = ccId;
     }
 
     await transport.handleRequest(req, res, body);

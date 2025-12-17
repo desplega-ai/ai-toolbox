@@ -26,7 +26,7 @@ export function initDb(dbPath = "./cc-orch.sqlite"): Database {
       id TEXT PRIMARY KEY,
       agentId TEXT NOT NULL,
       task TEXT NOT NULL,
-      status TEXT NOT NULL CHECK(status IN ('in_progress', 'completed', 'failed')),
+      status TEXT NOT NULL CHECK(status IN ('pending', 'in_progress', 'completed', 'failed')),
       createdAt TEXT NOT NULL,
       lastUpdatedAt TEXT NOT NULL,
       finishedAt TEXT,
@@ -204,9 +204,28 @@ export const taskQueries = {
 
 export function createTask(agentId: string, task: string): AgentTask {
   const id = crypto.randomUUID();
-  const row = taskQueries.insert().get(id, agentId, task, "in_progress");
+  const row = taskQueries.insert().get(id, agentId, task, "pending");
   if (!row) throw new Error("Failed to create task");
   return rowToAgentTask(row);
+}
+
+export function getPendingTaskForAgent(agentId: string): AgentTask | null {
+  const row = getDb()
+    .prepare<AgentTaskRow, [string]>(
+      "SELECT * FROM agent_tasks WHERE agentId = ? AND status = 'pending' ORDER BY createdAt ASC LIMIT 1",
+    )
+    .get(agentId);
+  return row ? rowToAgentTask(row) : null;
+}
+
+export function startTask(taskId: string): AgentTask | null {
+  const row = getDb()
+    .prepare<AgentTaskRow, [string]>(
+      `UPDATE agent_tasks SET status = 'in_progress', lastUpdatedAt = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+       WHERE id = ? RETURNING *`,
+    )
+    .get(taskId);
+  return row ? rowToAgentTask(row) : null;
 }
 
 export function getTaskById(id: string): AgentTask | null {

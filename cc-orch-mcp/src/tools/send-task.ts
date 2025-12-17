@@ -1,10 +1,11 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import * as z from "zod";
 import { createTask, getAgentById, getDb, updateAgentStatus } from "@/be/db";
+import { createToolRegistrar } from "@/tools/utils";
 import { AgentTaskSchema } from "@/types";
 
 export const registerSendTaskTool = (server: McpServer) => {
-  server.registerTool(
+  createToolRegistrar(server)(
     "send-task",
     {
       title: "Send a task",
@@ -19,7 +20,7 @@ export const registerSendTaskTool = (server: McpServer) => {
         task: AgentTaskSchema.optional(),
       }),
     },
-    async ({ agentId, task }) => {
+    async ({ agentId, task }, requestInfo, _meta) => {
       const txn = getDb().transaction(() => {
         const agent = getAgentById(agentId);
 
@@ -51,7 +52,10 @@ export const registerSendTaskTool = (server: McpServer) => {
 
       return {
         content: [{ type: "text", text: result.message }],
-        structuredContent: result,
+        structuredContent: {
+          yourAgentId: requestInfo.agentId,
+          ...result,
+        },
       };
     },
   );
