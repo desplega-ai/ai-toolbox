@@ -7,6 +7,10 @@ const SERVICE_FILE = "/etc/systemd/system/agent-swarm.service";
 const SCRIPT_DIR = import.meta.dir;
 const PROJECT_DIR = `${SCRIPT_DIR}/..`;
 
+// Detect bun path
+const bunPath = (await $`which bun`.text()).trim();
+console.log(`Using bun at: ${bunPath}`);
+
 // Copy project files
 await $`mkdir -p ${APP_DIR}`;
 await $`cp -r ${PROJECT_DIR}/src ${APP_DIR}/`;
@@ -27,9 +31,28 @@ API_KEY=
 // Set ownership
 await $`chown -R www-data:www-data ${APP_DIR}`;
 
-// Install systemd service
-await $`cp ${SCRIPT_DIR}/agent-swarm.service ${SERVICE_FILE}`;
+// Install systemd service with detected bun path
+const serviceContent = `[Unit]
+Description=Agent Swarm MCP Server
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=${APP_DIR}
+ExecStart=${bunPath} run start:http
+Restart=always
+RestartSec=5
+EnvironmentFile=${APP_DIR}/.env
+
+[Install]
+WantedBy=multi-user.target
+`;
+
+await Bun.write(SERVICE_FILE, serviceContent);
 await $`systemctl daemon-reload`;
 await $`systemctl enable agent-swarm`;
+await $`systemctl restart agent-swarm`;
 
-console.log("Installed. Edit /opt/agent-swarm/.env then run: systemctl start agent-swarm");
+console.log("Installed and running. Edit /opt/agent-swarm/.env and restart if needed.");
