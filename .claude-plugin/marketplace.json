@@ -12,6 +12,11 @@
             "name": "base",
             "source": "./cc-plugin/base",
             "description": "Plugin for effective agentic development"
+        },
+        {
+            "name": "agent-swarm",
+            "source": "./cc-orch-mcp/cc-plugin",
+            "description": "Plugin for orchestrating multiple AI agents in a swarm, because why not?"
         }
     ]
 }

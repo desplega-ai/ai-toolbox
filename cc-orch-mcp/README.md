@@ -46,6 +46,16 @@ Add to your `.mcp.json`:
 }
 ```
 
+or for Claude Code, use:
+
+```bash
+claude mcp add --transport http agent-swarm https://agent-swarm-mcp.desplega.sh/mcp --header "Authorization: Bearer <your-token>" --header "X-Agent-ID: <your-agent-id>"
+```
+
+Note: By default it will be installed locally (in ~/.claude.json) so add a `--scope project` to install in the current project's `.mcp.json` (recommended for better control).
+
+For other tools, you can check this [generator page with most of commands](https://v0-mcp-commands.vercel.app/?type=http&name=agent-swarm&url=https%3A%2F%2Fagent-swarm-mcp.desplega.sh%2Fmcp&headers=Authorization%3DBearer+%3Ctoken%3E%2CX-Agent-ID%3D%3Cagent_uuid%3E).
+
 ## CLI Commands
 
 ```bash
