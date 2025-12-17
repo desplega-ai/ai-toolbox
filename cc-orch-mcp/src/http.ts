@@ -25,6 +25,19 @@ const httpServer = createHttpServer(async (req, res) => {
     return;
   }
 
+  if (req.url === "/health") {
+    // Read version from package.json
+    const version = (await Bun.file("package.json").json()).version;
+
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      status: "ok",
+      version,
+    }));
+
+    return;
+  }
+
   if (req.url !== "/mcp") {
     res.writeHead(404);
     res.end("Not Found");
@@ -32,6 +45,7 @@ const httpServer = createHttpServer(async (req, res) => {
   }
 
   const sessionId = req.headers["mcp-session-id"] as string | undefined;
+  console.log(`[HTTP] ${req.method} ${req.url} - Session ID: ${sessionId || "N/A"}`);
 
   if (req.method === "POST") {
     const chunks: Buffer[] = [];
@@ -75,6 +89,15 @@ const httpServer = createHttpServer(async (req, res) => {
       return;
     }
 
+    // Check if the URL has a `ccId` query parameter, and if so add
+    // it to the request headers
+    const url = new URL(req.url || "", `http://${req.headers.host}`);
+    const ccId = url.searchParams.get("ccId");
+
+    if (ccId) {
+      req.headers["mcp-cc-id"] = ccId;
+    }
+
     await transport.handleRequest(req, res, body);
     return;
   }
@@ -91,12 +114,6 @@ const httpServer = createHttpServer(async (req, res) => {
 
   res.writeHead(405);
   res.end("Method not allowed");
-});
-
-// Graceful shutdown on SIGINT
-process.on("SIGINT", () => {
-  httpServer.close();
-  console.log("Received SIGINT, shutting down...");
 });
 
 httpServer
