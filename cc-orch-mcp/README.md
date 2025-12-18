@@ -143,6 +143,54 @@ bun run docker:run:worker
 | `MCP_BASE_URL` | No | MCP server URL (default: `http://host.docker.internal:3013`) |
 | `SESSION_ID` | No | Log folder name (auto-generated if not provided) |
 | `WORKER_YOLO` | No | Continue on errors (default: `false`) |
+| `STARTUP_SCRIPT_STRICT` | No | Exit on startup script failure (default: `true`) |
+
+### Startup Scripts
+
+Run custom initialization before the worker starts. Place a script at `/workspace/start-up.*` and it will execute automatically on container start.
+
+**Supported formats** (priority order):
+- `start-up.sh` / `start-up.bash` - Bash scripts
+- `start-up.js` - Node.js scripts
+- `start-up.ts` / `start-up.bun` - Bun/TypeScript scripts
+
+**Interpreter detection:**
+1. Shebang line (e.g., `#!/usr/bin/env bun`) - uses specified interpreter
+2. File extension - infers interpreter (`.ts` → bun, `.js` → node, `.sh` → bash)
+
+**Error handling:**
+- `STARTUP_SCRIPT_STRICT=true` (default) - Container exits if script fails
+- `STARTUP_SCRIPT_STRICT=false` - Logs warning and continues
+
+**Example: Install dependencies**
+```bash
+#!/bin/bash
+# /workspace/start-up.sh
+
+echo "Installing dependencies..."
+if [ -f "package.json" ]; then
+    bun install
+fi
+
+# Install additional tools
+sudo apt-get update -qq
+sudo apt-get install -y -qq ripgrep
+```
+
+**Example: TypeScript setup**
+```typescript
+#!/usr/bin/env bun
+// /workspace/start-up.ts
+
+console.log("Running startup...");
+await Bun.$`bun install`;
+
+// Verify environment
+if (!process.env.API_KEY) {
+  console.error("ERROR: API_KEY not set");
+  process.exit(1);
+}
+```
 
 ### Architecture
 

@@ -114,9 +114,16 @@ WORKDIR /workspace
 VOLUME ["/logs"]
 
 # Environment
+ENV AGENT_ROLE=worker
 ENV WORKER_YOLO=false
 ENV MCP_BASE_URL=http://host.docker.internal:3013
 ENV WORKER_LOG_DIR=/logs
+ENV LEAD_LOG_DIR=/logs
+ENV WORKER_SYSTEM_PROMPT=""
+ENV WORKER_SYSTEM_PROMPT_FILE=""
+ENV LEAD_SYSTEM_PROMPT=""
+ENV LEAD_SYSTEM_PROMPT_FILE=""
+ENV STARTUP_SCRIPT_STRICT=true
 ENV PATH="/home/worker/.local/bin:/home/worker/.bun/bin:$PATH"
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

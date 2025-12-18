@@ -19,7 +19,11 @@ const queryClient = new QueryClient({
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <CssVarsProvider theme={theme} defaultMode="dark">
+      <CssVarsProvider
+        theme={theme}
+        defaultMode="dark"
+        modeStorageKey="agent-swarm-mode"
+      >
         <CssBaseline />
         <App />
       </CssVarsProvider>

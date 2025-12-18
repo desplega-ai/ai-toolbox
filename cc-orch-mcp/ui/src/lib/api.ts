@@ -44,8 +44,13 @@ class ApiClient {
     return res.json();
   }
 
-  async fetchTasks(status?: string): Promise<TasksResponse> {
-    const url = `${this.getBaseUrl()}/api/tasks${status ? `?status=${status}` : ""}`;
+  async fetchTasks(filters?: { status?: string; agentId?: string; search?: string }): Promise<TasksResponse> {
+    const params = new URLSearchParams();
+    if (filters?.status) params.set("status", filters.status);
+    if (filters?.agentId) params.set("agentId", filters.agentId);
+    if (filters?.search) params.set("search", filters.search);
+    const queryString = params.toString();
+    const url = `${this.getBaseUrl()}/api/tasks${queryString ? `?${queryString}` : ""}`;
     const res = await fetch(url, { headers: this.getHeaders() });
     if (!res.ok) throw new Error(`Failed to fetch tasks: ${res.status}`);
     return res.json();
@@ -58,8 +63,11 @@ class ApiClient {
     return res.json();
   }
 
-  async fetchLogs(limit = 100): Promise<LogsResponse> {
-    const url = `${this.getBaseUrl()}/api/logs?limit=${limit}`;
+  async fetchLogs(limit = 100, agentId?: string): Promise<LogsResponse> {
+    const params = new URLSearchParams();
+    params.set("limit", String(limit));
+    if (agentId) params.set("agentId", agentId);
+    const url = `${this.getBaseUrl()}/api/logs?${params.toString()}`;
     const res = await fetch(url, { headers: this.getHeaders() });
     if (!res.ok) throw new Error(`Failed to fetch logs: ${res.status}`);
     return res.json();

@@ -38,7 +38,7 @@ export const registerGetTasksTool = (server: McpServer) => {
     },
     async ({ status, mineOnly }, requestInfo, _meta) => {
       const filterStatus = status ?? "in_progress";
-      let tasks = getAllTasks(filterStatus);
+      let tasks = getAllTasks({ status: filterStatus });
 
       // Filter to only tasks assigned to this agent if mineOnly is true
       if (mineOnly) {

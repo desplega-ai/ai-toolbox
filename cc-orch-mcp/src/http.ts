@@ -17,6 +17,7 @@ import {
   getAllLogs,
   getAllTasks,
   getDb,
+  getLogsByAgentId,
   getLogsByTaskId,
   getTaskById,
   updateAgentStatus,
@@ -233,7 +234,7 @@ const httpServer = createHttpServer(async (req, res) => {
     return;
   }
 
-  // GET /api/tasks - List all tasks (optionally filtered by status)
+  // GET /api/tasks - List all tasks (with optional filters: status, agentId, search)
   if (
     req.method === "GET" &&
     pathSegments[0] === "api" &&
@@ -241,7 +242,13 @@ const httpServer = createHttpServer(async (req, res) => {
     !pathSegments[2]
   ) {
     const status = queryParams.get("status") as import("./types").AgentTaskStatus | null;
-    const tasks = getAllTasks(status || undefined);
+    const agentId = queryParams.get("agentId");
+    const search = queryParams.get("search");
+    const tasks = getAllTasks({
+      status: status || undefined,
+      agentId: agentId || undefined,
+      search: search || undefined,
+    });
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ tasks }));
     return;
@@ -269,11 +276,17 @@ const httpServer = createHttpServer(async (req, res) => {
     return;
   }
 
-  // GET /api/logs - List recent logs
+  // GET /api/logs - List recent logs (optionally filtered by agentId)
   if (req.method === "GET" && pathSegments[0] === "api" && pathSegments[1] === "logs") {
     const limitParam = queryParams.get("limit");
     const limit = limitParam ? parseInt(limitParam, 10) : 100;
-    const logs = getAllLogs(limit);
+    const agentId = queryParams.get("agentId");
+    let logs;
+    if (agentId) {
+      logs = getLogsByAgentId(agentId).slice(0, limit);
+    } else {
+      logs = getAllLogs(limit);
+    }
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ logs }));
     return;

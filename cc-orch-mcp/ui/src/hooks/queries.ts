@@ -18,10 +18,16 @@ export function useAgent(id: string) {
   });
 }
 
-export function useTasks(status?: string) {
+export interface TaskFilters {
+  status?: string;
+  agentId?: string;
+  search?: string;
+}
+
+export function useTasks(filters?: TaskFilters) {
   return useQuery({
-    queryKey: ["tasks", status],
-    queryFn: () => api.fetchTasks(status),
+    queryKey: ["tasks", filters],
+    queryFn: () => api.fetchTasks(filters),
     select: (data) => data.tasks,
   });
 }
@@ -34,10 +40,10 @@ export function useTask(id: string) {
   });
 }
 
-export function useLogs(limit = 50) {
+export function useLogs(limit = 50, agentId?: string) {
   return useQuery({
-    queryKey: ["logs", limit],
-    queryFn: () => api.fetchLogs(limit),
+    queryKey: ["logs", limit, agentId],
+    queryFn: () => api.fetchLogs(limit, agentId),
     select: (data) => data.logs,
   });
 }

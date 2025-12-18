@@ -279,12 +279,12 @@ export async function runAgent(config: RunnerConfig, opts: RunnerOptions) {
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] File exists: `ls cc-orch-mcp/src/commands/runner.ts`
-- [ ] TypeScript compiles: `cd cc-orch-mcp && bun run tsc:check`
-- [ ] Linting passes: `cd cc-orch-mcp && bun run lint`
+- [x] File exists: `ls cc-orch-mcp/src/commands/runner.ts`
+- [x] TypeScript compiles: `cd cc-orch-mcp && bun run tsc:check` (src code compiles, pre-existing errors in ui/work dirs)
+- [x] Linting passes: `cd cc-orch-mcp && bun run lint`
 
 #### Manual Verification:
-- [ ] Code review confirms shared logic is properly extracted
+- [x] Code review confirms shared logic is properly extracted
 
 **Implementation Note**: After completing this phase and all automated verification passes, pause here for manual confirmation before proceeding to the next phase.
 
@@ -322,13 +322,13 @@ export async function runWorker(opts: WorkerOptions) {
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] TypeScript compiles: `cd cc-orch-mcp && bun run tsc:check`
-- [ ] Linting passes: `cd cc-orch-mcp && bun run lint`
+- [x] TypeScript compiles: `cd cc-orch-mcp && bun run tsc:check`
+- [x] Linting passes: `cd cc-orch-mcp && bun run lint`
 
 #### Manual Verification:
-- [ ] `bun src/cli.tsx worker` still works as before
-- [ ] Logs show `[worker]` prefix
-- [ ] WORKER_YOLO env var still works
+- [x] `bun src/cli.tsx worker` still works as before
+- [x] Logs show `[worker]` prefix
+- [x] WORKER_YOLO env var still works
 
 **Implementation Note**: After completing this phase and all automated verification passes, pause here for manual confirmation that worker still works before proceeding.
 
@@ -366,12 +366,12 @@ export async function runLead(opts: LeadOptions) {
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] File exists: `ls cc-orch-mcp/src/commands/lead.ts`
-- [ ] TypeScript compiles: `cd cc-orch-mcp && bun run tsc:check`
-- [ ] Linting passes: `cd cc-orch-mcp && bun run lint`
+- [x] File exists: `ls cc-orch-mcp/src/commands/lead.ts`
+- [x] TypeScript compiles: `cd cc-orch-mcp && bun run tsc:check`
+- [x] Linting passes: `cd cc-orch-mcp && bun run lint`
 
 #### Manual Verification:
-- [ ] Code is consistent with worker.ts structure
+- [x] Code is consistent with worker.ts structure
 
 **Implementation Note**: After completing this phase and all automated verification passes, pause here for manual confirmation before proceeding to CLI integration.
 
@@ -483,14 +483,14 @@ function LeadRunner({ prompt, yolo, additionalArgs }: LeadRunnerProps) {
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] TypeScript compiles: `cd cc-orch-mcp && bun run tsc:check`
-- [ ] Linting passes: `cd cc-orch-mcp && bun run lint`
-- [ ] Help shows lead: `cd cc-orch-mcp && bun src/cli.tsx help | grep -q lead`
+- [x] TypeScript compiles: `cd cc-orch-mcp && bun run tsc:check`
+- [x] Linting passes: `cd cc-orch-mcp && bun run lint`
+- [x] Help shows lead: `cd cc-orch-mcp && bun src/cli.tsx help | grep -q lead`
 
 #### Manual Verification:
-- [ ] `bun src/cli.tsx lead` starts with `[lead] Starting lead`
-- [ ] `bun src/cli.tsx worker` still works
-- [ ] Ctrl+C stops cleanly
+- [x] `bun src/cli.tsx lead` starts with `[lead] Starting lead`
+- [x] `bun src/cli.tsx worker` still works
+- [x] Ctrl+C stops cleanly
 
 **Implementation Note**: After completing this phase and all automated verification passes, pause here for manual confirmation before proceeding to package scripts.
 
@@ -515,7 +515,7 @@ Add npm scripts for lead command.
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] JSON valid: `cd cc-orch-mcp && cat package.json | jq .`
+- [x] JSON valid: `cd cc-orch-mcp && cat package.json | jq .`
 - [ ] Script works: `cd cc-orch-mcp && bun run lead 2>&1 | head -3`
 
 #### Manual Verification:
@@ -660,14 +660,14 @@ Note: No separate `docker:build:lead` needed - we reuse the same image!
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] Compose file exists: `ls cc-orch-mcp/docker-compose.lead.yml`
-- [ ] Entrypoint handles role: `grep -q 'AGENT_ROLE' cc-orch-mcp/docker-entrypoint.sh`
-- [ ] Docker build succeeds: `cd cc-orch-mcp && docker build -f Dockerfile.worker -t agent-swarm:test .`
+- [x] Compose file exists: `ls cc-orch-mcp/docker-compose.lead.yml`
+- [x] Entrypoint handles role: `grep -q 'AGENT_ROLE' cc-orch-mcp/docker-entrypoint.sh`
+- [x] Docker build succeeds: `cd cc-orch-mcp && docker build -f Dockerfile.worker -t agent-swarm:test .`
 
 #### Manual Verification:
-- [ ] `docker run ... -e AGENT_ROLE=worker` starts worker
-- [ ] `docker run ... -e AGENT_ROLE=lead` starts lead
-- [ ] Lead joins swarm with `isLead: true`
+- [x] `docker run ... -e AGENT_ROLE=worker` starts worker
+- [x] `docker run ... -e AGENT_ROLE=lead` starts lead
+- [x] Lead joins swarm with `isLead: true`
 
 **Implementation Note**: After completing this phase, the implementation is complete.
 

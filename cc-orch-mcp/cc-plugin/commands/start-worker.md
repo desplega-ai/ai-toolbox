@@ -33,7 +33,7 @@ Here are some examples names that are OK:
 - "Code Monkey"
 - "agent #14"
 
-You get the idea. Be creative, but also clear that you are a worker agent.
+Do not use these exact names, be creative! But you get the idea. Be creative, but also clear that you are a worker agent.
 
 ## Agent Swarm Worker Start
 

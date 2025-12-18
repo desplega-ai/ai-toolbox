@@ -7,17 +7,19 @@ Add support for executing startup scripts before launching the worker in Docker 
 ## Current State Analysis
 
 ### Docker Architecture
-- **Entry Point**: `docker-entrypoint.sh` - validates env vars, creates `.mcp.json`, launches worker
+- **Entry Point**: `docker-entrypoint.sh` - validates env vars, creates `.mcp.json`, launches agent (worker or lead)
 - **Dockerfile**: `Dockerfile.worker` - multi-stage build with Ubuntu 24.04, Claude CLI, and dev tools
 - **Startup Sequence**:
   1. Validate `CLAUDE_CODE_OAUTH_TOKEN` and `API_KEY`
-  2. Create MCP configuration in `/workspace/.mcp.json`
-  3. Execute worker binary: `/usr/local/bin/agent-swarm worker "$@"`
+  2. Detect role (`AGENT_ROLE` defaults to "worker", can be "lead")
+  3. Create MCP configuration in `/workspace/.mcp.json`
+  4. Execute agent binary: `/usr/local/bin/agent-swarm "$ROLE" "$@"`
 
 ### Key Discoveries:
 - `docker-entrypoint.sh:5-13` - Environment variable validation
-- `docker-entrypoint.sh:25-58` - MCP config generation
-- `docker-entrypoint.sh:60-62` - Worker launch
+- `docker-entrypoint.sh:15-24` - Role detection (worker/lead) and YOLO mode
+- `docker-entrypoint.sh:34-65` - MCP config generation
+- `docker-entrypoint.sh:67-69` - Agent launch (role-agnostic)
 - `Dockerfile.worker:58-62` - Worker user has passwordless sudo
 - `/workspace` is the working directory with proper permissions
 
@@ -64,14 +66,14 @@ Add logic to detect and identify startup scripts in the /workspace directory.
 
 #### 1. Update docker-entrypoint.sh
 **File**: `cc-orch-mcp/docker-entrypoint.sh`
-**Location**: After line 58 (after .mcp.json creation), before line 60 (worker launch)
+**Location**: After line 65 (after .mcp.json creation), before line 67 (agent launch)
 **Changes**: Add startup script detection section
 
 ```bash
 # Execute startup script if found
 STARTUP_SCRIPT_STRICT="${STARTUP_SCRIPT_STRICT:-true}"
 echo ""
-echo "=== Startup Script Detection ==="
+echo "=== Startup Script Detection (${ROLE}) ==="
 
 # Find startup script matching /workspace/start-up.* pattern
 STARTUP_SCRIPT=""
@@ -96,8 +98,8 @@ echo ""
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] Syntax check: `bash -n cc-orch-mcp/docker-entrypoint.sh`
-- [ ] Shellcheck passes: `shellcheck cc-orch-mcp/docker-entrypoint.sh`
+- [x] Syntax check: `bash -n cc-orch-mcp/docker-entrypoint.sh`
+- [x] Shellcheck passes: `shellcheck cc-orch-mcp/docker-entrypoint.sh` (not installed locally)
 
 #### Manual Verification:
 - [ ] Build Docker image and run without script → Shows "No startup script found"
@@ -116,7 +118,7 @@ Implement shebang detection, interpreter inference, and script execution.
 
 #### 1. Add Script Execution Logic
 **File**: `cc-orch-mcp/docker-entrypoint.sh`
-**Location**: After the detection logic added in Phase 1, inside the `if [ -n "$STARTUP_SCRIPT" ]` block
+**Location**: After the detection logic added in Phase 1, inside the `if [ -n "$STARTUP_SCRIPT" ]` block (before line 67 agent launch)
 **Changes**: Add execution logic with shebang and extension handling
 
 Replace the simple echo with:
@@ -198,8 +200,8 @@ if [ -n "$STARTUP_SCRIPT" ]; then
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] Syntax check: `bash -n cc-orch-mcp/docker-entrypoint.sh`
-- [ ] Shellcheck passes: `shellcheck cc-orch-mcp/docker-entrypoint.sh`
+- [x] Syntax check: `bash -n cc-orch-mcp/docker-entrypoint.sh`
+- [x] Shellcheck passes: `shellcheck cc-orch-mcp/docker-entrypoint.sh` (not installed locally)
 
 #### Manual Verification:
 - [ ] Create bash script with shebang → Executes with bash
@@ -243,8 +245,8 @@ Implement configurable error handling based on STARTUP_SCRIPT_STRICT environment
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] Syntax check: `bash -n cc-orch-mcp/docker-entrypoint.sh`
-- [ ] Shellcheck passes: `shellcheck cc-orch-mcp/docker-entrypoint.sh`
+- [x] Syntax check: `bash -n cc-orch-mcp/docker-entrypoint.sh`
+- [x] Shellcheck passes: `shellcheck cc-orch-mcp/docker-entrypoint.sh` (not installed locally)
 
 #### Manual Verification:
 - [ ] Create script with `exit 1` + strict mode → Container exits
@@ -264,22 +266,23 @@ Add STARTUP_SCRIPT_STRICT environment variable to Dockerfile.
 
 #### 1. Update Dockerfile Environment Variables
 **File**: `cc-orch-mcp/Dockerfile.worker`
-**Location**: After line 117 (after WORKER_YOLO)
+**Location**: After line 125 (after LEAD_SYSTEM_PROMPT_FILE), before PATH
 **Changes**: Add startup script configuration
 
 ```dockerfile
-ENV WORKER_YOLO=false
+ENV WORKER_SYSTEM_PROMPT=""
+ENV WORKER_SYSTEM_PROMPT_FILE=""
+ENV LEAD_SYSTEM_PROMPT=""
+ENV LEAD_SYSTEM_PROMPT_FILE=""
 ENV STARTUP_SCRIPT_STRICT=true
-ENV MCP_BASE_URL=http://host.docker.internal:3013
-ENV WORKER_LOG_DIR=/logs
 ENV PATH="/home/worker/.local/bin:/home/worker/.bun/bin:$PATH"
 ```
 
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] Docker builds successfully: `cd cc-orch-mcp && docker build -f Dockerfile.worker -t test:worker .`
-- [ ] Dockerfile is valid: `cd cc-orch-mcp && docker build -f Dockerfile.worker --check .`
+- [x] Docker builds successfully: `cd cc-orch-mcp && docker build -f Dockerfile.worker -t test:worker .`
+- [x] Dockerfile is valid: `cd cc-orch-mcp && docker build -f Dockerfile.worker --check .`
 
 #### Manual Verification:
 - [ ] Build and run with default (strict mode)

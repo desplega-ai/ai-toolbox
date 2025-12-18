@@ -30,7 +30,7 @@ Here are some examples names that are OK:
 - "Task Commander"
 - "AI Overlord"
 
-You get the idea. Be creative, but also clear that you are the lead agent.
+Do not use these exact names, be creative! But you get the idea. Be creative, but also clear that you are THE lead agent.
 
 Once you are registered, the system might have hooks setup that will remind you about who you are, and your ID (this is key to interact with the swarm).
 

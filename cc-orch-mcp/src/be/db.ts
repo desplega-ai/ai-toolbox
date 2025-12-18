@@ -131,7 +131,7 @@ export function createAgent(
   if (!row) throw new Error("Failed to create agent");
   try {
     createLogEntry({ eventType: "agent_joined", agentId: id, newValue: agent.status });
-  } catch {}
+  } catch { }
   return rowToAgent(row);
 }
 
@@ -155,7 +155,7 @@ export function updateAgentStatus(id: string, status: AgentStatus): Agent | null
         oldValue: oldAgent.status,
         newValue: status,
       });
-    } catch {}
+    } catch { }
   }
   return row ? rowToAgent(row) : null;
 }
@@ -165,7 +165,7 @@ export function deleteAgent(id: string): boolean {
   if (agent) {
     try {
       createLogEntry({ eventType: "agent_left", agentId: id, oldValue: agent.status });
-    } catch {}
+    } catch { }
   }
   const result = getDb().run("DELETE FROM agents WHERE id = ?", [id]);
   return result.changes > 0;
@@ -252,7 +252,7 @@ export function createTask(agentId: string, task: string): AgentTask {
   if (!row) throw new Error("Failed to create task");
   try {
     createLogEntry({ eventType: "task_created", agentId, taskId: id, newValue: "pending" });
-  } catch {}
+  } catch { }
   return rowToAgentTask(row);
 }
 
@@ -282,7 +282,7 @@ export function startTask(taskId: string): AgentTask | null {
         oldValue: oldTask.status,
         newValue: "in_progress",
       });
-    } catch {}
+    } catch { }
   }
   return row ? rowToAgentTask(row) : null;
 }
@@ -300,18 +300,37 @@ export function getTasksByStatus(status: AgentTaskStatus): AgentTask[] {
   return taskQueries.getByStatus().all(status).map(rowToAgentTask);
 }
 
-export function getAllTasks(status?: AgentTaskStatus): AgentTask[] {
-  if (status) {
-    return getDb()
-      .prepare<AgentTaskRow, [AgentTaskStatus]>(
-        "SELECT * FROM agent_tasks WHERE status = ? ORDER BY lastUpdatedAt DESC",
-      )
-      .all(status)
-      .map(rowToAgentTask);
+export interface TaskFilters {
+  status?: AgentTaskStatus;
+  agentId?: string;
+  search?: string;
+}
+
+export function getAllTasks(filters?: TaskFilters): AgentTask[] {
+  const conditions: string[] = [];
+  const params: (string | AgentTaskStatus)[] = [];
+
+  if (filters?.status) {
+    conditions.push("status = ?");
+    params.push(filters.status);
   }
+
+  if (filters?.agentId) {
+    conditions.push("agentId = ?");
+    params.push(filters.agentId);
+  }
+
+  if (filters?.search) {
+    conditions.push("task LIKE ?");
+    params.push(`%${filters.search}%`);
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  const query = `SELECT * FROM agent_tasks ${whereClause} ORDER BY lastUpdatedAt DESC`;
+
   return getDb()
-    .prepare<AgentTaskRow, []>("SELECT * FROM agent_tasks ORDER BY lastUpdatedAt DESC")
-    .all()
+    .prepare<AgentTaskRow, (string | AgentTaskStatus)[]>(query)
+    .all(...params)
     .map(rowToAgentTask);
 }
 
@@ -334,7 +353,7 @@ export function completeTask(id: string, output?: string): AgentTask | null {
         oldValue: oldTask.status,
         newValue: "completed",
       });
-    } catch {}
+    } catch { }
   }
 
   return row ? rowToAgentTask(row) : null;
@@ -354,7 +373,7 @@ export function failTask(id: string, reason: string): AgentTask | null {
         newValue: "failed",
         metadata: { reason },
       });
-    } catch {}
+    } catch { }
   }
   return row ? rowToAgentTask(row) : null;
 }
@@ -374,7 +393,7 @@ export function updateTaskProgress(id: string, progress: string): AgentTask | nu
         agentId: row.agentId,
         newValue: progress,
       });
-    } catch {}
+    } catch { }
   }
   return row ? rowToAgentTask(row) : null;
 }
@@ -507,7 +526,7 @@ export function getLogsByTaskIdChronological(taskId: string): AgentLog[] {
 export function getAllLogs(limit?: number): AgentLog[] {
   if (limit) {
     return getDb()
-      .prepare<AgentLogRow, [number]>("SELECT * FROM agent_log ORDER BY createdAt DESC LIMIT ?")
+      .prepare<AgentLogRow, [number]>("SELECT * FROM agent_log WHERE eventType != 'agent_status_change' ORDER BY createdAt DESC LIMIT ?")
       .all(limit)
       .map(rowToAgentLog);
   }

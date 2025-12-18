@@ -1,38 +1,50 @@
 # System Prompt Support Implementation Plan
 
+> **Status: IMPLEMENTED** (2025-12-18)
+>
+> **Implementation Note**: This plan was updated to reflect the runner abstraction refactor.
+> The core logic is now in `runner.ts` (shared by both `worker` and `lead` commands) rather
+> than `worker.ts`. Both commands now support system prompts with their own environment variables.
+
 ## Overview
 
 Add support for custom system prompts to be passed to Claude CLI via `--append-system-prompt` flag. This allows users to specialize worker behavior through CLI flags or environment variables.
 
 ## Current State Analysis
 
-### Worker Implementation
-- **Worker Command**: `src/commands/worker.ts` - runs Claude CLI in infinite loop
+### Runner Architecture (Updated)
+- **Runner Module**: `src/commands/runner.ts` - shared logic for running Claude CLI in infinite loop
+- **Worker Command**: `src/commands/worker.ts` - thin wrapper that defines worker config
+- **Lead Command**: `src/commands/lead.ts` - thin wrapper that defines lead config
 - **CLI Parsing**: `src/cli.tsx` - handles argument parsing and component rendering
-- **Claude CLI Invocation**: `worker.ts:16-27` - builds command array: `["claude", "--verbose", "--output-format", "stream-json", ...]`
-- **Current Options**: `-m/--msg` (prompt), `--yolo` (error handling), `--` (passthrough args)
+- **Current Options**: `-m/--msg` (prompt), `--yolo` (error handling), `--system-prompt`, `--system-prompt-file`, `--` (passthrough args)
 
 ### Key Discoveries:
-- `cli.tsx:22-33` - `ParsedArgs` interface defines CLI arguments
-- `cli.tsx:35-76` - `parseArgs()` function handles flag parsing
-- `cli.tsx:366-385` - `WorkerRunner` component passes options to `runWorker()`
-- `worker.ts:3-7` - `WorkerOptions` interface defines worker configuration
+- `runner.ts:3-19` - `RunnerConfig` interface defines role-specific configuration including env var names
+- `runner.ts:21-27` - `RunnerOptions` interface defines runtime options including system prompt
+- `runner.ts:155-237` - `runAgent()` function handles system prompt resolution and the main loop
+- `cli.tsx:23-36` - `ParsedArgs` interface defines CLI arguments
 - Claude CLI supports `--append-system-prompt <text>` flag for custom system prompts
 
 ## Desired End State
 
 After implementation:
 1. Users can pass system prompts via CLI flags: `--system-prompt <text>` or `--system-prompt-file <path>`
-2. Users can set system prompts via environment variables: `WORKER_SYSTEM_PROMPT` or `WORKER_SYSTEM_PROMPT_FILE`
+2. Users can set system prompts via environment variables (role-specific):
+   - Worker: `WORKER_SYSTEM_PROMPT` or `WORKER_SYSTEM_PROMPT_FILE`
+   - Lead: `LEAD_SYSTEM_PROMPT` or `LEAD_SYSTEM_PROMPT_FILE`
 3. CLI flags take precedence over environment variables
 4. System prompt is passed to Claude CLI via `--append-system-prompt` flag
 5. Clear error messages when file doesn't exist or can't be read
+6. Both `worker` and `lead` commands support system prompts
 
 ### Verification:
 - `agent-swarm worker --system-prompt "You are a specialist"` passes prompt to Claude
 - `agent-swarm worker --system-prompt-file /path/to/prompt.txt` reads and passes file content
+- `agent-swarm lead --system-prompt "You are a coordinator"` passes prompt to Claude
 - `WORKER_SYSTEM_PROMPT="text" agent-swarm worker` uses env var
-- File not found errors are clear and worker exits gracefully
+- `LEAD_SYSTEM_PROMPT="text" agent-swarm lead` uses env var
+- File not found errors are clear and worker/lead exits gracefully
 
 ## What We're NOT Doing
 
