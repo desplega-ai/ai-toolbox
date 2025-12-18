@@ -8,7 +8,20 @@ import {
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { createServer } from "@/server";
-import { closeDb, getAgentById, getDb, updateAgentStatus } from "./be/db";
+import {
+  closeDb,
+  getAgentById,
+  getAllAgents,
+  getAllAgentsWithTasks,
+  getAgentWithTasks,
+  getAllTasks,
+  getTaskById,
+  getAllLogs,
+  getLogsByAgentId,
+  getLogsByTaskId,
+  getDb,
+  updateAgentStatus,
+} from "./be/db";
 import type { AgentStatus } from "./types";
 
 const port = parseInt(process.env.PORT || process.argv[2] || "3013", 10);
@@ -34,6 +47,18 @@ function setCorsHeaders(res: ServerResponse) {
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "*");
   res.setHeader("Access-Control-Expose-Headers", "*");
+}
+
+function parseQueryParams(url: string): URLSearchParams {
+  const queryIndex = url.indexOf("?");
+  if (queryIndex === -1) return new URLSearchParams();
+  return new URLSearchParams(url.slice(queryIndex + 1));
+}
+
+function getPathSegments(url: string): string[] {
+  const pathEnd = url.indexOf("?");
+  const path = pathEnd === -1 ? url : url.slice(0, pathEnd);
+  return path.split("/").filter(Boolean);
 }
 
 const httpServer = createHttpServer(async (req, res) => {
@@ -163,6 +188,101 @@ const httpServer = createHttpServer(async (req, res) => {
 
     res.writeHead(204);
     res.end();
+    return;
+  }
+
+  // ============================================================================
+  // REST API Endpoints (for frontend dashboard)
+  // ============================================================================
+
+  const pathSegments = getPathSegments(req.url || "");
+  const queryParams = parseQueryParams(req.url || "");
+
+  // GET /api/agents - List all agents (optionally with tasks)
+  if (req.method === "GET" && pathSegments[0] === "api" && pathSegments[1] === "agents" && !pathSegments[2]) {
+    const includeTasks = queryParams.get("include") === "tasks";
+    const agents = includeTasks ? getAllAgentsWithTasks() : getAllAgents();
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ agents }));
+    return;
+  }
+
+  // GET /api/agents/:id - Get single agent (optionally with tasks)
+  if (req.method === "GET" && pathSegments[0] === "api" && pathSegments[1] === "agents" && pathSegments[2]) {
+    const agentId = pathSegments[2];
+    const includeTasks = queryParams.get("include") === "tasks";
+    const agent = includeTasks ? getAgentWithTasks(agentId) : getAgentById(agentId);
+
+    if (!agent) {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Agent not found" }));
+      return;
+    }
+
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(agent));
+    return;
+  }
+
+  // GET /api/tasks - List all tasks (optionally filtered by status)
+  if (req.method === "GET" && pathSegments[0] === "api" && pathSegments[1] === "tasks" && !pathSegments[2]) {
+    const status = queryParams.get("status") as import("./types").AgentTaskStatus | null;
+    const tasks = getAllTasks(status || undefined);
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ tasks }));
+    return;
+  }
+
+  // GET /api/tasks/:id - Get single task with logs
+  if (req.method === "GET" && pathSegments[0] === "api" && pathSegments[1] === "tasks" && pathSegments[2]) {
+    const taskId = pathSegments[2];
+    const task = getTaskById(taskId);
+
+    if (!task) {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Task not found" }));
+      return;
+    }
+
+    const logs = getLogsByTaskId(taskId);
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ...task, logs }));
+    return;
+  }
+
+  // GET /api/logs - List recent logs
+  if (req.method === "GET" && pathSegments[0] === "api" && pathSegments[1] === "logs") {
+    const limitParam = queryParams.get("limit");
+    const limit = limitParam ? parseInt(limitParam, 10) : 100;
+    const logs = getAllLogs(limit);
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ logs }));
+    return;
+  }
+
+  // GET /api/stats - Dashboard summary stats
+  if (req.method === "GET" && pathSegments[0] === "api" && pathSegments[1] === "stats") {
+    const agents = getAllAgents();
+    const tasks = getAllTasks();
+
+    const stats = {
+      agents: {
+        total: agents.length,
+        idle: agents.filter(a => a.status === "idle").length,
+        busy: agents.filter(a => a.status === "busy").length,
+        offline: agents.filter(a => a.status === "offline").length,
+      },
+      tasks: {
+        total: tasks.length,
+        pending: tasks.filter(t => t.status === "pending").length,
+        in_progress: tasks.filter(t => t.status === "in_progress").length,
+        completed: tasks.filter(t => t.status === "completed").length,
+        failed: tasks.filter(t => t.status === "failed").length,
+      },
+    };
+
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(stats));
     return;
   }
 
