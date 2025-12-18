@@ -1,0 +1,55 @@
+{
+    "display_information": {
+        "name": "Desplegillo",
+        "description": "The desplega.ai Slack bot",
+        "background_color": "#474747"
+    },
+    "features": {
+        "bot_user": {
+            "display_name": "Desplegillo",
+            "always_online": false
+        },
+        "slash_commands": [
+            {
+                "command": "/desplega",
+                "url": "https://api.desplega.ai/slack/commands",
+                "description": "Desplega.ai root command",
+                "should_escape": false
+            }
+        ]
+    },
+    "oauth_config": {
+        "redirect_urls": [
+            "https://api.desplega.ai/oauth/slack/callback"
+        ],
+        "scopes": {
+            "bot": [
+                "app_mentions:read",
+                "chat:write",
+                "chat:write.customize",
+                "chat:write.public",
+                "commands",
+                "incoming-webhook",
+                "im:history",
+                "users:read",
+                "channels:read"
+            ]
+        }
+    },
+    "settings": {
+        "event_subscriptions": {
+            "request_url": "https://api.desplega.ai/slack/events",
+            "bot_events": [
+                "app_mention",
+                "message.im"
+            ]
+        },
+        "interactivity": {
+            "is_enabled": true,
+            "request_url": "https://api.desplega.ai/slack/interactions"
+        },
+        "org_deploy_enabled": false,
+        "socket_mode_enabled": false,
+        "token_rotation_enabled": false
+    }
+}

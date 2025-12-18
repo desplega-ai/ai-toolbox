@@ -87,6 +87,57 @@ bunx @desplega.ai/agent-swarm hook
 bunx @desplega.ai/agent-swarm help
 ```
 
+## System Prompts
+
+Customize Claude's behavior with system prompts for worker and lead agents. System prompts are appended to Claude's instructions using `--append-system-prompt`.
+
+### CLI Usage
+
+```bash
+# Inline system prompt
+bunx @desplega.ai/agent-swarm worker --system-prompt "You are a Python specialist. Focus on writing clean, typed code."
+
+# System prompt from file
+bunx @desplega.ai/agent-swarm worker --system-prompt-file ./prompts/python-specialist.txt
+
+# Same options work for lead agent
+bunx @desplega.ai/agent-swarm lead --system-prompt "You are a project coordinator. Break down tasks efficiently."
+bunx @desplega.ai/agent-swarm lead --system-prompt-file ./prompts/coordinator.txt
+```
+
+### Docker Usage
+
+```bash
+# Using inline system prompt
+docker run --rm -it \
+  -e CLAUDE_CODE_OAUTH_TOKEN=your-token \
+  -e API_KEY=your-api-key \
+  -e WORKER_SYSTEM_PROMPT="You are a Python specialist. Focus on writing clean, typed code." \
+  -v ./work:/workspace \
+  ghcr.io/desplega-ai/agent-swarm-worker
+
+# Using system prompt file (mount and reference)
+docker run --rm -it \
+  -e CLAUDE_CODE_OAUTH_TOKEN=your-token \
+  -e API_KEY=your-api-key \
+  -e WORKER_SYSTEM_PROMPT_FILE=/workspace/prompts/specialist.txt \
+  -v ./work:/workspace \
+  ghcr.io/desplega-ai/agent-swarm-worker
+```
+
+### Environment Variables
+
+| Variable | Role | Description |
+|----------|------|-------------|
+| `WORKER_SYSTEM_PROMPT` | Worker | Custom system prompt text |
+| `WORKER_SYSTEM_PROMPT_FILE` | Worker | Path to system prompt file |
+| `LEAD_SYSTEM_PROMPT` | Lead | Custom system prompt text |
+| `LEAD_SYSTEM_PROMPT_FILE` | Lead | Path to system prompt file |
+
+**Priority:** CLI flags > Environment variables. If both are set, CLI flags take precedence.
+
+**File vs Text:** If both `*_SYSTEM_PROMPT` and `*_SYSTEM_PROMPT_FILE` are set, inline text takes precedence.
+
 ## Docker Worker
 
 Run Claude as a containerized worker agent in the swarm.
@@ -126,6 +177,24 @@ docker run --rm -it \
   -v ./work:/workspace \
   agent-swarm-worker
 
+# With custom system prompt
+docker run --rm -it \
+  -e CLAUDE_CODE_OAUTH_TOKEN=your-token \
+  -e API_KEY=your-api-key \
+  -e WORKER_SYSTEM_PROMPT="You are a Python specialist" \
+  -v ./logs:/logs \
+  -v ./work:/workspace \
+  ghcr.io/desplega-ai/agent-swarm-worker
+
+# With system prompt from file
+docker run --rm -it \
+  -e CLAUDE_CODE_OAUTH_TOKEN=your-token \
+  -e API_KEY=your-api-key \
+  -e WORKER_SYSTEM_PROMPT_FILE=/workspace/prompts/specialist.txt \
+  -v ./logs:/logs \
+  -v ./work:/workspace \
+  ghcr.io/desplega-ai/agent-swarm-worker
+
 # Using docker-compose
 docker-compose -f docker-compose.worker.yml up
 
@@ -143,6 +212,8 @@ bun run docker:run:worker
 | `MCP_BASE_URL` | No | MCP server URL (default: `http://host.docker.internal:3013`) |
 | `SESSION_ID` | No | Log folder name (auto-generated if not provided) |
 | `WORKER_YOLO` | No | Continue on errors (default: `false`) |
+| `WORKER_SYSTEM_PROMPT` | No | Custom system prompt text for worker |
+| `WORKER_SYSTEM_PROMPT_FILE` | No | Path to system prompt file for worker |
 | `STARTUP_SCRIPT_STRICT` | No | Exit on startup script failure (default: `true`) |
 
 ### Startup Scripts
@@ -225,6 +296,10 @@ This builds, tags with version from package.json + `latest`, and pushes to GHCR.
 | `MCP_BASE_URL` | Base URL for the MCP server | `https://agent-swarm-mcp.desplega.sh` |
 | `PORT` | Port for self-hosted MCP server | `3013` |
 | `API_KEY` | API key for server authentication | - |
+| `WORKER_SYSTEM_PROMPT` | Custom system prompt for worker agents | - |
+| `WORKER_SYSTEM_PROMPT_FILE` | Path to system prompt file for worker | - |
+| `LEAD_SYSTEM_PROMPT` | Custom system prompt for lead agents | - |
+| `LEAD_SYSTEM_PROMPT_FILE` | Path to system prompt file for lead | - |
 
 ## Server Deployment
 
