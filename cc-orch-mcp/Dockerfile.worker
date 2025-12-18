@@ -42,6 +42,14 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
+# Install GitHub CLI
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+    && apt-get update \
+    && apt-get install -y gh \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install Bun (for running JS/TS projects)
 RUN curl -fsSL https://bun.sh/install | bash
 ENV BUN_INSTALL="/root/.bun"
@@ -68,6 +76,7 @@ ENV PATH="/home/worker/.local/bin:$PATH"
 
 # Setup .claude directory
 RUN mkdir -p /home/worker/.claude/commands
+RUN mkdir -p /home/worker/.claude/agents
 RUN echo '{"hasCompletedOnboarding":true,"bypassPermissionsModeAccepted":true}' > /home/worker/.claude.json
 
 # Settings with hooks pointing to compiled binary
@@ -92,6 +101,7 @@ RUN chmod +x /usr/local/bin/agent-swarm
 
 # Copy commands
 COPY --chown=worker:worker cc-plugin/commands/* /home/worker/.claude/commands/
+COPY --chown=worker:worker cc-plugin/agents/* /home/worker/.claude/agents/
 
 # Create directories
 RUN mkdir -p /workspace /logs && chown worker:worker /workspace /logs
