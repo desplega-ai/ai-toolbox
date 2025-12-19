@@ -128,9 +128,12 @@ export const theme = extendTheme({
     },
   },
   fontFamily: {
-    body: "'Space Grotesk', sans-serif",
-    display: "'Space Grotesk', sans-serif",
-    code: "'Space Mono', monospace",
+    // body: "'Graduate', sans-serif",
+    // display: "'Graduate', sans-serif",
+    // code: "'Space Mono', monospace",
+    body: "'Courier', sans-serif",
+    display: "'Courier', sans-serif",
+    code: "'Courier', sans-serif",
   },
   components: {
     JoyCard: {

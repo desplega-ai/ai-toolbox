@@ -84,7 +84,20 @@ function parseArgs(args: string[]): ParsedArgs {
     }
   }
 
-  return { command, port, key, msg, headless, dryRun, restore, yes, yolo, systemPrompt, systemPromptFile, additionalArgs };
+  return {
+    command,
+    port,
+    key,
+    msg,
+    headless,
+    dryRun,
+    restore,
+    yes,
+    yolo,
+    systemPrompt,
+    systemPromptFile,
+    additionalArgs,
+  };
 }
 
 function Help() {
@@ -476,7 +489,13 @@ interface WorkerRunnerProps {
   additionalArgs: string[];
 }
 
-function WorkerRunner({ prompt, yolo, systemPrompt, systemPromptFile, additionalArgs }: WorkerRunnerProps) {
+function WorkerRunner({
+  prompt,
+  yolo,
+  systemPrompt,
+  systemPromptFile,
+  additionalArgs,
+}: WorkerRunnerProps) {
   const { exit } = useApp();
 
   useEffect(() => {
@@ -501,7 +520,13 @@ interface LeadRunnerProps {
   additionalArgs: string[];
 }
 
-function LeadRunner({ prompt, yolo, systemPrompt, systemPromptFile, additionalArgs }: LeadRunnerProps) {
+function LeadRunner({
+  prompt,
+  yolo,
+  systemPrompt,
+  systemPromptFile,
+  additionalArgs,
+}: LeadRunnerProps) {
   const { exit } = useApp();
 
   useEffect(() => {
@@ -548,7 +573,20 @@ function Version() {
 }
 
 function App({ args }: { args: ParsedArgs }) {
-  const { command, port, key, msg, headless, dryRun, restore, yes, yolo, systemPrompt, systemPromptFile, additionalArgs } = args;
+  const {
+    command,
+    port,
+    key,
+    msg,
+    headless,
+    dryRun,
+    restore,
+    yes,
+    yolo,
+    systemPrompt,
+    systemPromptFile,
+    additionalArgs,
+  } = args;
 
   switch (command) {
     case "setup":
@@ -558,9 +596,25 @@ function App({ args }: { args: ParsedArgs }) {
     case "claude":
       return <ClaudeRunner msg={msg} headless={headless} additionalArgs={additionalArgs} />;
     case "worker":
-      return <WorkerRunner prompt={msg} yolo={yolo} systemPrompt={systemPrompt} systemPromptFile={systemPromptFile} additionalArgs={additionalArgs} />;
+      return (
+        <WorkerRunner
+          prompt={msg}
+          yolo={yolo}
+          systemPrompt={systemPrompt}
+          systemPromptFile={systemPromptFile}
+          additionalArgs={additionalArgs}
+        />
+      );
     case "lead":
-      return <LeadRunner prompt={msg} yolo={yolo} systemPrompt={systemPrompt} systemPromptFile={systemPromptFile} additionalArgs={additionalArgs} />;
+      return (
+        <LeadRunner
+          prompt={msg}
+          yolo={yolo}
+          systemPrompt={systemPrompt}
+          systemPromptFile={systemPromptFile}
+          additionalArgs={additionalArgs}
+        />
+      );
     case "version":
       return <Version />;
     case "help":

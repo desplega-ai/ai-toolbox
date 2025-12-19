@@ -5,6 +5,7 @@ import type {
   AgentLogEventType,
   AgentStatus,
   AgentTask,
+  AgentTaskSource,
   AgentTaskStatus,
   AgentWithTasks,
 } from "../types";
@@ -35,6 +36,10 @@ export function initDb(dbPath = "./agent-swarm-db.sqlite"): Database {
       agentId TEXT NOT NULL,
       task TEXT NOT NULL,
       status TEXT NOT NULL CHECK(status IN ('pending', 'in_progress', 'completed', 'failed')),
+      source TEXT NOT NULL DEFAULT 'mcp' CHECK(source IN ('mcp', 'slack', 'api')),
+      slackChannelId TEXT,
+      slackThreadTs TEXT,
+      slackUserId TEXT,
       createdAt TEXT NOT NULL,
       lastUpdatedAt TEXT NOT NULL,
       finishedAt TEXT,
@@ -63,6 +68,30 @@ export function initDb(dbPath = "./agent-swarm-db.sqlite"): Database {
     CREATE INDEX IF NOT EXISTS idx_agent_log_eventType ON agent_log(eventType);
     CREATE INDEX IF NOT EXISTS idx_agent_log_createdAt ON agent_log(createdAt);
   `);
+
+  // Migration: Add new columns to existing databases (SQLite doesn't support IF NOT EXISTS for columns)
+  try {
+    db.run(
+      `ALTER TABLE agent_tasks ADD COLUMN source TEXT NOT NULL DEFAULT 'mcp' CHECK(source IN ('mcp', 'slack', 'api'))`,
+    );
+  } catch {
+    /* Column already exists */
+  }
+  try {
+    db.run(`ALTER TABLE agent_tasks ADD COLUMN slackChannelId TEXT`);
+  } catch {
+    /* Column already exists */
+  }
+  try {
+    db.run(`ALTER TABLE agent_tasks ADD COLUMN slackThreadTs TEXT`);
+  } catch {
+    /* Column already exists */
+  }
+  try {
+    db.run(`ALTER TABLE agent_tasks ADD COLUMN slackUserId TEXT`);
+  } catch {
+    /* Column already exists */
+  }
 
   return db;
 }
@@ -131,7 +160,7 @@ export function createAgent(
   if (!row) throw new Error("Failed to create agent");
   try {
     createLogEntry({ eventType: "agent_joined", agentId: id, newValue: agent.status });
-  } catch { }
+  } catch {}
   return rowToAgent(row);
 }
 
@@ -155,7 +184,7 @@ export function updateAgentStatus(id: string, status: AgentStatus): Agent | null
         oldValue: oldAgent.status,
         newValue: status,
       });
-    } catch { }
+    } catch {}
   }
   return row ? rowToAgent(row) : null;
 }
@@ -165,7 +194,7 @@ export function deleteAgent(id: string): boolean {
   if (agent) {
     try {
       createLogEntry({ eventType: "agent_left", agentId: id, oldValue: agent.status });
-    } catch { }
+    } catch {}
   }
   const result = getDb().run("DELETE FROM agents WHERE id = ?", [id]);
   return result.changes > 0;
@@ -180,6 +209,10 @@ type AgentTaskRow = {
   agentId: string;
   task: string;
   status: AgentTaskStatus;
+  source: AgentTaskSource;
+  slackChannelId: string | null;
+  slackThreadTs: string | null;
+  slackUserId: string | null;
   createdAt: string;
   lastUpdatedAt: string;
   finishedAt: string | null;
@@ -194,6 +227,10 @@ function rowToAgentTask(row: AgentTaskRow): AgentTask {
     agentId: row.agentId,
     task: row.task,
     status: row.status,
+    source: row.source,
+    slackChannelId: row.slackChannelId ?? undefined,
+    slackThreadTs: row.slackThreadTs ?? undefined,
+    slackUserId: row.slackUserId ?? undefined,
     createdAt: row.createdAt,
     lastUpdatedAt: row.lastUpdatedAt,
     finishedAt: row.finishedAt ?? undefined,
@@ -205,9 +242,21 @@ function rowToAgentTask(row: AgentTaskRow): AgentTask {
 
 export const taskQueries = {
   insert: () =>
-    getDb().prepare<AgentTaskRow, [string, string, string, AgentTaskStatus]>(
-      `INSERT INTO agent_tasks (id, agentId, task, status, createdAt, lastUpdatedAt)
-       VALUES (?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) RETURNING *`,
+    getDb().prepare<
+      AgentTaskRow,
+      [
+        string,
+        string,
+        string,
+        AgentTaskStatus,
+        AgentTaskSource,
+        string | null,
+        string | null,
+        string | null,
+      ]
+    >(
+      `INSERT INTO agent_tasks (id, agentId, task, status, source, slackChannelId, slackThreadTs, slackUserId, createdAt, lastUpdatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) RETURNING *`,
     ),
 
   getById: () => getDb().prepare<AgentTaskRow, [string]>("SELECT * FROM agent_tasks WHERE id = ?"),
@@ -246,13 +295,40 @@ export const taskQueries = {
   delete: () => getDb().prepare<null, [string]>("DELETE FROM agent_tasks WHERE id = ?"),
 };
 
-export function createTask(agentId: string, task: string): AgentTask {
+export function createTask(
+  agentId: string,
+  task: string,
+  options?: {
+    source?: AgentTaskSource;
+    slackChannelId?: string;
+    slackThreadTs?: string;
+    slackUserId?: string;
+  },
+): AgentTask {
   const id = crypto.randomUUID();
-  const row = taskQueries.insert().get(id, agentId, task, "pending");
+  const source = options?.source ?? "mcp";
+  const row = taskQueries
+    .insert()
+    .get(
+      id,
+      agentId,
+      task,
+      "pending",
+      source,
+      options?.slackChannelId ?? null,
+      options?.slackThreadTs ?? null,
+      options?.slackUserId ?? null,
+    );
   if (!row) throw new Error("Failed to create task");
   try {
-    createLogEntry({ eventType: "task_created", agentId, taskId: id, newValue: "pending" });
-  } catch { }
+    createLogEntry({
+      eventType: "task_created",
+      agentId,
+      taskId: id,
+      newValue: "pending",
+      metadata: { source },
+    });
+  } catch {}
   return rowToAgentTask(row);
 }
 
@@ -282,7 +358,7 @@ export function startTask(taskId: string): AgentTask | null {
         oldValue: oldTask.status,
         newValue: "in_progress",
       });
-    } catch { }
+    } catch {}
   }
   return row ? rowToAgentTask(row) : null;
 }
@@ -334,6 +410,32 @@ export function getAllTasks(filters?: TaskFilters): AgentTask[] {
     .map(rowToAgentTask);
 }
 
+export function getCompletedSlackTasks(): AgentTask[] {
+  return getDb()
+    .prepare<AgentTaskRow, []>(
+      `SELECT * FROM agent_tasks
+       WHERE source = 'slack'
+       AND slackChannelId IS NOT NULL
+       AND status IN ('completed', 'failed')
+       ORDER BY lastUpdatedAt DESC`,
+    )
+    .all()
+    .map(rowToAgentTask);
+}
+
+export function getInProgressSlackTasks(): AgentTask[] {
+  return getDb()
+    .prepare<AgentTaskRow, []>(
+      `SELECT * FROM agent_tasks
+       WHERE source = 'slack'
+       AND slackChannelId IS NOT NULL
+       AND status = 'in_progress'
+       ORDER BY lastUpdatedAt DESC`,
+    )
+    .all()
+    .map(rowToAgentTask);
+}
+
 export function completeTask(id: string, output?: string): AgentTask | null {
   const oldTask = getTaskById(id);
   const finishedAt = new Date().toISOString();
@@ -353,7 +455,7 @@ export function completeTask(id: string, output?: string): AgentTask | null {
         oldValue: oldTask.status,
         newValue: "completed",
       });
-    } catch { }
+    } catch {}
   }
 
   return row ? rowToAgentTask(row) : null;
@@ -373,7 +475,7 @@ export function failTask(id: string, reason: string): AgentTask | null {
         newValue: "failed",
         metadata: { reason },
       });
-    } catch { }
+    } catch {}
   }
   return row ? rowToAgentTask(row) : null;
 }
@@ -393,7 +495,7 @@ export function updateTaskProgress(id: string, progress: string): AgentTask | nu
         agentId: row.agentId,
         newValue: progress,
       });
-    } catch { }
+    } catch {}
   }
   return row ? rowToAgentTask(row) : null;
 }
@@ -526,7 +628,9 @@ export function getLogsByTaskIdChronological(taskId: string): AgentLog[] {
 export function getAllLogs(limit?: number): AgentLog[] {
   if (limit) {
     return getDb()
-      .prepare<AgentLogRow, [number]>("SELECT * FROM agent_log WHERE eventType != 'agent_status_change' ORDER BY createdAt DESC LIMIT ?")
+      .prepare<AgentLogRow, [number]>(
+        "SELECT * FROM agent_log WHERE eventType != 'agent_status_change' ORDER BY createdAt DESC LIMIT ?",
+      )
       .all(limit)
       .map(rowToAgentLog);
   }

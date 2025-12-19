@@ -22,7 +22,8 @@ import {
   getTaskById,
   updateAgentStatus,
 } from "./be/db";
-import type { AgentStatus } from "./types";
+import { startSlackApp, stopSlackApp } from "./slack";
+import type { AgentLog, AgentStatus } from "./types";
 
 const port = parseInt(process.env.PORT || process.argv[2] || "3013", 10);
 const apiKey = process.env.API_KEY || "";
@@ -281,7 +282,7 @@ const httpServer = createHttpServer(async (req, res) => {
     const limitParam = queryParams.get("limit");
     const limit = limitParam ? parseInt(limitParam, 10) : 100;
     const agentId = queryParams.get("agentId");
-    let logs;
+    let logs: AgentLog[] = [];
     if (agentId) {
       logs = getLogsByAgentId(agentId).slice(0, limit);
     } else {
@@ -388,8 +389,11 @@ const httpServer = createHttpServer(async (req, res) => {
 globalState.__httpServer = httpServer;
 globalState.__transports = transports;
 
-function shutdown() {
+async function shutdown() {
   console.log("Shutting down HTTP server...");
+
+  // Stop Slack bot
+  await stopSlackApp();
 
   // Close all active transports (SSE connections, etc.)
   for (const [id, transport] of Object.entries(transports)) {
@@ -414,8 +418,11 @@ if (!globalState.__sigintRegistered) {
 }
 
 httpServer
-  .listen(port, () => {
+  .listen(port, async () => {
     console.log(`MCP HTTP server running on http://localhost:${port}/mcp`);
+
+    // Start Slack bot (if configured)
+    await startSlackApp();
   })
   .on("error", (err) => {
     console.error("HTTP Server Error:", err);

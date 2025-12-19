@@ -3,6 +3,7 @@ import Typography from "@mui/joy/Typography";
 import IconButton from "@mui/joy/IconButton";
 import { useColorScheme } from "@mui/joy/styles";
 import { useHealth } from "../hooks/queries";
+import Stack from "@mui/joy/Stack";
 
 interface HeaderProps {
   onSettingsClick: () => void;
@@ -65,13 +66,17 @@ export default function Header({ onSettingsClick }: HeaderProps) {
           fontFamily: "display",
           fontWeight: 700,
           fontSize: "1.5rem",
+          // background: isDark
+          //   ? "linear-gradient(135deg, #F5A623 0%, #FFB84D 50%, #C67C00 100%)"
+          //   : "linear-gradient(135deg, #9A5F00 0%, #B87300 50%, #6E4400 100%)",
           background: isDark
-            ? "linear-gradient(135deg, #F5A623 0%, #FFB84D 50%, #C67C00 100%)"
-            : "linear-gradient(135deg, #9A5F00 0%, #B87300 50%, #6E4400 100%)",
+            ? "#F5A623"
+            : "#9A5F00",
           backgroundClip: "text",
           WebkitBackgroundClip: "text",
           WebkitTextFillColor: "transparent",
           textShadow: isDark ? "0 0 30px rgba(245, 166, 35, 0.3)" : "none",
+          letterSpacing: "0.15em",
         }}
       >
         AGENT SWARM

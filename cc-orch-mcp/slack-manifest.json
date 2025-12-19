@@ -19,6 +19,11 @@
                 "command": "/agent-swarm-status",
                 "description": "Check status of available agents",
                 "should_escape": false
+            },
+            {
+                "command": "/agent-swarm-help",
+                "description": "Show help for using the Agent Swarm bot",
+                "should_escape": false
             }
         ]
     },

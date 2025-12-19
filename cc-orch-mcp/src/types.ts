@@ -1,12 +1,15 @@
 import * as z from "zod";
 
 export const AgentTaskStatusSchema = z.enum(["pending", "in_progress", "completed", "failed"]);
+export const AgentTaskSourceSchema = z.enum(["mcp", "slack", "api"]);
+export type AgentTaskSource = z.infer<typeof AgentTaskSourceSchema>;
 
 export const AgentTaskSchema = z.object({
   id: z.uuid(),
   agentId: z.uuid(),
   task: z.string().min(1),
   status: AgentTaskStatusSchema,
+  source: AgentTaskSourceSchema.default("mcp"),
 
   createdAt: z.iso.datetime().default(() => new Date().toISOString()),
   lastUpdatedAt: z.iso.datetime().default(() => new Date().toISOString()),
@@ -16,6 +19,11 @@ export const AgentTaskSchema = z.object({
   failureReason: z.string().optional(),
   output: z.string().optional(),
   progress: z.string().optional(),
+
+  // Slack-specific metadata (optional)
+  slackChannelId: z.string().optional(),
+  slackThreadTs: z.string().optional(),
+  slackUserId: z.string().optional(),
 });
 
 export const AgentStatusSchema = z.enum(["idle", "busy", "offline"]);

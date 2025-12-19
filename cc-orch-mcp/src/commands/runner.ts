@@ -164,8 +164,15 @@ async function runClaudeIteration(opts: RunClaudeIterationOptions): Promise<numb
 }
 
 export async function runAgent(config: RunnerConfig, opts: RunnerOptions) {
-  const { role, defaultPrompt, yoloEnvVar, logDirEnvVar, metadataType, systemPromptEnvVar, systemPromptFileEnvVar } =
-    config;
+  const {
+    role,
+    defaultPrompt,
+    yoloEnvVar,
+    logDirEnvVar,
+    metadataType,
+    systemPromptEnvVar,
+    systemPromptFileEnvVar,
+  } = config;
 
   const sessionId = process.env.SESSION_ID || crypto.randomUUID().slice(0, 8);
   const baseLogDir = process.env[logDirEnvVar] || "./logs";
