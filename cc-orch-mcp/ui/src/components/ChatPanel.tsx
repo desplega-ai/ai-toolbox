@@ -4,7 +4,6 @@ import Typography from "@mui/joy/Typography";
 import Input from "@mui/joy/Input";
 import IconButton from "@mui/joy/IconButton";
 import Card from "@mui/joy/Card";
-import Chip from "@mui/joy/Chip";
 import Link from "@mui/joy/Link";
 import Tooltip from "@mui/joy/Tooltip";
 import { useColorScheme } from "@mui/joy/styles";
