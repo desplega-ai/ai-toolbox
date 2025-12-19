@@ -4,18 +4,20 @@ import Card from "@mui/joy/Card";
 import Typography from "@mui/joy/Typography";
 import Link from "@mui/joy/Link";
 import { useColorScheme } from "@mui/joy/styles";
-import { useLogs, useAgents } from "../hooks/queries";
+import { useLogs, useAgents, useChannels } from "../hooks/queries";
 import { formatSmartTime } from "../lib/utils";
 import type { AgentLog } from "../types/api";
 
 interface ActivityFeedProps {
   onNavigateToAgent?: (agentId: string) => void;
   onNavigateToTask?: (taskId: string) => void;
+  onNavigateToChat?: (channelId: string, messageId?: string) => void;
 }
 
-export default function ActivityFeed({ onNavigateToAgent, onNavigateToTask }: ActivityFeedProps) {
+export default function ActivityFeed({ onNavigateToAgent, onNavigateToTask, onNavigateToChat }: ActivityFeedProps) {
   const { data: logs, isLoading } = useLogs(30);
   const { data: agents } = useAgents();
+  const { data: channels } = useChannels();
   const { mode } = useColorScheme();
   const isDark = mode === "dark";
 
@@ -26,6 +28,13 @@ export default function ActivityFeed({ onNavigateToAgent, onNavigateToTask }: Ac
     return map;
   }, [agents]);
 
+  // Create channel name lookup
+  const channelNames = useMemo(() => {
+    const map = new Map<string, string>();
+    channels?.forEach((channel) => map.set(channel.id, channel.name));
+    return map;
+  }, [channels]);
+
   const colors = {
     amber: isDark ? "#F5A623" : "#D48806",
     dormant: isDark ? "#6B5344" : "#A89A7C",
@@ -35,6 +44,7 @@ export default function ActivityFeed({ onNavigateToAgent, onNavigateToTask }: Ac
     warmGray: isDark ? "#C9B896" : "#8B7355",
     tertiary: isDark ? "#8B7355" : "#6B5344",
     hoverBg: isDark ? "rgba(245, 166, 35, 0.03)" : "rgba(212, 136, 6, 0.03)",
+    purple: isDark ? "#A855F7" : "#7C3AED",
   };
 
   const getEventColor = (eventType: string) => {
@@ -51,6 +61,8 @@ export default function ActivityFeed({ onNavigateToAgent, onNavigateToTask }: Ac
         return colors.gold;
       case "task_progress":
         return colors.warmGray;
+      case "channel_message":
+        return colors.purple;
       default:
         return colors.tertiary;
     }
@@ -201,6 +213,55 @@ export default function ActivityFeed({ onNavigateToAgent, onNavigateToTask }: Ac
             {formatProgress(log.newValue)}
           </>
         );
+      case "channel_message": {
+        // Parse metadata to get channelId and messageId
+        let channelId: string | undefined;
+        let messageId: string | undefined;
+        if (log.metadata) {
+          try {
+            const meta = JSON.parse(log.metadata);
+            channelId = meta.channelId;
+            messageId = meta.messageId;
+          } catch {
+            // ignore parse errors
+          }
+        }
+        const channelName = channelId ? (channelNames.get(channelId) || "chat") : "chat";
+        const senderName = log.agentId ? agentLink : (
+          <span style={{ fontWeight: 600, color: colors.warmGray }}>Human</span>
+        );
+
+        const channelLink = onNavigateToChat && channelId ? (
+          <Link
+            component="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onNavigateToChat(channelId!, messageId);
+            }}
+            sx={{
+              fontFamily: "'Space Grotesk', sans-serif",
+              fontSize: "0.75rem",
+              fontWeight: 600,
+              color: colors.purple,
+              textDecoration: "none",
+              cursor: "pointer",
+              "&:hover": {
+                textDecoration: "underline",
+              },
+            }}
+          >
+            #{channelName}
+          </Link>
+        ) : (
+          <span style={{ fontWeight: 600, color: colors.purple }}>#{channelName}</span>
+        );
+
+        return (
+          <>
+            {senderName} in {channelLink}
+          </>
+        );
+      }
       default:
         return <>{log.eventType}</>;
     }

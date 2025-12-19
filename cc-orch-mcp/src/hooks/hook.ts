@@ -30,6 +30,26 @@ interface HookMessage {
   stop_hook_active?: boolean;
 }
 
+interface MentionPreview {
+  channelName: string;
+  agentName: string;
+  content: string;
+  createdAt: string;
+}
+
+interface InboxSummary {
+  unreadCount: number;
+  mentionsCount: number;
+  offeredTasksCount: number;
+  poolTasksCount: number;
+  inProgressCount: number;
+  recentMentions: MentionPreview[];
+}
+
+interface AgentWithInbox extends Agent {
+  inbox?: InboxSummary;
+}
+
 /**
  * Main hook handler - processes Claude Code hook events
  */
@@ -97,11 +117,11 @@ export async function handleHook(): Promise<void> {
     }
   };
 
-  const getAgentInfo = async (): Promise<Agent | undefined> => {
+  const getAgentInfo = async (): Promise<AgentWithInbox | undefined> => {
     if (!mcpConfig) return;
 
     try {
-      const resp = await fetch(`${getBaseUrl()}/me`, {
+      const resp = await fetch(`${getBaseUrl()}/me?include=inbox`, {
         method: "GET",
         headers: mcpConfig.headers,
       });
@@ -110,12 +130,73 @@ export async function handleHook(): Promise<void> {
         return;
       }
 
-      return (await resp.json()) as Agent;
+      return (await resp.json()) as AgentWithInbox;
     } catch {
       // Silently fail
     }
 
     return;
+  };
+
+  const formatSystemTray = (inbox: InboxSummary): string | null => {
+    const {
+      unreadCount,
+      mentionsCount,
+      offeredTasksCount,
+      poolTasksCount,
+      inProgressCount,
+      recentMentions,
+    } = inbox;
+
+    // If all counts are zero, return null (no tray)
+    if (
+      unreadCount === 0 &&
+      offeredTasksCount === 0 &&
+      poolTasksCount === 0 &&
+      inProgressCount === 0
+    ) {
+      return null;
+    }
+
+    const lines: string[] = [];
+
+    // Main tray line
+    const parts: string[] = [];
+
+    // Messages section
+    if (unreadCount > 0) {
+      const mentionsSuffix = mentionsCount > 0 ? ` (${mentionsCount} @mention)` : "";
+      parts.push(`📬 ${unreadCount} unread${mentionsSuffix}`);
+    }
+
+    // Tasks section
+    const taskParts = [
+      `${offeredTasksCount} offered`,
+      `${poolTasksCount} pool`,
+      `${inProgressCount} active`,
+    ];
+    parts.push(`📋 ${taskParts.join(", ")}`);
+
+    lines.push(parts.join(" | "));
+
+    // Inline @mentions (up to 3)
+    if (recentMentions && recentMentions.length > 0) {
+      for (const mention of recentMentions) {
+        lines.push(
+          `  └─ @mention from ${mention.agentName} in #${mention.channelName}: "${mention.content}"`,
+        );
+      }
+    }
+
+    // Nudge - remind to check inbox
+    if (unreadCount > 0 || offeredTasksCount > 0) {
+      const actions: string[] = [];
+      if (unreadCount > 0) actions.push("read-messages");
+      if (offeredTasksCount > 0) actions.push("poll-task");
+      lines.push(`→ Use ${actions.join(" or ")} to check`);
+    }
+
+    return lines.join("\n");
   };
 
   // Ping the server to indicate activity
@@ -124,11 +205,20 @@ export async function handleHook(): Promise<void> {
   // Get current agent info
   const agentInfo = await getAgentInfo();
 
-  // Always output agent status
+  // Always output agent status with system tray
   if (agentInfo) {
+    // Base status line
     console.log(
-      `You are registered as ${agentInfo.isLead ? "lead" : "worker"} agent "${agentInfo.name}" with ID: ${agentInfo.id} (status: ${agentInfo.status}) as of ${new Date().toISOString()}.`,
+      `You are registered as ${agentInfo.isLead ? "lead" : "worker"} agent "${agentInfo.name}" (ID: ${agentInfo.id}, status: ${agentInfo.status}).`,
     );
+
+    // System tray (if there's activity)
+    if (agentInfo.inbox) {
+      const tray = formatSystemTray(agentInfo.inbox);
+      if (tray) {
+        console.log(tray);
+      }
+    }
 
     if (!agentInfo.isLead && agentInfo.status === "busy") {
       console.log(
@@ -150,13 +240,21 @@ ${hasAgentIdHeader() ? `You have a pre-defined agent ID via header: ${mcpConfig?
     case "SessionStart":
       if (!agentInfo) break;
 
+      // System prompt - tool reference (only on SessionStart)
+      console.log(`
+## Agent Swarm Tools
+**Messages:** read-messages (no channel = all unread), post-message
+**Tasks:** poll-task (wait), task-action (claim/release), store-progress (update)
+**Info:** get-swarm (agents), get-tasks (tasks), get-task-details (task info)
+`);
+
       if (agentInfo.isLead) {
         console.log(
-          `As the lead agent, you are responsible for coordinating the swarm to fulfill the user's request efficiently. Use the ${SERVER_NAME} tools to assign tasks to worker agents and monitor their progress.`,
+          `As the lead agent, coordinate the swarm to fulfill the user's request efficiently.`,
         );
       } else {
         console.log(
-          `As a worker agent, you should call the poll-task tool to wait for tasks assigned by the lead agent, unless specified otherwise.`,
+          `As a worker agent, use poll-task to wait for tasks or task-action to claim from pool.`,
         );
       }
       break;

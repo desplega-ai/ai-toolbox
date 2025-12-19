@@ -8,9 +8,275 @@ import Chip from "@mui/joy/Chip";
 import Link from "@mui/joy/Link";
 import Tooltip from "@mui/joy/Tooltip";
 import { useColorScheme } from "@mui/joy/styles";
-import { useChannels, useMessages, useThreadMessages, usePostMessage } from "../hooks/queries";
-import type { ChannelMessage } from "../types/api";
+import { useChannels, useMessages, useThreadMessages, usePostMessage, useAgents } from "../hooks/queries";
+import type { ChannelMessage, Agent } from "../types/api";
 import { formatSmartTime } from "@/lib/utils";
+
+interface MentionInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  onSend: () => void;
+  onMentionsChange?: (mentions: string[]) => void;
+  placeholder: string;
+  agents: Agent[];
+  inputStyles: object;
+  sendButtonStyles: object;
+  sendLabel: string;
+  disabled?: boolean;
+  colors: Record<string, string>;
+  isDark: boolean;
+}
+
+function MentionInput({
+  value,
+  onChange,
+  onSend,
+  onMentionsChange,
+  placeholder,
+  agents,
+  inputStyles,
+  sendButtonStyles,
+  sendLabel,
+  disabled,
+  colors,
+  isDark,
+}: MentionInputProps) {
+  const [showMentionPopup, setShowMentionPopup] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionStartPos, setMentionStartPos] = useState(0);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [mentions, setMentions] = useState<string[]>([]);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+
+  // Filter agents based on query
+  const filteredAgents = useMemo(() => {
+    if (!mentionQuery) return agents;
+    const query = mentionQuery.toLowerCase();
+    return agents.filter(
+      (agent) =>
+        agent.name.toLowerCase().includes(query) ||
+        (agent.role && agent.role.toLowerCase().includes(query))
+    );
+  }, [agents, mentionQuery]);
+
+  // Reset selected index when filtered list changes
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [filteredAgents.length]);
+
+  // Notify parent of mention changes
+  useEffect(() => {
+    if (onMentionsChange) {
+      onMentionsChange(mentions);
+    }
+  }, [mentions, onMentionsChange]);
+
+  // Reset mentions when input is cleared
+  useEffect(() => {
+    if (!value) {
+      setMentions([]);
+    }
+  }, [value]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    const cursorPos = e.target.selectionStart || 0;
+    onChange(newValue);
+
+    // Check if we should show mention popup
+    // Find the last @ before cursor that isn't followed by a space
+    const textBeforeCursor = newValue.slice(0, cursorPos);
+    const lastAtIndex = textBeforeCursor.lastIndexOf("@");
+
+    if (lastAtIndex >= 0) {
+      const textAfterAt = textBeforeCursor.slice(lastAtIndex + 1);
+      // Show popup if @ is at start or preceded by space, and no space after @
+      const charBeforeAt = lastAtIndex > 0 ? newValue[lastAtIndex - 1] : " ";
+      if ((charBeforeAt === " " || lastAtIndex === 0) && !textAfterAt.includes(" ")) {
+        setShowMentionPopup(true);
+        setMentionQuery(textAfterAt);
+        setMentionStartPos(lastAtIndex);
+        return;
+      }
+    }
+
+    setShowMentionPopup(false);
+    setMentionQuery("");
+  };
+
+  const handleSelectAgent = (agent: Agent) => {
+    // Replace @query with @agentName
+    const beforeMention = value.slice(0, mentionStartPos);
+    const afterMention = value.slice(mentionStartPos + 1 + mentionQuery.length);
+    const newValue = `${beforeMention}@${agent.name} ${afterMention}`;
+
+    onChange(newValue);
+    setMentions((prev) => [...new Set([...prev, agent.id])]);
+    setShowMentionPopup(false);
+    setMentionQuery("");
+
+    // Focus input
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (showMentionPopup && filteredAgents.length > 0) {
+      switch (e.key) {
+        case "ArrowDown":
+          e.preventDefault();
+          setSelectedIndex((prev) => (prev + 1) % filteredAgents.length);
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          setSelectedIndex((prev) => (prev - 1 + filteredAgents.length) % filteredAgents.length);
+          break;
+        case "Enter":
+          e.preventDefault();
+          if (filteredAgents[selectedIndex]) {
+            handleSelectAgent(filteredAgents[selectedIndex]);
+          }
+          break;
+        case "Escape":
+          e.preventDefault();
+          setShowMentionPopup(false);
+          break;
+        case "Tab":
+          e.preventDefault();
+          if (filteredAgents[selectedIndex]) {
+            handleSelectAgent(filteredAgents[selectedIndex]);
+          }
+          break;
+      }
+    } else if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      onSend();
+    }
+  };
+
+  // Close popup when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
+        setShowMentionPopup(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <Box sx={{ position: "relative", display: "flex", gap: 1.5, flex: 1 }}>
+      <Input
+        ref={inputRef}
+        placeholder={placeholder}
+        value={value}
+        onChange={handleInputChange}
+        onKeyDown={handleKeyDown}
+        sx={{ ...inputStyles, flex: 1 }}
+      />
+
+      {/* Mention autocomplete popup */}
+      {showMentionPopup && filteredAgents.length > 0 && (
+        <Box
+          ref={popupRef}
+          sx={{
+            position: "absolute",
+            bottom: "100%",
+            left: 0,
+            right: 80,
+            mb: 0.5,
+            bgcolor: isDark ? "#1A130E" : "#FFFFFF",
+            border: "1px solid",
+            borderColor: colors.amberBorder,
+            borderRadius: "8px",
+            boxShadow: isDark
+              ? "0 4px 20px rgba(0, 0, 0, 0.5)"
+              : "0 4px 20px rgba(0, 0, 0, 0.15)",
+            maxHeight: 200,
+            overflow: "auto",
+            zIndex: 1000,
+          }}
+        >
+          {filteredAgents.map((agent, index) => (
+            <Box
+              key={agent.id}
+              onClick={() => handleSelectAgent(agent)}
+              sx={{
+                px: 2,
+                py: 1.5,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 1.5,
+                bgcolor: index === selectedIndex ? colors.selectedBg : "transparent",
+                borderBottom: index < filteredAgents.length - 1 ? "1px solid" : "none",
+                borderColor: "neutral.outlinedBorder",
+                transition: "background-color 0.1s ease",
+                "&:hover": {
+                  bgcolor: colors.hoverBg,
+                },
+              }}
+            >
+              {/* Status dot */}
+              <Box
+                sx={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  bgcolor:
+                    agent.status === "busy"
+                      ? colors.amber
+                      : agent.status === "idle"
+                        ? colors.gold
+                        : colors.dormant || "#6B5344",
+                  boxShadow:
+                    agent.status === "busy"
+                      ? isDark
+                        ? "0 0 6px rgba(245, 166, 35, 0.4)"
+                        : "0 0 4px rgba(212, 136, 6, 0.3)"
+                      : "none",
+                }}
+              />
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography
+                  sx={{
+                    fontFamily: "'Space Grotesk', sans-serif",
+                    fontWeight: 600,
+                    fontSize: "0.85rem",
+                    color: colors.amber,
+                  }}
+                >
+                  {agent.name}
+                </Typography>
+                {agent.role && (
+                  <Typography
+                    sx={{
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontSize: "0.7rem",
+                      color: "text.tertiary",
+                    }}
+                  >
+                    {agent.role}
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+          ))}
+        </Box>
+      )}
+
+      <Box
+        component="button"
+        onClick={onSend}
+        disabled={disabled}
+        sx={sendButtonStyles}
+      >
+        {sendLabel}
+      </Box>
+    </Box>
+  );
+}
 
 interface MessageItemProps {
   message: ChannelMessage;
@@ -21,6 +287,7 @@ interface MessageItemProps {
   isThreadView?: boolean;
   onAgentClick?: (agentId: string) => void;
   isSelected?: boolean;
+  agentsByName?: Map<string, string>; // name -> id mapping for @mentions
 }
 
 function MessageItem({
@@ -32,32 +299,119 @@ function MessageItem({
   isThreadView,
   onAgentClick,
   isSelected,
+  agentsByName,
 }: MessageItemProps) {
+  const [copied, setCopied] = useState(false);
   const hasReplies = threadCount && threadCount > 0;
-  const isClickable = !isThreadView && (hasReplies || onOpenThread);
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(message.content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [message.content]);
+
+  // Parse message content to make @mentions clickable
+  const renderContent = useMemo(() => {
+    if (!agentsByName || agentsByName.size === 0) {
+      return message.content;
+    }
+
+    // Split by @mention pattern
+    const mentionPattern = /@(\w+)/g;
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = mentionPattern.exec(message.content)) !== null) {
+      // Add text before the mention
+      if (match.index > lastIndex) {
+        parts.push(message.content.slice(lastIndex, match.index));
+      }
+
+      const mentionName = match[1] ?? "";
+      const agentId = agentsByName.get(mentionName);
+
+      if (agentId && onAgentClick) {
+        const clickAgentId = agentId; // capture for closure
+        // Clickable mention
+        parts.push(
+          <Link
+            key={`${match.index}-${mentionName}`}
+            component="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAgentClick(clickAgentId);
+            }}
+            sx={{
+              fontFamily: "'Space Grotesk', sans-serif",
+              fontWeight: 600,
+              fontSize: "inherit",
+              color: colors.amber,
+              textDecoration: "none",
+              cursor: "pointer",
+              bgcolor: isDark ? "rgba(245, 166, 35, 0.1)" : "rgba(212, 136, 6, 0.08)",
+              px: 0.5,
+              borderRadius: "4px",
+              "&:hover": {
+                textDecoration: "underline",
+                color: colors.honey,
+                bgcolor: isDark ? "rgba(245, 166, 35, 0.15)" : "rgba(212, 136, 6, 0.12)",
+              },
+            }}
+          >
+            @{mentionName}
+          </Link>
+        );
+      } else {
+        // Non-linked mention (agent not found)
+        parts.push(
+          <Box
+            key={`${match.index}-${mentionName}`}
+            component="span"
+            sx={{
+              fontWeight: 600,
+              color: colors.gold,
+              bgcolor: isDark ? "rgba(212, 165, 116, 0.1)" : "rgba(139, 105, 20, 0.08)",
+              px: 0.5,
+              borderRadius: "4px",
+            }}
+          >
+            @{mentionName}
+          </Box>
+        );
+      }
+
+      lastIndex = match.index + match[0].length;
+    }
+
+    // Add remaining text
+    if (lastIndex < message.content.length) {
+      parts.push(message.content.slice(lastIndex));
+    }
+
+    return parts.length > 0 ? parts : message.content;
+  }, [message.content, agentsByName, onAgentClick, colors, isDark]);
 
   return (
     <Box
-      onClick={isClickable ? onOpenThread : undefined}
       sx={{
         display: "flex",
         flexDirection: "column",
-        gap: 1,
-        p: 2,
-        mx: 1,
-        my: 0.5,
-        borderRadius: "8px",
+        gap: 0.5,
+        px: 1.5,
+        py: 1,
+        mx: 0.5,
+        my: 0.25,
+        borderRadius: "6px",
         border: "1px solid",
         borderColor: isSelected ? colors.amberBorder : "transparent",
         bgcolor: isSelected
           ? colors.selectedBg
           : isDark ? "rgba(26, 19, 14, 0.5)" : "rgba(255, 255, 255, 0.5)",
-        cursor: isClickable ? "pointer" : "default",
         transition: "all 0.2s ease",
         "&:hover": {
           bgcolor: isDark ? "rgba(245, 166, 35, 0.06)" : "rgba(212, 136, 6, 0.04)",
-          borderColor: isClickable ? colors.amberBorder : "transparent",
-          "& .reply-icon": {
+          "& .action-icons": {
             opacity: 1,
           },
         },
@@ -130,72 +484,96 @@ function MessageItem({
         {/* Spacer */}
         <Box sx={{ flex: 1 }} />
 
-        {/* Reply count badge */}
-        {!isThreadView && hasReplies && (
-          <Chip
-            size="sm"
-            variant="soft"
+        {/* Reply count badge - clickable to open thread */}
+        {!isThreadView && hasReplies && onOpenThread && (
+          <Box
+            component="button"
+            onClick={onOpenThread}
             sx={{
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: "0.65rem",
               fontWeight: 600,
-              bgcolor: isDark ? "rgba(212, 165, 116, 0.15)" : "rgba(139, 105, 20, 0.1)",
-              color: colors.gold,
-              border: `1px solid ${isDark ? "rgba(212, 165, 116, 0.3)" : "rgba(139, 105, 20, 0.2)"}`,
-              px: 1,
-              height: 22,
-              "& .MuiChip-label": {
-                px: 0.5,
+              bgcolor: isDark ? "rgba(212, 165, 116, 0.15)" : "#FEF3C7",
+              color: isDark ? "#D4A574" : "#B45309",
+              border: "1px solid",
+              borderColor: isDark ? "rgba(212, 165, 116, 0.3)" : "#FCD34D",
+              borderRadius: "12px",
+              px: 1.5,
+              py: 0.25,
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+              "&:hover": {
+                bgcolor: isDark ? "rgba(212, 165, 116, 0.25)" : "#FDE68A",
+                borderColor: isDark ? "rgba(212, 165, 116, 0.5)" : "#FBBF24",
               },
             }}
           >
             {threadCount} {threadCount === 1 ? "reply" : "replies"}
-          </Chip>
+          </Box>
         )}
 
-        {/* Reply icon - appears on hover */}
-        {!isThreadView && onOpenThread && (
-          <Tooltip title="Open thread" placement="top">
+        {/* Action icons - appear on hover */}
+        <Box className="action-icons" sx={{ display: "flex", gap: 0.5, opacity: 0, transition: "opacity 0.2s ease" }}>
+          {/* Copy button */}
+          <Tooltip title={copied ? "Copied!" : "Copy message"} placement="top">
             <IconButton
-              className="reply-icon"
               size="sm"
               variant="plain"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenThread();
-              }}
+              onClick={handleCopy}
               sx={{
-                opacity: 0,
-                transition: "opacity 0.2s ease",
-                color: "text.tertiary",
-                fontSize: "1rem",
+                color: copied ? "#22C55E" : "text.tertiary",
+                fontSize: "0.9rem",
                 width: 28,
                 height: 28,
                 "&:hover": {
-                  color: colors.amber,
+                  color: copied ? "#22C55E" : colors.amber,
                   bgcolor: colors.hoverBg,
                 },
               }}
             >
-              ↩
+              {copied ? "✓" : "⧉"}
             </IconButton>
           </Tooltip>
-        )}
+
+          {/* Reply icon */}
+          {!isThreadView && onOpenThread && (
+            <Tooltip title="Open thread" placement="top">
+              <IconButton
+                size="sm"
+                variant="plain"
+                onClick={onOpenThread}
+                sx={{
+                  color: "text.tertiary",
+                  fontSize: "1rem",
+                  width: 28,
+                  height: 28,
+                  "&:hover": {
+                    color: colors.amber,
+                    bgcolor: colors.hoverBg,
+                  },
+                }}
+              >
+                ↩
+              </IconButton>
+            </Tooltip>
+          )}
+        </Box>
       </Box>
 
       {/* Message content */}
       <Typography
+        component="div"
         sx={{
           fontFamily: "'Space Grotesk', sans-serif",
-          fontSize: "0.9rem",
+          fontSize: "0.85rem",
           color: "text.primary",
-          lineHeight: 1.6,
+          lineHeight: 1.5,
           whiteSpace: "pre-wrap",
           wordBreak: "break-word",
-          pl: 2.75,
+          pl: 2.25,
         }}
       >
-        {message.content}
+        {renderContent}
       </Typography>
     </Box>
   );
@@ -252,6 +630,7 @@ export default function ChatPanel({
     gold: isDark ? "#D4A574" : "#8B6914",
     honey: isDark ? "#FFB84D" : "#B87300",
     blue: "#3B82F6",
+    dormant: isDark ? "#6B5344" : "#A89A7C",
     amberGlow: isDark ? "0 0 8px rgba(245, 166, 35, 0.5)" : "0 0 6px rgba(212, 136, 6, 0.3)",
     hoverBg: isDark ? "rgba(245, 166, 35, 0.05)" : "rgba(212, 136, 6, 0.05)",
     selectedBg: isDark ? "rgba(245, 166, 35, 0.1)" : "rgba(212, 136, 6, 0.08)",
@@ -267,6 +646,19 @@ export default function ChatPanel({
     selectedThreadId || ""
   );
   const postMessageMutation = usePostMessage(selectedChannelId || "");
+  const { data: agents } = useAgents();
+  const agentsList = useMemo(() => agents || [], [agents]);
+
+  // Create name -> id mapping for @mention links
+  const agentsByName = useMemo(() => {
+    const map = new Map<string, string>();
+    agents?.forEach((agent) => map.set(agent.name, agent.id));
+    return map;
+  }, [agents]);
+
+  // Track mentions for main and thread inputs
+  const [messageMentions, setMessageMentions] = useState<string[]>([]);
+  const [threadMentions, setThreadMentions] = useState<string[]>([]);
 
   const selectedChannel = channels?.find((c) => c.id === selectedChannelId);
 
@@ -316,9 +708,11 @@ export default function ChatPanel({
 
     postMessageMutation.mutate({
       content: messageInput.trim(),
+      mentions: messageMentions.length > 0 ? messageMentions : undefined,
     });
     setMessageInput("");
-  }, [messageInput, selectedChannelId, postMessageMutation]);
+    setMessageMentions([]);
+  }, [messageInput, selectedChannelId, postMessageMutation, messageMentions]);
 
   const handleSendThreadMessage = useCallback(() => {
     if (!threadMessageInput.trim() || !selectedChannelId || !selectedThreadMessage) return;
@@ -326,9 +720,11 @@ export default function ChatPanel({
     postMessageMutation.mutate({
       content: threadMessageInput.trim(),
       replyToId: selectedThreadMessage.id,
+      mentions: threadMentions.length > 0 ? threadMentions : undefined,
     });
     setThreadMessageInput("");
-  }, [threadMessageInput, selectedChannelId, selectedThreadMessage, postMessageMutation]);
+    setThreadMentions([]);
+  }, [threadMessageInput, selectedChannelId, selectedThreadMessage, postMessageMutation, threadMentions]);
 
   const handleOpenThread = useCallback((message: ChannelMessage) => {
     setSelectedThreadId(message.id);
@@ -594,6 +990,7 @@ export default function ChatPanel({
                   threadCount={replyCounts.get(message.id)}
                   onAgentClick={handleAgentClick}
                   isSelected={selectedThreadMessage?.id === message.id}
+                  agentsByName={agentsByName}
                 />
               ))}
               <div ref={messagesEndRef} />
@@ -607,31 +1004,23 @@ export default function ChatPanel({
             p: 2,
             borderTop: "1px solid",
             borderColor: "neutral.outlinedBorder",
-            display: "flex",
-            gap: 1.5,
             bgcolor: "background.level1",
           }}
         >
-          <Input
-            placeholder="Type a message..."
+          <MentionInput
             value={messageInput}
-            onChange={(e) => setMessageInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSendMessage();
-              }
-            }}
-            sx={inputStyles}
-          />
-          <Box
-            component="button"
-            onClick={handleSendMessage}
+            onChange={setMessageInput}
+            onSend={handleSendMessage}
+            onMentionsChange={setMessageMentions}
+            placeholder="Type a message... (use @ to mention)"
+            agents={agentsList}
+            inputStyles={inputStyles}
+            sendButtonStyles={sendButtonStyles}
+            sendLabel="Send"
             disabled={!messageInput.trim() || postMessageMutation.isPending}
-            sx={sendButtonStyles}
-          >
-            Send
-          </Box>
+            colors={colors}
+            isDark={isDark}
+          />
         </Box>
       </Box>
 
@@ -718,6 +1107,7 @@ export default function ChatPanel({
               colors={colors}
               isThreadView
               onAgentClick={handleAgentClick}
+              agentsByName={agentsByName}
             />
           </Box>
 
@@ -755,6 +1145,7 @@ export default function ChatPanel({
                     colors={colors}
                     isThreadView
                     onAgentClick={handleAgentClick}
+                    agentsByName={agentsByName}
                   />
                 ))}
                 <div ref={threadEndRef} />
@@ -774,31 +1165,23 @@ export default function ChatPanel({
               p: 2,
               borderTop: "1px solid",
               borderColor: "neutral.outlinedBorder",
-              display: "flex",
-              gap: 1.5,
               bgcolor: "background.level1",
             }}
           >
-            <Input
-              placeholder="Reply to thread..."
+            <MentionInput
               value={threadMessageInput}
-              onChange={(e) => setThreadMessageInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSendThreadMessage();
-                }
-              }}
-              sx={inputStyles}
-            />
-            <Box
-              component="button"
-              onClick={handleSendThreadMessage}
+              onChange={setThreadMessageInput}
+              onSend={handleSendThreadMessage}
+              onMentionsChange={setThreadMentions}
+              placeholder="Reply to thread... (use @ to mention)"
+              agents={agentsList}
+              inputStyles={inputStyles}
+              sendButtonStyles={sendButtonStyles}
+              sendLabel="Reply"
               disabled={!threadMessageInput.trim() || postMessageMutation.isPending}
-              sx={sendButtonStyles}
-            >
-              Reply
-            </Box>
+              colors={colors}
+              isDark={isDark}
+            />
           </Box>
         </Box>
       )}

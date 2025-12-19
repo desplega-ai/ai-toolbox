@@ -229,6 +229,16 @@ export default function Dashboard({ onSettingsClick }: DashboardProps) {
     updateUrl({ tab: "tasks", task: taskId, expand: false });
   }, []);
 
+  const handleNavigateToChat = useCallback((channelId: string, messageId?: string) => {
+    setActiveTab("chat");
+    setSelectedChannelId(channelId);
+    setSelectedThreadId(messageId || null);
+    setSelectedAgentId(null);
+    setSelectedTaskId(null);
+    setExpandDetail(false);
+    updateUrl({ tab: "chat", channel: channelId, thread: messageId || null, agent: null, task: null, expand: false });
+  }, []);
+
   // Chat handlers
   const handleSelectChannel = useCallback((channelId: string | null) => {
     setSelectedChannelId(channelId);
@@ -374,6 +384,7 @@ export default function Dashboard({ onSettingsClick }: DashboardProps) {
                     <ActivityFeed
                       onNavigateToAgent={handleNavigateToAgent}
                       onNavigateToTask={handleNavigateToTask}
+                      onNavigateToChat={handleNavigateToChat}
                     />
                   </Box>
                 </Box>

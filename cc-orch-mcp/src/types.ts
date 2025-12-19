@@ -47,6 +47,10 @@ export const AgentTaskSchema = z.object({
   slackChannelId: z.string().optional(),
   slackThreadTs: z.string().optional(),
   slackUserId: z.string().optional(),
+
+  // Mention-to-task metadata (optional)
+  mentionMessageId: z.uuid().optional(),
+  mentionChannelId: z.uuid().optional(),
 });
 
 export const AgentStatusSchema = z.enum(["idle", "busy", "offline"]);

@@ -219,6 +219,17 @@ export function initDb(dbPath = "./agent-swarm-db.sqlite"): Database {
   } catch {
     /* exists */
   }
+  // Mention-to-task columns
+  try {
+    db.run(`ALTER TABLE agent_tasks ADD COLUMN mentionMessageId TEXT`);
+  } catch {
+    /* exists */
+  }
+  try {
+    db.run(`ALTER TABLE agent_tasks ADD COLUMN mentionChannelId TEXT`);
+  } catch {
+    /* exists */
+  }
   // Agent profile columns
   try {
     db.run(`ALTER TABLE agents ADD COLUMN description TEXT`);
@@ -383,6 +394,8 @@ type AgentTaskRow = {
   slackChannelId: string | null;
   slackThreadTs: string | null;
   slackUserId: string | null;
+  mentionMessageId: string | null;
+  mentionChannelId: string | null;
   createdAt: string;
   lastUpdatedAt: string;
   finishedAt: string | null;
@@ -410,6 +423,8 @@ function rowToAgentTask(row: AgentTaskRow): AgentTask {
     slackChannelId: row.slackChannelId ?? undefined,
     slackThreadTs: row.slackThreadTs ?? undefined,
     slackUserId: row.slackUserId ?? undefined,
+    mentionMessageId: row.mentionMessageId ?? undefined,
+    mentionChannelId: row.mentionChannelId ?? undefined,
     createdAt: row.createdAt,
     lastUpdatedAt: row.lastUpdatedAt,
     finishedAt: row.finishedAt ?? undefined,
@@ -872,6 +887,8 @@ export interface CreateTaskOptions {
   slackChannelId?: string;
   slackThreadTs?: string;
   slackUserId?: string;
+  mentionMessageId?: string;
+  mentionChannelId?: string;
 }
 
 export function createTaskExtended(task: string, options?: CreateTaskOptions): AgentTask {
@@ -888,8 +905,9 @@ export function createTaskExtended(task: string, options?: CreateTaskOptions): A
       `INSERT INTO agent_tasks (
         id, agentId, creatorAgentId, task, status, source,
         taskType, tags, priority, dependsOn, offeredTo, offeredAt,
-        slackChannelId, slackThreadTs, slackUserId, createdAt, lastUpdatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
+        slackChannelId, slackThreadTs, slackUserId,
+        mentionMessageId, mentionChannelId, createdAt, lastUpdatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
     )
     .get(
       id,
@@ -907,6 +925,8 @@ export function createTaskExtended(task: string, options?: CreateTaskOptions): A
       options?.slackChannelId ?? null,
       options?.slackThreadTs ?? null,
       options?.slackUserId ?? null,
+      options?.mentionMessageId ?? null,
+      options?.mentionChannelId ?? null,
       now,
       now,
     );
@@ -1261,6 +1281,34 @@ export function postMessage(
     });
   } catch {}
 
+  // Auto-create tasks for mentions (directly assigned to mentioned agent)
+  if (options?.mentions && options.mentions.length > 0) {
+    const sender = agentId ? getAgentById(agentId) : null;
+    const channel = getChannelById(channelId);
+    const senderName = sender?.name ?? "Human";
+    const channelName = channel?.name ?? "unknown";
+    const truncated = content.length > 80 ? `${content.slice(0, 80)}...` : content;
+
+    // Dedupe mentions (self-mentions allowed - agents can create tasks for themselves)
+    const uniqueMentions = [...new Set(options.mentions)];
+
+    for (const mentionedAgentId of uniqueMentions) {
+      // Skip if agent doesn't exist
+      const mentionedAgent = getAgentById(mentionedAgentId);
+      if (!mentionedAgent) continue;
+
+      createTaskExtended(`@mention from ${senderName} in #${channelName}: "${truncated}"`, {
+        agentId: mentionedAgentId, // Direct assignment
+        creatorAgentId: agentId ?? undefined,
+        source: "mcp",
+        taskType: "mention",
+        priority: 50,
+        mentionMessageId: id,
+        mentionChannelId: channelId,
+      });
+    }
+  }
+
   // Get agent name for the response
   const agent = agentId ? getAgentById(agentId) : null;
   return rowToChannelMessage(row, agent?.name);
@@ -1376,4 +1424,109 @@ export function getMentionsForAgent(
     .prepare<MessageWithAgentRow, string[]>(query)
     .all(...params)
     .map((row) => rowToChannelMessage(row, row.agentName ?? undefined));
+}
+
+// ============================================================================
+// Inbox Summary (for system tray)
+// ============================================================================
+
+export interface MentionPreview {
+  channelName: string;
+  agentName: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface InboxSummary {
+  unreadCount: number;
+  mentionsCount: number;
+  offeredTasksCount: number;
+  poolTasksCount: number;
+  inProgressCount: number;
+  recentMentions: MentionPreview[]; // Up to 3 recent @mentions
+}
+
+export function getInboxSummary(agentId: string): InboxSummary {
+  const db = getDb();
+  const channels = getAllChannels();
+  let unreadCount = 0;
+  let mentionsCount = 0;
+
+  for (const channel of channels) {
+    const lastReadAt = getLastReadAt(agentId, channel.id);
+    const baseCondition = lastReadAt ? `AND m.createdAt > '${lastReadAt}'` : "";
+
+    // Count unread (excluding own messages)
+    const channelUnread = db
+      .prepare<{ count: number }, [string]>(
+        `SELECT COUNT(*) as count FROM channel_messages m
+         WHERE m.channelId = ? AND (m.agentId != '${agentId}' OR m.agentId IS NULL) ${baseCondition}`,
+      )
+      .get(channel.id);
+    unreadCount += channelUnread?.count ?? 0;
+
+    // Count mentions in unread
+    const channelMentions = db
+      .prepare<{ count: number }, [string, string]>(
+        `SELECT COUNT(*) as count FROM channel_messages m
+         WHERE m.channelId = ? AND m.mentions LIKE ? ${baseCondition}`,
+      )
+      .get(channel.id, `%"${agentId}"%`);
+    mentionsCount += channelMentions?.count ?? 0;
+  }
+
+  // Count offered tasks for this agent
+  const offeredResult = db
+    .prepare<{ count: number }, [string]>(
+      "SELECT COUNT(*) as count FROM agent_tasks WHERE offeredTo = ? AND status = 'offered'",
+    )
+    .get(agentId);
+
+  // Count unassigned tasks in pool
+  const poolResult = db
+    .prepare<{ count: number }, []>(
+      "SELECT COUNT(*) as count FROM agent_tasks WHERE status = 'unassigned'",
+    )
+    .get();
+
+  // Count my in-progress tasks
+  const inProgressResult = db
+    .prepare<{ count: number }, [string]>(
+      "SELECT COUNT(*) as count FROM agent_tasks WHERE agentId = ? AND status = 'in_progress'",
+    )
+    .get(agentId);
+
+  // Get recent unread @mentions (up to 3)
+  const recentMentions: MentionPreview[] = [];
+  const mentionMessages = getMentionsForAgent(agentId, { unreadOnly: false });
+
+  // Filter to only unread mentions and limit to 3
+  for (const msg of mentionMessages) {
+    if (recentMentions.length >= 3) break;
+
+    // Check if message is unread (by checking against read state per channel)
+    const lastReadAt = getLastReadAt(agentId, msg.channelId);
+    if (lastReadAt && new Date(msg.createdAt) <= new Date(lastReadAt)) {
+      continue; // Already read
+    }
+
+    // Get channel name
+    const channel = getChannelById(msg.channelId);
+
+    recentMentions.push({
+      channelName: channel?.name ?? "unknown",
+      agentName: msg.agentName ?? "Unknown",
+      content: msg.content.length > 100 ? `${msg.content.slice(0, 100)}...` : msg.content,
+      createdAt: msg.createdAt,
+    });
+  }
+
+  return {
+    unreadCount,
+    mentionsCount,
+    offeredTasksCount: offeredResult?.count ?? 0,
+    poolTasksCount: poolResult?.count ?? 0,
+    inProgressCount: inProgressResult?.count ?? 0,
+    recentMentions,
+  };
 }

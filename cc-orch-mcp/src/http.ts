@@ -20,6 +20,7 @@ import {
   getChannelById,
   getChannelMessages,
   getDb,
+  getInboxSummary,
   getLogsByAgentId,
   getLogsByTaskId,
   getTaskById,
@@ -110,7 +111,7 @@ const httpServer = createHttpServer(async (req, res) => {
     }
   }
 
-  if (req.method === "GET" && req.url === "/me") {
+  if (req.method === "GET" && (req.url === "/me" || req.url?.startsWith("/me?"))) {
     if (!myAgentId) {
       res.writeHead(400, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Missing X-Agent-ID header" }));
@@ -122,6 +123,16 @@ const httpServer = createHttpServer(async (req, res) => {
     if (!agent) {
       res.writeHead(404, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Agent not found" }));
+      return;
+    }
+
+    // Check for ?include=inbox query param
+    const includeInbox = parseQueryParams(req.url || "").get("include") === "inbox";
+
+    if (includeInbox) {
+      const inbox = getInboxSummary(myAgentId);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ...agent, inbox }));
       return;
     }
 
