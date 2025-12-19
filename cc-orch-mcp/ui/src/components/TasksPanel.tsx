@@ -6,6 +6,7 @@ import Table from "@mui/joy/Table";
 import Select from "@mui/joy/Select";
 import Option from "@mui/joy/Option";
 import Input from "@mui/joy/Input";
+import Chip from "@mui/joy/Chip";
 import { useColorScheme } from "@mui/joy/styles";
 import { useTasks, useAgents } from "../hooks/queries";
 import StatusBadge from "./StatusBadge";
@@ -242,6 +243,8 @@ export default function TasksPanel({
             }}
           >
             <Option value="all">ALL STATUS</Option>
+            <Option value="unassigned">UNASSIGNED</Option>
+            <Option value="offered">OFFERED</Option>
             <Option value="pending">PENDING</Option>
             <Option value="in_progress">IN PROGRESS</Option>
             <Option value="completed">COMPLETED</Option>
@@ -296,11 +299,13 @@ export default function TasksPanel({
           >
             <thead>
               <tr>
-                <th style={{ width: "40%" }}>TASK</th>
-                <th style={{ width: "12%" }}>AGENT</th>
+                <th style={{ width: "30%" }}>TASK</th>
+                <th style={{ width: "10%" }}>AGENT</th>
+                <th style={{ width: "8%" }}>TYPE</th>
+                <th style={{ width: "12%" }}>TAGS</th>
                 <th style={{ width: "10%" }}>STATUS</th>
-                <th style={{ width: "18%" }}>PROGRESS</th>
-                <th style={{ width: "10%" }}>ELAPSED</th>
+                <th style={{ width: "12%" }}>PROGRESS</th>
+                <th style={{ width: "8%" }}>ELAPSED</th>
                 <th style={{ width: "10%" }}>UPDATED</th>
               </tr>
             </thead>
@@ -329,14 +334,59 @@ export default function TasksPanel({
                       sx={{
                         fontFamily: "code",
                         fontSize: "0.75rem",
-                        color: colors.amber,
+                        color: task.agentId ? colors.amber : "text.tertiary",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {agentMap.get(task.agentId) || task.agentId.slice(0, 8)}
+                      {task.agentId ? (agentMap.get(task.agentId) || task.agentId.slice(0, 8)) : "—"}
                     </Typography>
+                  </td>
+                  <td>
+                    <Typography
+                      sx={{
+                        fontFamily: "code",
+                        fontSize: "0.7rem",
+                        color: task.taskType ? "text.secondary" : "text.tertiary",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {task.taskType || "—"}
+                    </Typography>
+                  </td>
+                  <td>
+                    {task.tags && task.tags.length > 0 ? (
+                      <Box sx={{ display: "flex", gap: 0.5, flexWrap: "nowrap", overflow: "hidden" }}>
+                        {task.tags.slice(0, 2).map((tag) => (
+                          <Chip
+                            key={tag}
+                            size="sm"
+                            variant="soft"
+                            sx={{
+                              fontFamily: "code",
+                              fontSize: "0.6rem",
+                              bgcolor: isDark ? "rgba(212, 165, 116, 0.1)" : "rgba(139, 105, 20, 0.08)",
+                              color: colors.gold,
+                              border: `1px solid ${isDark ? "rgba(212, 165, 116, 0.3)" : "rgba(139, 105, 20, 0.25)"}`,
+                            }}
+                          >
+                            {tag}
+                          </Chip>
+                        ))}
+                        {task.tags.length > 2 && (
+                          <Typography sx={{ fontFamily: "code", fontSize: "0.6rem", color: "text.tertiary" }}>
+                            +{task.tags.length - 2}
+                          </Typography>
+                        )}
+                      </Box>
+                    ) : (
+                      <Typography sx={{ fontFamily: "code", fontSize: "0.7rem", color: "text.tertiary" }}>
+                        —
+                      </Typography>
+                    )}
                   </td>
                   <td>
                     <StatusBadge status={task.status} />

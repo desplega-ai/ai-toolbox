@@ -3,7 +3,6 @@ import Typography from "@mui/joy/Typography";
 import IconButton from "@mui/joy/IconButton";
 import { useColorScheme } from "@mui/joy/styles";
 import { useHealth } from "../hooks/queries";
-import Stack from "@mui/joy/Stack";
 
 interface HeaderProps {
   onSettingsClick: () => void;

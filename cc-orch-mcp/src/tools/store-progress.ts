@@ -87,17 +87,23 @@ export const registerStoreProgressTool = (server: McpServer) => {
           const result = completeTask(taskId, output);
           if (result) {
             updatedTask = result;
-            updateAgentStatus(existingTask.agentId, "idle");
+            if (existingTask.agentId) {
+              updateAgentStatus(existingTask.agentId, "idle");
+            }
           }
         } else if (status === "failed") {
           const result = failTask(taskId, failureReason ?? "Unknown failure");
           if (result) {
             updatedTask = result;
-            updateAgentStatus(existingTask.agentId, "idle");
+            if (existingTask.agentId) {
+              updateAgentStatus(existingTask.agentId, "idle");
+            }
           }
         } else {
           // Keep it busy if just updating progress
-          updateAgentStatus(existingTask.agentId, "busy");
+          if (existingTask.agentId) {
+            updateAgentStatus(existingTask.agentId, "busy");
+          }
         }
 
         return {

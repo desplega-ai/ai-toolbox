@@ -52,6 +52,11 @@ export async function sendTaskResponse(task: AgentTask): Promise<boolean> {
     return false;
   }
 
+  if (!task.agentId) {
+    console.error(`[Slack] Task ${task.id} has no assigned agent`);
+    return false;
+  }
+
   const agent = getAgentById(task.agentId);
   if (!agent) {
     console.error(`[Slack] Agent not found for task ${task.id}`);
@@ -99,6 +104,8 @@ export async function sendProgressUpdate(task: AgentTask, progress: string): Pro
   if (!app || !task.slackChannelId || !task.slackThreadTs) {
     return false;
   }
+
+  if (!task.agentId) return false;
 
   const agent = getAgentById(task.agentId);
   if (!agent) return false;

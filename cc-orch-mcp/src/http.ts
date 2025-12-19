@@ -14,12 +14,16 @@ import {
   getAgentWithTasks,
   getAllAgents,
   getAllAgentsWithTasks,
+  getAllChannels,
   getAllLogs,
   getAllTasks,
+  getChannelById,
+  getChannelMessages,
   getDb,
   getLogsByAgentId,
   getLogsByTaskId,
   getTaskById,
+  postMessage,
   updateAgentStatus,
 } from "./be/db";
 import { startSlackApp, stopSlackApp } from "./slack";
@@ -316,6 +320,129 @@ const httpServer = createHttpServer(async (req, res) => {
 
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(stats));
+    return;
+  }
+
+  // GET /api/channels - List all channels
+  if (
+    req.method === "GET" &&
+    pathSegments[0] === "api" &&
+    pathSegments[1] === "channels" &&
+    !pathSegments[2]
+  ) {
+    const channels = getAllChannels();
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ channels }));
+    return;
+  }
+
+  // GET /api/channels/:id/messages - Get messages in a channel
+  if (
+    req.method === "GET" &&
+    pathSegments[0] === "api" &&
+    pathSegments[1] === "channels" &&
+    pathSegments[2] &&
+    pathSegments[3] === "messages" &&
+    !pathSegments[4]
+  ) {
+    const channelId = pathSegments[2];
+    const channel = getChannelById(channelId);
+
+    if (!channel) {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Channel not found" }));
+      return;
+    }
+
+    const limit = queryParams.get("limit") ? parseInt(queryParams.get("limit")!, 10) : 50;
+    const since = queryParams.get("since") || undefined;
+    const before = queryParams.get("before") || undefined;
+
+    const messages = getChannelMessages(channelId, { limit, since, before });
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ messages }));
+    return;
+  }
+
+  // GET /api/channels/:id/messages/:messageId/thread - Get thread messages
+  if (
+    req.method === "GET" &&
+    pathSegments[0] === "api" &&
+    pathSegments[1] === "channels" &&
+    pathSegments[2] &&
+    pathSegments[3] === "messages" &&
+    pathSegments[4] &&
+    pathSegments[5] === "thread"
+  ) {
+    const channelId = pathSegments[2];
+    const parentMessageId = pathSegments[4];
+
+    const channel = getChannelById(channelId);
+    if (!channel) {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Channel not found" }));
+      return;
+    }
+
+    // Get all messages that reply to this message
+    const allMessages = getChannelMessages(channelId, { limit: 1000 });
+    const threadMessages = allMessages.filter((m) => m.replyToId === parentMessageId);
+
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ messages: threadMessages }));
+    return;
+  }
+
+  // POST /api/channels/:id/messages - Post a message
+  if (
+    req.method === "POST" &&
+    pathSegments[0] === "api" &&
+    pathSegments[1] === "channels" &&
+    pathSegments[2] &&
+    pathSegments[3] === "messages"
+  ) {
+    const channelId = pathSegments[2];
+    const channel = getChannelById(channelId);
+
+    if (!channel) {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Channel not found" }));
+      return;
+    }
+
+    // Parse request body
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) {
+      chunks.push(chunk);
+    }
+    const body = JSON.parse(Buffer.concat(chunks).toString());
+
+    if (!body.content || typeof body.content !== "string") {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Missing or invalid content" }));
+      return;
+    }
+
+    // agentId is optional (null for human users)
+    const agentId = body.agentId || null;
+
+    // If agentId provided, verify agent exists
+    if (agentId) {
+      const agent = getAgentById(agentId);
+      if (!agent) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid agentId" }));
+        return;
+      }
+    }
+
+    const message = postMessage(channelId, agentId, body.content, {
+      replyToId: body.replyToId,
+      mentions: body.mentions,
+    });
+
+    res.writeHead(201, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(message));
     return;
   }
 

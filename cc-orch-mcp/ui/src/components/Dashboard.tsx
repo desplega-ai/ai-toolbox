@@ -12,6 +12,8 @@ import TasksPanel from "./TasksPanel";
 import ActivityFeed from "./ActivityFeed";
 import AgentDetailPanel from "./AgentDetailPanel";
 import TaskDetailPanel from "./TaskDetailPanel";
+import ChatPanel from "./ChatPanel";
+import type { TaskStatus } from "../types/api";
 
 interface DashboardProps {
   onSettingsClick: () => void;
@@ -20,11 +22,13 @@ interface DashboardProps {
 function getUrlParams() {
   const params = new URLSearchParams(window.location.search);
   return {
-    tab: params.get("tab") as "agents" | "tasks" | null,
+    tab: params.get("tab") as "agents" | "tasks" | "chat" | null,
     agent: params.get("agent"),
     task: params.get("task"),
+    channel: params.get("channel"),
+    thread: params.get("thread"),
     agentStatus: params.get("agentStatus") as "all" | "busy" | "idle" | "offline" | null,
-    taskStatus: params.get("taskStatus") as "all" | "pending" | "in_progress" | "completed" | "failed" | null,
+    taskStatus: params.get("taskStatus") as TaskStatus | "all" | null,
     expand: params.get("expand") === "true",
   };
 }
@@ -33,6 +37,8 @@ function updateUrl(params: {
   tab?: string;
   agent?: string | null;
   task?: string | null;
+  channel?: string | null;
+  thread?: string | null;
   agentStatus?: string | null;
   taskStatus?: string | null;
   expand?: boolean;
@@ -59,6 +65,19 @@ function updateUrl(params: {
     url.searchParams.delete("expand");
   }
 
+  if (params.channel) {
+    url.searchParams.set("channel", params.channel);
+  } else if (params.channel === null) {
+    url.searchParams.delete("channel");
+    url.searchParams.delete("thread");
+  }
+
+  if (params.thread) {
+    url.searchParams.set("thread", params.thread);
+  } else if (params.thread === null) {
+    url.searchParams.delete("thread");
+  }
+
   if (params.agentStatus && params.agentStatus !== "all") {
     url.searchParams.set("agentStatus", params.agentStatus);
   } else if (params.agentStatus === "all" || params.agentStatus === null) {
@@ -81,12 +100,14 @@ function updateUrl(params: {
 }
 
 export default function Dashboard({ onSettingsClick }: DashboardProps) {
-  const [activeTab, setActiveTab] = useState<"agents" | "tasks">("agents");
+  const [activeTab, setActiveTab] = useState<"agents" | "tasks" | "chat">("agents");
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [preFilterAgentId, setPreFilterAgentId] = useState<string | undefined>(undefined);
   const [agentStatusFilter, setAgentStatusFilter] = useState<"all" | "busy" | "idle" | "offline">("all");
-  const [taskStatusFilter, setTaskStatusFilter] = useState<"all" | "pending" | "in_progress" | "completed" | "failed">("all");
+  const [taskStatusFilter, setTaskStatusFilter] = useState<TaskStatus | "all">("all");
   const [expandDetail, setExpandDetail] = useState(false);
 
   const { mode } = useColorScheme();
@@ -107,6 +128,14 @@ export default function Dashboard({ onSettingsClick }: DashboardProps) {
       }
       if (params.taskStatus) {
         setTaskStatusFilter(params.taskStatus);
+      }
+    } else if (params.tab === "chat") {
+      setActiveTab("chat");
+      if (params.channel) {
+        setSelectedChannelId(params.channel);
+      }
+      if (params.thread) {
+        setSelectedThreadId(params.thread);
       }
     } else {
       setActiveTab("agents");
@@ -158,7 +187,7 @@ export default function Dashboard({ onSettingsClick }: DashboardProps) {
   };
 
   const handleTabChange = (_: unknown, value: string | number | null) => {
-    const tab = value as "agents" | "tasks";
+    const tab = value as "agents" | "tasks" | "chat";
     setActiveTab(tab);
     // Clear selections, filters, and expand when switching tabs
     setExpandDetail(false);
@@ -167,10 +196,18 @@ export default function Dashboard({ onSettingsClick }: DashboardProps) {
       setPreFilterAgentId(undefined);
       setTaskStatusFilter("all");
       updateUrl({ tab: "agents", task: null, taskStatus: null, expand: false });
-    } else {
+    } else if (tab === "tasks") {
       setSelectedAgentId(null);
       setAgentStatusFilter("all");
       updateUrl({ tab: "tasks", agent: null, agentStatus: null, expand: false });
+    } else {
+      // chat tab
+      setSelectedAgentId(null);
+      setSelectedTaskId(null);
+      setPreFilterAgentId(undefined);
+      setAgentStatusFilter("all");
+      setTaskStatusFilter("all");
+      updateUrl({ tab: "chat", agent: null, task: null, agentStatus: null, taskStatus: null, expand: false });
     }
   };
 
@@ -192,13 +229,25 @@ export default function Dashboard({ onSettingsClick }: DashboardProps) {
     updateUrl({ tab: "tasks", task: taskId, expand: false });
   }, []);
 
+  // Chat handlers
+  const handleSelectChannel = useCallback((channelId: string | null) => {
+    setSelectedChannelId(channelId);
+    setSelectedThreadId(null);
+    updateUrl({ channel: channelId, thread: null });
+  }, []);
+
+  const handleSelectThread = useCallback((threadId: string | null) => {
+    setSelectedThreadId(threadId);
+    updateUrl({ thread: threadId });
+  }, []);
+
   // Filter change handlers with URL updates
   const handleAgentStatusFilterChange = useCallback((status: "all" | "busy" | "idle" | "offline") => {
     setAgentStatusFilter(status);
     updateUrl({ agentStatus: status });
   }, []);
 
-  const handleTaskStatusFilterChange = useCallback((status: "all" | "pending" | "in_progress" | "completed" | "failed") => {
+  const handleTaskStatusFilterChange = useCallback((status: TaskStatus | "all") => {
     setTaskStatusFilter(status);
     updateUrl({ taskStatus: status });
   }, []);
@@ -210,7 +259,7 @@ export default function Dashboard({ onSettingsClick }: DashboardProps) {
     updateUrl({ tab: "agents", agentStatus: status });
   }, []);
 
-  const handleNavigateToTasksWithFilter = useCallback((status?: "pending" | "in_progress" | "completed" | "failed") => {
+  const handleNavigateToTasksWithFilter = useCallback((status?: TaskStatus) => {
     setActiveTab("tasks");
     setTaskStatusFilter(status || "all");
     setSelectedAgentId(null);
@@ -280,6 +329,7 @@ export default function Dashboard({ onSettingsClick }: DashboardProps) {
           >
             <Tab value="agents">AGENTS</Tab>
             <Tab value="tasks">TASKS</Tab>
+            <Tab value="chat">CHAT</Tab>
           </TabList>
 
           {/* Agents Tab */}
@@ -385,6 +435,28 @@ export default function Dashboard({ onSettingsClick }: DashboardProps) {
                 />
               )}
             </Box>
+          </TabPanel>
+
+          {/* Chat Tab */}
+          <TabPanel
+            value="chat"
+            sx={{
+              p: 0,
+              pt: 2,
+              flex: 1,
+              minHeight: 0,
+              "&[hidden]": {
+                display: "none",
+              },
+            }}
+          >
+            <ChatPanel
+              selectedChannelId={selectedChannelId}
+              selectedThreadId={selectedThreadId}
+              onSelectChannel={handleSelectChannel}
+              onSelectThread={handleSelectThread}
+              onNavigateToAgent={handleNavigateToAgent}
+            />
           </TabPanel>
         </Tabs>
       </Box>

@@ -1,7 +1,15 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { addMinutes } from "date-fns";
 import * as z from "zod";
-import { getAgentById, getDb, getPendingTaskForAgent, startTask, updateAgentStatus } from "@/be/db";
+import {
+  getAgentById,
+  getDb,
+  getOfferedTasksForAgent,
+  getPendingTaskForAgent,
+  getUnassignedTasksCount,
+  startTask,
+  updateAgentStatus,
+} from "@/be/db";
 import { createToolRegistrar } from "@/tools/utils";
 import { AgentTaskSchema } from "@/types";
 
@@ -14,12 +22,16 @@ export const registerPollTaskTool = (server: McpServer) => {
     {
       title: "Poll for a task",
       description:
-        "Tool for an agent to poll for a new task assignment, to be used recursively until a task is assigned.",
+        "Poll for a new task assignment. Returns immediately if there are offered tasks awaiting accept/reject. Also returns count of unassigned tasks in the pool.",
       inputSchema: z.object({}),
       outputSchema: z.object({
         success: z.boolean(),
         message: z.string(),
         task: AgentTaskSchema.optional(),
+        offeredTasks: z
+          .array(AgentTaskSchema)
+          .describe("Tasks offered to you awaiting accept/reject."),
+        availableCount: z.number().describe("Count of unassigned tasks in the pool."),
         waitedForSeconds: z.number().describe("Seconds waited before receiving the task."),
       }),
     },
@@ -37,6 +49,8 @@ export const registerPollTaskTool = (server: McpServer) => {
             yourAgentId: requestInfo.agentId,
             success: false,
             message: 'Agent ID not found. The MCP client should define the "X-Agent-ID" header.',
+            offeredTasks: [],
+            availableCount: 0,
             waitedForSeconds: 0,
           },
         };
@@ -59,6 +73,31 @@ export const registerPollTaskTool = (server: McpServer) => {
             yourAgentId: requestInfo.agentId,
             success: false,
             message: `Agent with ID "${agentId}" not found in the swarm.`,
+            offeredTasks: [],
+            availableCount: 0,
+            waitedForSeconds: 0,
+          },
+        };
+      }
+
+      // Check for offered tasks first - these need immediate attention
+      const offeredTasks = getOfferedTasksForAgent(agentId);
+      const availableCount = getUnassignedTasksCount();
+
+      if (offeredTasks.length > 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `You have ${offeredTasks.length} task(s) offered to you awaiting accept/reject. Use task-action with action='accept' or 'reject'.`,
+            },
+          ],
+          structuredContent: {
+            yourAgentId: requestInfo.agentId,
+            success: true,
+            message: `You have ${offeredTasks.length} task(s) offered to you awaiting accept/reject.`,
+            offeredTasks,
+            availableCount,
             waitedForSeconds: 0,
           },
         };
@@ -103,6 +142,8 @@ export const registerPollTaskTool = (server: McpServer) => {
               success: true,
               message: `Task "${startedTask.id}" assigned and started.`,
               task: startedTask,
+              offeredTasks: [],
+              availableCount: getUnassignedTasksCount(),
               waitedForSeconds: waitedFor,
             },
           };
@@ -127,13 +168,15 @@ export const registerPollTaskTool = (server: McpServer) => {
         content: [
           {
             type: "text",
-            text: `No task assigned within the polling duration.`,
+            text: `No task assigned within the polling duration. ${availableCount} unassigned task(s) available in pool.`,
           },
         ],
         structuredContent: {
           yourAgentId: requestInfo.agentId,
           success: false,
           message: `No task assigned within the polling duration, please keep polling until a task is assigned.`,
+          offeredTasks: [],
+          availableCount: getUnassignedTasksCount(),
           waitedForSeconds,
         },
       };

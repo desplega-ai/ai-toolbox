@@ -1,9 +1,10 @@
+import { useMemo } from "react";
 import Box from "@mui/joy/Box";
 import Card from "@mui/joy/Card";
 import Typography from "@mui/joy/Typography";
 import Link from "@mui/joy/Link";
 import { useColorScheme } from "@mui/joy/styles";
-import { useLogs } from "../hooks/queries";
+import { useLogs, useAgents } from "../hooks/queries";
 import { formatSmartTime } from "../lib/utils";
 import type { AgentLog } from "../types/api";
 
@@ -14,8 +15,16 @@ interface ActivityFeedProps {
 
 export default function ActivityFeed({ onNavigateToAgent, onNavigateToTask }: ActivityFeedProps) {
   const { data: logs, isLoading } = useLogs(30);
+  const { data: agents } = useAgents();
   const { mode } = useColorScheme();
   const isDark = mode === "dark";
+
+  // Create agent name lookup
+  const agentNames = useMemo(() => {
+    const map = new Map<string, string>();
+    agents?.forEach((agent) => map.set(agent.id, agent.name));
+    return map;
+  }, [agents]);
 
   const colors = {
     amber: isDark ? "#F5A623" : "#D48806",
@@ -53,6 +62,8 @@ export default function ActivityFeed({ onNavigateToAgent, onNavigateToTask }: Ac
   };
 
   const renderEventContent = (log: AgentLog) => {
+    const agentName = log.agentId ? (agentNames.get(log.agentId) || log.agentId.slice(0, 8)) : null;
+
     const agentLink = log.agentId && onNavigateToAgent ? (
       <Link
         component="button"
@@ -61,20 +72,22 @@ export default function ActivityFeed({ onNavigateToAgent, onNavigateToTask }: Ac
           onNavigateToAgent(log.agentId!);
         }}
         sx={{
-          fontFamily: "code",
+          fontFamily: "'Space Grotesk', sans-serif",
           fontSize: "0.75rem",
+          fontWeight: 600,
           color: colors.amber,
           textDecoration: "none",
           cursor: "pointer",
           "&:hover": {
             textDecoration: "underline",
+            color: colors.honey,
           },
         }}
       >
-        Agent {log.agentId.slice(0, 8)}
+        {agentName}
       </Link>
     ) : log.agentId ? (
-      <span>Agent {log.agentId.slice(0, 8)}</span>
+      <span style={{ fontWeight: 600, color: colors.amber }}>{agentName}</span>
     ) : null;
 
     const taskLink = log.taskId && onNavigateToTask ? (
@@ -85,35 +98,109 @@ export default function ActivityFeed({ onNavigateToAgent, onNavigateToTask }: Ac
           onNavigateToTask(log.taskId!);
         }}
         sx={{
-          fontFamily: "code",
-          fontSize: "0.75rem",
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: "0.7rem",
           color: colors.gold,
           textDecoration: "none",
           cursor: "pointer",
+          bgcolor: isDark ? "rgba(212, 165, 116, 0.1)" : "rgba(139, 105, 20, 0.08)",
+          px: 0.75,
+          py: 0.25,
+          borderRadius: "4px",
           "&:hover": {
             textDecoration: "underline",
+            bgcolor: isDark ? "rgba(212, 165, 116, 0.15)" : "rgba(139, 105, 20, 0.12)",
           },
         }}
       >
-        Task {log.taskId.slice(0, 8)}
+        #{log.taskId.slice(0, 8)}
       </Link>
     ) : log.taskId ? (
-      <span>Task {log.taskId.slice(0, 8)}</span>
+      <span style={{
+        fontFamily: "'JetBrains Mono', monospace",
+        fontSize: "0.7rem",
+        backgroundColor: isDark ? "rgba(212, 165, 116, 0.1)" : "rgba(139, 105, 20, 0.08)",
+        padding: "2px 6px",
+        borderRadius: "4px",
+      }}>
+        #{log.taskId.slice(0, 8)}
+      </span>
     ) : null;
+
+    // Format progress messages nicely
+    const formatProgress = (value: string | null | undefined) => {
+      if (!value) return null;
+      // Truncate long progress messages
+      const maxLen = 60;
+      const truncated = value.length > maxLen ? value.slice(0, maxLen) + "..." : value;
+      return (
+        <Box
+          component="span"
+          sx={{
+            display: "block",
+            mt: 0.5,
+            pl: 1.5,
+            borderLeft: "2px solid",
+            borderColor: colors.warmGray,
+            fontStyle: "italic",
+            color: "text.secondary",
+            fontSize: "0.7rem",
+          }}
+        >
+          {truncated}
+        </Box>
+      );
+    };
 
     switch (log.eventType) {
       case "agent_joined":
         return <>{agentLink} joined the swarm</>;
       case "agent_left":
-        return <>{agentLink} left</>;
+        return <>{agentLink} left the swarm</>;
       case "agent_status_change":
-        return <>{agentLink} updated status to {log.newValue}</>;
+        return (
+          <>
+            {agentLink} is now{" "}
+            <Box
+              component="span"
+              sx={{
+                fontWeight: 600,
+                color: log.newValue === "busy" ? colors.amber : log.newValue === "idle" ? colors.gold : colors.dormant,
+              }}
+            >
+              {log.newValue}
+            </Box>
+          </>
+        );
       case "task_created":
-        return <>New task created{taskLink ? <> ({taskLink})</> : null}</>;
+        return (
+          <>
+            New task {taskLink} created
+            {log.newValue && formatProgress(log.newValue)}
+          </>
+        );
       case "task_status_change":
-        return <>{taskLink} updated status to {log.newValue}</>;
+        return (
+          <>
+            Task {taskLink} →{" "}
+            <Box
+              component="span"
+              sx={{
+                fontWeight: 600,
+                color: log.newValue === "completed" ? "#22C55E" : log.newValue === "failed" ? colors.dormant : colors.gold,
+              }}
+            >
+              {log.newValue}
+            </Box>
+          </>
+        );
       case "task_progress":
-        return <>{taskLink}: {log.newValue}</>;
+        return (
+          <>
+            {taskLink}
+            {formatProgress(log.newValue)}
+          </>
+        );
       default:
         return <>{log.eventType}</>;
     }

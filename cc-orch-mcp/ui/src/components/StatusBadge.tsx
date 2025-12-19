@@ -39,6 +39,20 @@ const statusConfig: Record<AgentStatus | TaskStatus, StatusConfig> = {
     glowColor: { dark: "rgba(107, 83, 68, 0.3)", light: "rgba(168, 154, 124, 0.15)" },
   },
   // Task statuses
+  unassigned: {
+    color: "neutral",
+    label: "UNASSIGNED",
+    bgColor: { dark: "rgba(100, 100, 100, 0.15)", light: "rgba(150, 150, 150, 0.15)" },
+    textColor: { dark: "#888888", light: "#666666" },
+    glowColor: { dark: "rgba(100, 100, 100, 0.3)", light: "rgba(150, 150, 150, 0.15)" },
+  },
+  offered: {
+    color: "warning",
+    label: "OFFERED",
+    bgColor: { dark: "rgba(147, 112, 219, 0.15)", light: "rgba(128, 90, 213, 0.12)" },
+    textColor: { dark: "#9370DB", light: "#6B5B95" },
+    glowColor: { dark: "rgba(147, 112, 219, 0.4)", light: "rgba(128, 90, 213, 0.2)" },
+  },
   pending: {
     color: "neutral",
     label: "PENDING",
@@ -73,7 +87,7 @@ export default function StatusBadge({ status, size = "sm" }: StatusBadgeProps) {
   const { mode } = useColorScheme();
   const isDark = mode === "dark";
   const config = statusConfig[status];
-  const isActive = status === "busy" || status === "in_progress";
+  const isActive = status === "busy" || status === "in_progress" || status === "offered";
 
   const bgColor = isDark ? config.bgColor.dark : config.bgColor.light;
   const textColor = isDark ? config.textColor.dark : config.textColor.light;

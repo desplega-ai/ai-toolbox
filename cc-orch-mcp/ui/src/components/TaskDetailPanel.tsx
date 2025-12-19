@@ -8,6 +8,7 @@ import Tabs from "@mui/joy/Tabs";
 import TabList from "@mui/joy/TabList";
 import Tab from "@mui/joy/Tab";
 import TabPanel from "@mui/joy/TabPanel";
+import Chip from "@mui/joy/Chip";
 import { useColorScheme } from "@mui/joy/styles";
 import { useTask, useAgents } from "../hooks/queries";
 import { formatRelativeTime } from "../lib/utils";
@@ -48,12 +49,24 @@ export default function TaskDetailPanel({
     gold: isDark ? "#D4A574" : "#8B6914",
     rust: isDark ? "#A85454" : "#B54242",
     blue: "#3B82F6",
+    purple: isDark ? "#9370DB" : "#6B5B95",
     warmGray: isDark ? "#C9B896" : "#8B7355",
     tertiary: isDark ? "#8B7355" : "#6B5344",
     closeBtn: isDark ? "#8B7355" : "#5C4A3D",
     closeBtnHover: isDark ? "#FFF8E7" : "#1A130E",
     goldGlow: isDark ? "0 0 8px rgba(212, 165, 116, 0.5)" : "0 0 6px rgba(139, 105, 20, 0.3)",
+    goldSoftBg: isDark ? "rgba(212, 165, 116, 0.1)" : "rgba(139, 105, 20, 0.08)",
+    goldBorder: isDark ? "rgba(212, 165, 116, 0.3)" : "rgba(139, 105, 20, 0.25)",
     hoverBg: isDark ? "rgba(245, 166, 35, 0.05)" : "rgba(212, 136, 6, 0.05)",
+  };
+
+  const getSourceColor = (source: string) => {
+    switch (source) {
+      case "mcp": return colors.amber;
+      case "slack": return colors.purple;
+      case "api": return colors.blue;
+      default: return colors.tertiary;
+    }
   };
 
   const agentName = agents?.find((a) => a.id === task?.agentId)?.name || task?.agentId?.slice(0, 8);
@@ -132,10 +145,79 @@ export default function TaskDetailPanel({
           <Typography sx={{ fontFamily: "code", fontSize: "0.75rem", color: "text.tertiary" }}>
             Agent
           </Typography>
-          <Typography sx={{ fontFamily: "code", fontSize: "0.8rem", color: colors.amber }}>
-            {agentName}
+          <Typography sx={{ fontFamily: "code", fontSize: "0.8rem", color: task.agentId ? colors.amber : "text.tertiary" }}>
+            {task.agentId ? agentName : "Unassigned"}
           </Typography>
         </Box>
+
+        {task.source && (
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <Typography sx={{ fontFamily: "code", fontSize: "0.75rem", color: "text.tertiary" }}>
+              Source
+            </Typography>
+            <Chip
+              size="sm"
+              variant="soft"
+              sx={{
+                fontFamily: "code",
+                fontSize: "0.65rem",
+                color: getSourceColor(task.source),
+                bgcolor: isDark ? "rgba(100, 100, 100, 0.15)" : "rgba(150, 150, 150, 0.12)",
+                textTransform: "uppercase",
+              }}
+            >
+              {task.source}
+            </Chip>
+          </Box>
+        )}
+
+        {task.taskType && (
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <Typography sx={{ fontFamily: "code", fontSize: "0.75rem", color: "text.tertiary" }}>
+              Type
+            </Typography>
+            <Typography sx={{ fontFamily: "code", fontSize: "0.8rem", color: "text.secondary" }}>
+              {task.taskType}
+            </Typography>
+          </Box>
+        )}
+
+        {task.tags && task.tags.length > 0 && (
+          <Box>
+            <Typography sx={{ fontFamily: "code", fontSize: "0.75rem", color: "text.tertiary", mb: 0.5 }}>
+              Tags
+            </Typography>
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+              {task.tags.map((tag) => (
+                <Chip
+                  key={tag}
+                  size="sm"
+                  variant="soft"
+                  sx={{
+                    fontFamily: "code",
+                    fontSize: "0.65rem",
+                    bgcolor: colors.goldSoftBg,
+                    color: colors.gold,
+                    border: `1px solid ${colors.goldBorder}`,
+                  }}
+                >
+                  {tag}
+                </Chip>
+              ))}
+            </Box>
+          </Box>
+        )}
+
+        {task.priority !== undefined && task.priority !== 50 && (
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <Typography sx={{ fontFamily: "code", fontSize: "0.75rem", color: "text.tertiary" }}>
+              Priority
+            </Typography>
+            <Typography sx={{ fontFamily: "code", fontSize: "0.8rem", color: task.priority > 50 ? colors.amber : "text.secondary" }}>
+              {task.priority}
+            </Typography>
+          </Box>
+        )}
 
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <Typography sx={{ fontFamily: "code", fontSize: "0.75rem", color: "text.tertiary" }}>

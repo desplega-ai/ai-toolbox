@@ -3,6 +3,9 @@ import type {
   AgentsResponse,
   TasksResponse,
   LogsResponse,
+  ChannelsResponse,
+  MessagesResponse,
+  ChannelMessage,
   Stats,
   AgentWithTasks,
   TaskWithLogs,
@@ -89,6 +92,55 @@ class ApiClient {
     const url = `${baseUrl}/health`;
     const res = await fetch(url, { headers: this.getHeaders() });
     if (!res.ok) throw new Error(`Health check failed: ${res.status}`);
+    return res.json();
+  }
+
+  async fetchChannels(): Promise<ChannelsResponse> {
+    const url = `${this.getBaseUrl()}/api/channels`;
+    const res = await fetch(url, { headers: this.getHeaders() });
+    if (!res.ok) throw new Error(`Failed to fetch channels: ${res.status}`);
+    return res.json();
+  }
+
+  async fetchMessages(
+    channelId: string,
+    options?: { limit?: number; since?: string; before?: string }
+  ): Promise<MessagesResponse> {
+    const params = new URLSearchParams();
+    if (options?.limit) params.set("limit", String(options.limit));
+    if (options?.since) params.set("since", options.since);
+    if (options?.before) params.set("before", options.before);
+    const queryString = params.toString();
+    const url = `${this.getBaseUrl()}/api/channels/${channelId}/messages${queryString ? `?${queryString}` : ""}`;
+    const res = await fetch(url, { headers: this.getHeaders() });
+    if (!res.ok) throw new Error(`Failed to fetch messages: ${res.status}`);
+    return res.json();
+  }
+
+  async fetchThreadMessages(channelId: string, messageId: string): Promise<MessagesResponse> {
+    const url = `${this.getBaseUrl()}/api/channels/${channelId}/messages/${messageId}/thread`;
+    const res = await fetch(url, { headers: this.getHeaders() });
+    if (!res.ok) throw new Error(`Failed to fetch thread: ${res.status}`);
+    return res.json();
+  }
+
+  async postMessage(
+    channelId: string,
+    content: string,
+    options?: { agentId?: string; replyToId?: string; mentions?: string[] }
+  ): Promise<ChannelMessage> {
+    const url = `${this.getBaseUrl()}/api/channels/${channelId}/messages`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: this.getHeaders(),
+      body: JSON.stringify({
+        content,
+        agentId: options?.agentId,
+        replyToId: options?.replyToId,
+        mentions: options?.mentions,
+      }),
+    });
+    if (!res.ok) throw new Error(`Failed to post message: ${res.status}`);
     return res.json();
   }
 }

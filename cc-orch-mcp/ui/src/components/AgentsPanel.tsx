@@ -108,6 +108,21 @@ function AgentRow({ agent, selected, onClick, isDark }: AgentsRowProps) {
         </Box>
       </td>
       <td>
+        <Typography
+          sx={{
+            fontFamily: "code",
+            fontSize: "0.75rem",
+            color: agent.role ? "text.secondary" : "text.tertiary",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            maxWidth: 120,
+          }}
+        >
+          {agent.role || "—"}
+        </Typography>
+      </td>
+      <td>
         <StatusBadge status={agent.status} />
       </td>
       <td>
@@ -381,6 +396,7 @@ export default function AgentsPanel({
             <thead>
               <tr>
                 <th>NAME</th>
+                <th style={{ width: "130px" }}>ROLE</th>
                 <th style={{ width: "90px" }}>STATUS</th>
                 <th style={{ width: "70px" }}>TASKS</th>
                 <th style={{ width: "100px" }}>UPDATED</th>

@@ -4,6 +4,7 @@ import IconButton from "@mui/joy/IconButton";
 import Divider from "@mui/joy/Divider";
 import Button from "@mui/joy/Button";
 import Tooltip from "@mui/joy/Tooltip";
+import Chip from "@mui/joy/Chip";
 import { useColorScheme } from "@mui/joy/styles";
 import { useAgent, useLogs } from "../hooks/queries";
 import { formatRelativeTime } from "../lib/utils";
@@ -170,6 +171,17 @@ export default function AgentDetailPanel({
           <StatusBadge status={agent.status} />
         </Box>
 
+        {agent.role && (
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <Typography sx={{ fontFamily: "code", fontSize: "0.75rem", color: "text.tertiary" }}>
+              Role
+            </Typography>
+            <Typography sx={{ fontFamily: "code", fontSize: "0.8rem", color: "text.secondary" }}>
+              {agent.role}
+            </Typography>
+          </Box>
+        )}
+
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <Typography sx={{ fontFamily: "code", fontSize: "0.75rem", color: "text.tertiary" }}>
             Active Tasks
@@ -211,6 +223,61 @@ export default function AgentDetailPanel({
             {new Date(agent.createdAt).toLocaleString()}
           </Typography>
         </Box>
+
+        <Box>
+          <Typography sx={{ fontFamily: "code", fontSize: "0.75rem", color: "text.tertiary", mb: 0.5 }}>
+            Capabilities
+          </Typography>
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+            {agent.capabilities && agent.capabilities?.map((cap) => (
+              <Chip
+                key={cap}
+                size="sm"
+                variant="soft"
+                sx={{
+                  fontFamily: "code",
+                  fontSize: "0.65rem",
+                  bgcolor: colors.amberSoftBg,
+                  color: colors.gold,
+                  border: `1px solid ${colors.amberBorder}`,
+                }}
+              >
+                {cap}
+              </Chip>
+            ))}
+            {!agent.capabilities || agent.capabilities.length === 0 && (
+              <Typography sx={{ fontFamily: "code", fontSize: "0.75rem", color: "text.secondary" }}>
+                No capabilities listed
+              </Typography>
+            )}
+          </Box>
+        </Box>
+
+        {agent.description && (
+          <Box>
+            <Typography sx={{ fontFamily: "code", fontSize: "0.75rem", color: "text.tertiary", mb: 0.5 }}>
+              Description
+            </Typography>
+            <Box
+              sx={{
+                bgcolor: "background.level1",
+                borderRadius: 1,
+                p: 1,
+                border: "1px solid",
+                borderColor: "neutral.outlinedBorder",
+                maxHeight: 450,
+                overflow: "auto",
+                height: "auto",
+                whiteSpace: "pre-wrap",
+                wordWrap: "break-word",
+              }}
+            >
+              <Typography sx={{ fontFamily: "code", fontSize: "0.75rem", color: "text.secondary" }}>
+                {agent.description}
+              </Typography>
+            </Box>
+          </Box>
+        )}
       </Box>
 
       <Button
@@ -407,7 +474,8 @@ export default function AgentDetailPanel({
             {/* Left side - Info */}
             <Box
               sx={{
-                width: 400,
+                minWidth: 220,
+                maxWidth: 500,
                 flexShrink: 0,
                 borderRight: "1px solid",
                 borderColor: "neutral.outlinedBorder",

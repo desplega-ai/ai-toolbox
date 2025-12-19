@@ -6,8 +6,14 @@ import { AgentTaskStatusSchema } from "@/types";
 
 const TaskSummarySchema = z.object({
   id: z.string(),
+  agentId: z.string().nullable(),
   task: z.string(),
   status: AgentTaskStatusSchema,
+  taskType: z.string().optional(),
+  tags: z.array(z.string()),
+  priority: z.number(),
+  dependsOn: z.array(z.string()),
+  offeredTo: z.string().optional(),
   createdAt: z.string(),
   lastUpdatedAt: z.string(),
   finishedAt: z.string().optional(),
@@ -20,56 +26,83 @@ export const registerGetTasksTool = (server: McpServer) => {
     {
       title: "Get tasks",
       description:
-        "Returns a list of tasks in the swarm, filtered by status and sorted by lastUpdatedAt desc. Defaults to in_progress tasks only. Does not return output or failure reason.",
+        "Returns a list of tasks in the swarm with various filters. Sorted by priority (desc) then lastUpdatedAt (desc).",
       inputSchema: z.object({
         status: AgentTaskStatusSchema.optional().describe(
-          "Filter by task status. Defaults to 'in_progress'.",
+          "Filter by task status (unassigned, offered, pending, in_progress, completed, failed).",
         ),
-        mineOnly: z
+        mineOnly: z.boolean().optional().describe("Only return tasks assigned to you."),
+        unassigned: z.boolean().optional().describe("Only return unassigned tasks in the pool."),
+        offeredToMe: z
           .boolean()
           .optional()
-          .describe(
-            "If true, only return tasks assigned to your agent. Requires X-Agent-ID header.",
-          ),
+          .describe("Only return tasks offered to you (awaiting accept/reject)."),
+        readyOnly: z.boolean().optional().describe("Only return tasks whose dependencies are met."),
+        taskType: z.string().optional().describe("Filter by task type (e.g., 'bug', 'feature')."),
+        tags: z.array(z.string()).optional().describe("Filter by any matching tag."),
+        search: z.string().optional().describe("Search in task description."),
       }),
       outputSchema: z.object({
         tasks: z.array(TaskSummarySchema),
       }),
     },
-    async ({ status, mineOnly }, requestInfo, _meta) => {
-      const filterStatus = status ?? "in_progress";
-      let tasks = getAllTasks({ status: filterStatus });
+    async (
+      { status, mineOnly, unassigned, offeredToMe, readyOnly, taskType, tags, search },
+      requestInfo,
+      _meta,
+    ) => {
+      const agentId = requestInfo.agentId;
 
-      // Filter to only tasks assigned to this agent if mineOnly is true
-      if (mineOnly) {
-        if (!requestInfo.agentId) {
-          // No agent ID set, return empty list
-          tasks = [];
-        } else {
-          tasks = tasks.filter((t) => t.agentId === requestInfo.agentId);
-        }
-      }
+      // Build filters
+      const tasks = getAllTasks({
+        status,
+        agentId: mineOnly ? (agentId ?? undefined) : undefined,
+        unassigned,
+        offeredTo: offeredToMe ? (agentId ?? undefined) : undefined,
+        readyOnly,
+        taskType,
+        tags,
+        search,
+      });
 
       const taskSummaries = tasks.map((t) => ({
         id: t.id,
+        agentId: t.agentId,
         task: t.task,
         status: t.status,
+        taskType: t.taskType,
+        tags: t.tags,
+        priority: t.priority,
+        dependsOn: t.dependsOn,
+        offeredTo: t.offeredTo,
         createdAt: t.createdAt,
         lastUpdatedAt: t.lastUpdatedAt,
         finishedAt: t.finishedAt,
         progress: t.progress,
       }));
 
-      const mineOnlyMsg = mineOnly ? " (mine only)" : "";
+      // Build filter description for message
+      const filters: string[] = [];
+      if (status) filters.push(`status='${status}'`);
+      if (mineOnly) filters.push("mine only");
+      if (unassigned) filters.push("unassigned");
+      if (offeredToMe) filters.push("offered to me");
+      if (readyOnly) filters.push("ready only");
+      if (taskType) filters.push(`type='${taskType}'`);
+      if (tags?.length) filters.push(`tags=[${tags.join(", ")}]`);
+      if (search) filters.push(`search='${search}'`);
+
+      const filterMsg = filters.length > 0 ? ` (${filters.join(", ")})` : "";
+
       return {
         content: [
           {
             type: "text",
-            text: `Found ${taskSummaries.length} task(s) with status '${filterStatus}'${mineOnlyMsg}.`,
+            text: `Found ${taskSummaries.length} task(s)${filterMsg}.`,
           },
         ],
         structuredContent: {
-          yourAgentId: requestInfo.agentId,
+          yourAgentId: agentId,
           tasks: taskSummaries,
         },
       };

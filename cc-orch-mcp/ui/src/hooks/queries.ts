@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import type { AgentWithTasks } from "../types/api";
 
@@ -62,5 +62,58 @@ export function useHealth() {
     refetchInterval: 10000, // Check every 10 seconds
     retry: 2,
     retryDelay: 1000,
+  });
+}
+
+export function useChannels() {
+  return useQuery({
+    queryKey: ["channels"],
+    queryFn: () => api.fetchChannels(),
+    select: (data) => data.channels,
+  });
+}
+
+export interface MessageFilters {
+  limit?: number;
+  since?: string;
+  before?: string;
+}
+
+export function useMessages(channelId: string, filters?: MessageFilters) {
+  return useQuery({
+    queryKey: ["messages", channelId, filters],
+    queryFn: () => api.fetchMessages(channelId, filters),
+    select: (data) => data.messages,
+    enabled: !!channelId,
+  });
+}
+
+export function useThreadMessages(channelId: string, messageId: string) {
+  return useQuery({
+    queryKey: ["thread", channelId, messageId],
+    queryFn: () => api.fetchThreadMessages(channelId, messageId),
+    select: (data) => data.messages,
+    enabled: !!channelId && !!messageId,
+  });
+}
+
+export function usePostMessage(channelId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (params: { content: string; agentId?: string; replyToId?: string; mentions?: string[] }) =>
+      api.postMessage(channelId, params.content, {
+        agentId: params.agentId,
+        replyToId: params.replyToId,
+        mentions: params.mentions,
+      }),
+    onSuccess: (_data, variables) => {
+      // Invalidate channel messages
+      queryClient.invalidateQueries({ queryKey: ["messages", channelId] });
+      // Also invalidate thread if this was a reply
+      if (variables.replyToId) {
+        queryClient.invalidateQueries({ queryKey: ["thread", channelId, variables.replyToId] });
+      }
+    },
   });
 }
