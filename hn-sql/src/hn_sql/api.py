@@ -194,6 +194,7 @@ def _configure_duckdb(conn: duckdb.DuckDBPyConnection) -> None:
 
     conn.execute(f"SET memory_limit='{memory_gb}GB'")
     conn.execute(f"SET threads={cpu_count}")
+    conn.execute("SET preserve_insertion_order=false")
 
 
 def _get_connection(data_path: str = DATA_PATH, updates_path: str = "data/updates/**/*.parquet") -> duckdb.DuckDBPyConnection:
