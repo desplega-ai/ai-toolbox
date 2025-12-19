@@ -27,6 +27,10 @@ services:
       - MCP_BASE_URL=${MCP_BASE_URL:-http://host.docker.internal:3013}
       - SESSION_ID=${SESSION_ID:-}
       - WORKER_YOLO=${WORKER_YOLO:-false}
+      # GitHub credentials for git push and PR operations
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - GITHUB_EMAIL=${GITHUB_EMAIL:-}
+      - GITHUB_NAME=${GITHUB_NAME:-}
     volumes:
       - ./logs:/logs
       # Optional: mount a workspace directory for persistent work

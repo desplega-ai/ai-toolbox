@@ -15,6 +15,14 @@ export async function initSlackApp(): Promise<App | null> {
     return app;
   }
   initialized = true;
+
+  // Check if Slack is explicitly disabled
+  const slackDisable = process.env.SLACK_DISABLE;
+  if (slackDisable === "true" || slackDisable === "1") {
+    console.log("[Slack] Disabled via SLACK_DISABLE");
+    return null;
+  }
+
   const botToken = process.env.SLACK_BOT_TOKEN;
   const appToken = process.env.SLACK_APP_TOKEN;
 

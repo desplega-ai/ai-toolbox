@@ -24,6 +24,7 @@ const userNameCache = new Map<string, string>();
 
 async function getUserDisplayName(client: WebClient, userId: string): Promise<string> {
   if (userNameCache.has(userId)) {
+    // biome-ignore lint: This is fine
     return userNameCache.get(userId)!;
   }
   try {

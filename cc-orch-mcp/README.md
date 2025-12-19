@@ -202,6 +202,33 @@ docker-compose -f docker-compose.worker.yml up
 bun run docker:run:worker
 ```
 
+### Troubleshooting
+
+**Permission denied when writing to /workspace**
+
+If you see an error like:
+```
+/docker-entrypoint.sh: line 37: /workspace/.mcp.json: Permission denied
+```
+
+This happens when the container can't write to the mounted directory. Fix with one of these options:
+
+```bash
+# Option 1: Fix permissions on host directory
+chmod 777 ./work
+
+# Option 2: Run container as your current user
+docker run --rm -it --user $(id -u):$(id -g) \
+  -e CLAUDE_CODE_OAUTH_TOKEN=your-token \
+  -e API_KEY=your-api-key \
+  -v ./work:/workspace \
+  ghcr.io/desplega-ai/agent-swarm-worker
+
+# Option 3: Create the file on the host first
+touch ./work/.mcp.json
+chmod 666 ./work/.mcp.json
+```
+
 ### Environment Variables (Docker)
 
 | Variable | Required | Description |

@@ -64,6 +64,29 @@ else
 EOF
 fi
 
+# Configure GitHub authentication if token is provided
+echo ""
+echo "=== GitHub Authentication ==="
+if [ -n "$GITHUB_TOKEN" ]; then
+    echo "Configuring GitHub authentication..."
+
+    # gh CLI will automatically use GITHUB_TOKEN env var for API calls
+    # Just need to configure git to use gh as credential helper
+    gh auth setup-git
+
+    # Set git user config for commits (use env vars or defaults)
+    GIT_EMAIL="${GITHUB_EMAIL:-worker-agent@desplega.ai}"
+    GIT_NAME="${GITHUB_NAME:-Worker Agent}"
+    git config --global user.email "$GIT_EMAIL"
+    git config --global user.name "$GIT_NAME"
+
+    echo "GitHub authentication configured successfully"
+    echo "Git user: $GIT_NAME <$GIT_EMAIL>"
+else
+    echo "WARNING: GITHUB_TOKEN not set - git push operations will fail"
+fi
+echo "=============================="
+
 # Execute startup script if found
 STARTUP_SCRIPT_STRICT="${STARTUP_SCRIPT_STRICT:-true}"
 echo ""
