@@ -1,8 +1,8 @@
 import React from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
-import { Loader2, CheckCircle, Archive, Terminal, Copy, Check, ExternalLink, FolderOpen, Shield, ShieldAlert, ShieldCheck, Edit3, Trash2 } from 'lucide-react';
+import { Loader2, CheckCircle, Archive, Terminal, Copy, Check, ExternalLink, FolderOpen, Shield, ShieldAlert, Edit3, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { MessageList } from '@/components/session/MessageList';
+import { MessageList, type SubmittedQuestion } from '@/components/session/MessageList';
 import { MessageInput } from '@/components/session/MessageInput';
 import { FileViewerPane } from '@/components/session/FileViewerPane';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,7 @@ import { DiffTab, type DiffStats } from '@/components/session/DiffTab';
 import { useBuildFileIndex, useLoadCommands, useLoadAgents } from '@/lib/autocomplete-store';
 import type { Session, ClaudeModel, PermissionMode, PermissionDuration } from '../../../shared/types';
 import { CLAUDE_MODELS, PERMISSION_MODES, DEFAULT_PERMISSION_MODE } from '../../../shared/types';
-import type { SDKMessage, PermissionRequest, SDKStreamEvent, SDKResultMessage } from '../../../shared/sdk-types';
+import type { SDKMessage, PermissionRequest, SDKStreamEvent, SDKResultMessage, AskUserQuestionRequest } from '../../../shared/sdk-types';
 import { PermissionModeModal } from './PermissionModeModal';
 import { DeleteSessionModal } from './DeleteSessionModal';
 
@@ -30,8 +30,6 @@ function getPermissionIcon(mode: PermissionMode): React.ReactNode {
       return <ShieldAlert className="h-3.5 w-3.5 text-amber-500" />;
     case 'acceptEdits':
       return <Edit3 className="h-3.5 w-3.5 text-blue-500" />;
-    case 'plan':
-      return <ShieldCheck className="h-3.5 w-3.5 text-purple-500" />;
     default:
       return <Shield className="h-3.5 w-3.5" />;
   }
@@ -147,6 +145,10 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
   const [showPermissionModal, setShowPermissionModal] = React.useState(false);
   // Delete session modal
   const [showDeleteModal, setShowDeleteModal] = React.useState(false);
+  // Current question request from AskUserQuestion tool
+  const [currentQuestion, setCurrentQuestion] = React.useState<AskUserQuestionRequest | null>(null);
+  // Submitted questions (for showing answered questions collapsed)
+  const [submittedQuestions, setSubmittedQuestions] = React.useState<SubmittedQuestion[]>([]);
   // Timer for timed permission modes
   const [timeRemaining, setTimeRemaining] = React.useState<string | null>(null);
   // Diff stats for tab label
@@ -195,10 +197,27 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
     setEditedName(session.name);
   }, [session.name]);
 
-  // Reset activity when session changes
+  // Reset activity and load submitted questions when session changes
   React.useEffect(() => {
     setActivity('idle');
     setPendingApprovals(EMPTY_PERMISSIONS);
+    setCurrentQuestion(null);
+
+    // Load submitted questions from database
+    window.electronAPI.invoke<Array<{
+      request: AskUserQuestionRequest;
+      answers: Record<string, string | string[]>;
+    }>>('session:get-submitted-questions', { sessionId: session.id })
+      .then((records) => {
+        setSubmittedQuestions(records.map(r => ({
+          request: r.request as AskUserQuestionRequest,
+          answers: r.answers,
+        })));
+      })
+      .catch((err) => {
+        console.error('Failed to load submitted questions:', err);
+        setSubmittedQuestions([]);
+      });
   }, [session.id]);
 
   // Load autocomplete data when session opens
@@ -258,6 +277,8 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
   const streamingTextFromStore = useSessionMessagesStore((state) => state.streamingTextBySession[session.id]);
   const addMessage = useSessionMessagesStore((state) => state.addMessage);
   const setMessages = useSessionMessagesStore((state) => state.setMessages);
+  const appendStreamingText = useSessionMessagesStore((state) => state.appendStreamingText);
+  const clearStreamingText = useSessionMessagesStore((state) => state.clearStreamingText);
   const isLoaded = useSessionMessagesStore((state) => state.isLoaded);
   const markLoaded = useSessionMessagesStore((state) => state.markLoaded);
 
@@ -423,12 +444,47 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
       }
     });
 
+    // Listen for streaming text from ACP
+    const unsubStream = window.electronAPI.on('session:stream', (data: unknown) => {
+      const { sessionId, text } = data as { sessionId: string; text: string };
+      if (sessionId === session.id) {
+        appendStreamingText(sessionId, text);
+        setActivity('streaming');
+      }
+    });
+
+    // Listen for clear streaming text event (when prompt completes)
+    const unsubClearStream = window.electronAPI.on('session:clear-stream', (data: unknown) => {
+      const { sessionId } = data as { sessionId: string };
+      if (sessionId === session.id) {
+        clearStreamingText(sessionId);
+      }
+    });
+
+    // Listen for question requests from AskUserQuestion tool
+    const unsubQuestion = window.electronAPI.on('session:question-request', (data: unknown) => {
+      const request = data as AskUserQuestionRequest;
+      console.log(`[SessionView] question-request received:`, {
+        reqSessionId: request.sessionId,
+        currentSessionId: session.id,
+        matches: request.sessionId === session.id,
+        toolCallId: request.toolCallId,
+        questionCount: request.questions.length
+      });
+      if (request.sessionId === session.id) {
+        setCurrentQuestion(request);
+      }
+    });
+
     return () => {
       unsubMessage();
       unsubStatus();
       unsubPermission();
+      unsubStream();
+      unsubClearStream();
+      unsubQuestion();
     };
-  }, [session.id]);
+  }, [session.id, appendStreamingText, clearStreamingText]);
 
   const handleSendMessage = async (prompt: string) => {
     // Update status and activity immediately for responsive UI
@@ -489,6 +545,75 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
     });
   };
 
+  // Handle question dialog submit
+  const handleQuestionSubmit = async (answers: Record<string, string | string[]>) => {
+    if (!currentQuestion) return;
+    console.log(`[SessionView] Submitting answers for question:`, {
+      toolCallId: currentQuestion.toolCallId,
+      answers
+    });
+
+    // Save to local state for display
+    setSubmittedQuestions(prev => [...prev, { request: currentQuestion, answers }]);
+
+    // Save to database for persistence
+    try {
+      await window.electronAPI.invoke('session:save-submitted-question', {
+        sessionId: session.id,
+        toolCallId: currentQuestion.toolCallId,
+        request: currentQuestion,
+        answers,
+      });
+    } catch (error) {
+      console.error('Failed to save submitted question:', error);
+    }
+
+    // Send answer to ACP
+    try {
+      await window.electronAPI.invoke('session:answer-question', {
+        toolCallId: currentQuestion.toolCallId,
+        answers
+      });
+    } catch (error) {
+      console.error('Failed to submit question answers:', error);
+    }
+
+    setCurrentQuestion(null);
+  };
+
+  // Handle question dialog cancel (skip)
+  const handleQuestionCancel = async () => {
+    if (!currentQuestion) return;
+    console.log(`[SessionView] Skipping question:`, currentQuestion.toolCallId);
+
+    // Save as skipped (empty answers) to local state
+    setSubmittedQuestions(prev => [...prev, { request: currentQuestion, answers: {} }]);
+
+    // Save to database for persistence
+    try {
+      await window.electronAPI.invoke('session:save-submitted-question', {
+        sessionId: session.id,
+        toolCallId: currentQuestion.toolCallId,
+        request: currentQuestion,
+        answers: {},
+      });
+    } catch (error) {
+      console.error('Failed to save skipped question:', error);
+    }
+
+    // Submit empty answers to indicate skip
+    try {
+      await window.electronAPI.invoke('session:answer-question', {
+        toolCallId: currentQuestion.toolCallId,
+        answers: {}
+      });
+    } catch (error) {
+      console.error('Failed to skip question:', error);
+    }
+
+    setCurrentQuestion(null);
+  };
+
   // Check if all pending approvals have been staged
   const allDecisionsStaged = pendingApprovals.length > 0 &&
     pendingApprovals.every(p => stagedDecisions.has(p.id));
@@ -508,24 +633,21 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
       }
     }
 
-    // Save decisions to resolved (keyed by toolUseId for matching with ToolGroup)
-    setResolvedDecisions(prev => {
-      const next = new Map(prev);
-      for (const approval of pendingApprovals) {
-        const decision = stagedDecisions.get(approval.id);
-        if (decision) {
-          next.set(approval.toolUseId, decision);
-        }
-      }
-      return next;
-    });
-
     // Clear local state
     setPendingApprovals([]);
     setStagedDecisions(new Map());
 
-    // If any denied, deny first (this clears all pending in backend and resumes)
+    // If any denied, deny ALL (backend denies all when one is denied)
     if (denied.length > 0) {
+      // Mark ALL as denied since backend denies all
+      setResolvedDecisions(prev => {
+        const next = new Map(prev);
+        for (const approval of pendingApprovals) {
+          next.set(approval.toolUseId, 'denied');
+        }
+        return next;
+      });
+
       await window.electronAPI.invoke('session:deny', {
         sessionId: session.id,
         pendingApprovalId: denied[0].id,
@@ -533,6 +655,15 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
       });
       return;
     }
+
+    // All approved - save decisions to resolved
+    setResolvedDecisions(prev => {
+      const next = new Map(prev);
+      for (const approval of approved) {
+        next.set(approval.toolUseId, 'approved');
+      }
+      return next;
+    });
 
     // If all approved, approve all at once
     if (approved.length > 0) {
@@ -795,9 +926,7 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
                   ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/30'
                   : session.permissionMode === 'acceptEdits'
                     ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400 hover:bg-blue-500/30'
-                    : session.permissionMode === 'plan'
-                      ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400 hover:bg-purple-500/30'
-                      : ''
+                    : ''
               )}
             />
             {timeRemaining && (
@@ -933,6 +1062,10 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
                     isLoadingHistory={isLoadingHistory}
                     activity={activity}
                     onFocusInput={() => window.dispatchEvent(new Event('focus-message-input'))}
+                    currentQuestion={currentQuestion}
+                    submittedQuestions={submittedQuestions}
+                    onQuestionSubmit={handleQuestionSubmit}
+                    onQuestionCancel={handleQuestionCancel}
                   />
                   <MessageInput
                     onSend={handleSendMessage}
@@ -979,6 +1112,10 @@ export function SessionView({ session, projectId, projectDirectory }: SessionVie
                 isLoadingHistory={isLoadingHistory}
                 activity={activity}
                 onFocusInput={() => window.dispatchEvent(new Event('focus-message-input'))}
+                currentQuestion={currentQuestion}
+                submittedQuestions={submittedQuestions}
+                onQuestionSubmit={handleQuestionSubmit}
+                onQuestionCancel={handleQuestionCancel}
               />
               <MessageInput
                 onSend={handleSendMessage}

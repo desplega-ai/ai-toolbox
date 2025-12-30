@@ -6,7 +6,7 @@ import * as os from 'os';
 import { database } from './database';
 import { DEFAULT_MODEL, DEFAULT_PERMISSION_MODE } from '../shared/types';
 import { getPreferences, setPreferences, addRecentDirectory, getTabsState, setTabsState } from './preferences';
-import { SessionManager } from './session-manager';
+import { ACPSessionManager, resolveQuestion } from './acp-session-manager';
 import { getAuthConfig, setAuthConfig } from './auth-manager';
 import { loadSessionHistory, discoverProjectSessions, getSessionFilePath, getSessionWrittenFiles } from './session-history';
 import { readDirectory, readFile, writeFile, directoryExists } from './file-system';
@@ -15,7 +15,7 @@ import { buildFileIndex, getFileIndex, clearFileIndex } from './file-indexer';
 import { loadCommands, loadAgents } from './claude-config';
 import { GitService, getHeadCommit, type GitStatus, type DiffContent, type FileDiff } from './git-service';
 
-let sessionManager: SessionManager | null = null;
+let sessionManager: ACPSessionManager | null = null;
 
 // Track open prompt files and their watchers
 const promptFilePaths = new Map<string, string>();
@@ -26,7 +26,7 @@ const promptFileContents = new Map<string, string>();
 
 export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   // Initialize session manager
-  sessionManager = new SessionManager(mainWindow);
+  sessionManager = new ACPSessionManager(mainWindow);
 
   // Projects
   ipcMain.handle('db:projects:list', () => {
@@ -160,12 +160,6 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     database.sessions.updatePermissionMode(id, mode, expiresAt ?? null);
   });
 
-  // Set permission mode on an active session (calls SDK's setPermissionMode)
-  ipcMain.handle('session:set-permission-mode', async (_, { hiveSessionId, mode }) => {
-    if (!sessionManager) throw new Error('SessionManager not initialized');
-    await sessionManager.setPermissionMode(hiveSessionId, mode);
-  });
-
   ipcMain.handle('session:interrupt', async (_, { hiveSessionId }) => {
     if (!sessionManager) throw new Error('SessionManager not initialized');
     await sessionManager.interruptSession(hiveSessionId);
@@ -194,6 +188,30 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     await sessionManager.denyAndResume(sessionId, pendingApprovalId, reason);
     // Notify renderer - deny clears all pending
     mainWindow.webContents.send('session:approval-resolved', { sessionId, all: true });
+  });
+
+  // Answer a question from AskUserQuestion tool
+  ipcMain.handle('session:answer-question', async (_, { toolCallId, answers }) => {
+    const resolved = resolveQuestion(toolCallId, answers);
+    if (!resolved) {
+      console.warn(`[IPC] No pending question found for toolCallId: ${toolCallId}`);
+    }
+    return resolved;
+  });
+
+  // Save a submitted question to the database
+  ipcMain.handle('session:save-submitted-question', async (_, { sessionId, toolCallId, request, answers }) => {
+    return database.submittedQuestions.create({
+      sessionId,
+      toolCallId,
+      request,
+      answers,
+    });
+  });
+
+  // Load submitted questions for a session
+  ipcMain.handle('session:get-submitted-questions', async (_, { sessionId }) => {
+    return database.submittedQuestions.listBySession(sessionId);
   });
 
   // Get pending approvals for a session

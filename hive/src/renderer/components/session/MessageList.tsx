@@ -6,7 +6,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Markdown } from '@/components/ui/markdown';
 import { groupMessages, type GroupedMessage } from '@/lib/message-grouping';
 import { ToolGroupBlock } from './ToolGroupBlock';
-import type { SDKMessage, SDKAssistantMessage, SDKUsage, PermissionRequest } from '../../../shared/sdk-types';
+import { QuestionBlock, SubmittedQuestionBlock } from './QuestionBlock';
+import type { SDKMessage, SDKAssistantMessage, SDKUsage, PermissionRequest, AskUserQuestionRequest } from '../../../shared/sdk-types';
+
+// Submitted question with answers
+export interface SubmittedQuestion {
+  request: AskUserQuestionRequest;
+  answers: Record<string, string | string[]>;
+}
 import type { PermissionMode } from '../../../shared/types';
 
 // Helper to extract raw content from a grouped message item
@@ -132,6 +139,11 @@ interface MessageListProps {
   isLoadingHistory?: boolean;
   activity?: Activity;
   onFocusInput?: () => void;
+  // AskUserQuestion support
+  currentQuestion?: AskUserQuestionRequest | null;
+  submittedQuestions?: SubmittedQuestion[];
+  onQuestionSubmit?: (answers: Record<string, string | string[]>) => void;
+  onQuestionCancel?: () => void;
 }
 
 export function MessageList({
@@ -151,6 +163,10 @@ export function MessageList({
   isLoadingHistory = false,
   activity = 'idle',
   onFocusInput,
+  currentQuestion,
+  submittedQuestions = [],
+  onQuestionSubmit,
+  onQuestionCancel,
 }: MessageListProps) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const [selectedIndex, setSelectedIndex] = React.useState<number | null>(null);
@@ -167,6 +183,15 @@ export function MessageList({
     console.log(`[MessageList] pendingByToolUseId created with ${map.size} entries:`, Array.from(map.keys()));
     return map;
   }, [pendingApprovals]);
+
+  // Create a map of toolCallId -> submitted question for inline rendering
+  const submittedByToolCallId = React.useMemo(() => {
+    const map = new Map<string, SubmittedQuestion>();
+    for (const sq of submittedQuestions) {
+      map.set(sq.request.toolCallId, sq);
+    }
+    return map;
+  }, [submittedQuestions]);
 
   // Group messages by tool invocation
   const groupedMessages = React.useMemo(() => {
@@ -378,17 +403,28 @@ export function MessageList({
             </TooltipContent>
           </Tooltip>
           {item.type === 'tool_group' ? (
-            <ToolGroupBlock
-              group={item.group}
-              pendingApproval={pendingByToolUseId.get(item.group.id)}
-              stagedDecision={stagedDecisions.get(pendingByToolUseId.get(item.group.id)?.id ?? '')}
-              resolvedDecision={resolvedDecisions.get(item.group.id)}
-              onApprove={onApprove}
-              onDeny={onDeny}
-              isSelected={selectedIndex === index}
-              expandedOverride={expandedOverrides[item.group.id]}
-              onToggleExpand={() => handleToggleExpand(item.group.id)}
-            />
+            <>
+              <ToolGroupBlock
+                group={item.group}
+                pendingApproval={pendingByToolUseId.get(item.group.id)}
+                stagedDecision={stagedDecisions.get(pendingByToolUseId.get(item.group.id)?.id ?? '')}
+                resolvedDecision={resolvedDecisions.get(item.group.id)}
+                onApprove={onApprove}
+                onDeny={onDeny}
+                isSelected={selectedIndex === index}
+                expandedOverride={expandedOverrides[item.group.id]}
+                onToggleExpand={() => handleToggleExpand(item.group.id)}
+              />
+              {/* Render submitted question inline after its tool group */}
+              {submittedByToolCallId.has(item.group.id) && (
+                <div className="mt-2">
+                  <SubmittedQuestionBlock
+                    request={submittedByToolCallId.get(item.group.id)!.request}
+                    answers={submittedByToolCallId.get(item.group.id)!.answers}
+                  />
+                </div>
+              )}
+            </>
           ) : (
             <MessageItem
               message={item.message}
@@ -400,6 +436,14 @@ export function MessageList({
           )}
         </div>
       ))}
+      {/* Active question block for AskUserQuestion tool */}
+      {currentQuestion && onQuestionSubmit && onQuestionCancel && (
+        <QuestionBlock
+          request={currentQuestion}
+          onSubmit={onQuestionSubmit}
+          onCancel={onQuestionCancel}
+        />
+      )}
       {/* Activity indicator - shown when not streaming text */}
       {!streamingText && activity !== 'idle' && (
         <ActivityIndicator activity={activity} />

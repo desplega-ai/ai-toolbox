@@ -139,3 +139,23 @@ export interface SessionStatusEvent {
   sessionId: string;
   status: 'pending' | 'running' | 'waiting' | 'idle' | 'error' | 'finished' | 'archived';
 }
+
+// AskUserQuestion types for Claude's question UI
+export interface AskUserQuestionOption {
+  label: string;
+  description?: string;
+}
+
+export interface AskUserQuestion {
+  question: string;
+  header?: string;
+  options: AskUserQuestionOption[];
+  multiSelect?: boolean;
+}
+
+export interface AskUserQuestionRequest {
+  id: string;
+  sessionId: string;
+  toolCallId: string;
+  questions: AskUserQuestion[];
+}

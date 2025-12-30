@@ -63,7 +63,9 @@ export function FileLink({ path, line, className, children }: FileLinkProps) {
 /**
  * Format a file path for display, shortening if necessary
  */
-function formatPath(path: string): string {
+function formatPath(path: string | undefined): string {
+  // Handle undefined or empty path
+  if (!path) return '';
   // If path is short enough, show it all
   if (path.length <= 50) return path;
 
@@ -86,12 +88,23 @@ function formatPath(path: string): string {
   return `${first}/.../${parent}/${filename}`;
 }
 
+interface InlineFileLinkProps {
+  path?: string;
+  line?: number;
+  className?: string;
+}
+
 /**
  * A simpler inline file link without tooltip, for compact displays
  * Opens in the file viewer split pane instead of external editor
  */
-export function InlineFileLink({ path, line, className }: Omit<FileLinkProps, 'children'>) {
+export function InlineFileLink({ path, line, className }: InlineFileLinkProps) {
   const setOpenFile = useFileViewerStore((state) => state.setOpenFile);
+
+  // Handle undefined path gracefully
+  if (!path) {
+    return <span className="text-[var(--foreground-muted)] text-xs">(unknown path)</span>;
+  }
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();

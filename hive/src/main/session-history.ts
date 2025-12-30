@@ -2,7 +2,7 @@ import { app } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import readline from 'readline';
-import type { SDKMessage, SDKUsage, SDKAssistantMessage, SDKResultMessage } from '../shared/sdk-types';
+import type { SDKMessage, SDKUsage, SDKAssistantMessage, SDKResultMessage, SDKModelUsage } from '../shared/sdk-types';
 
 const CLAUDE_DIR = path.join(app.getPath('home'), '.claude');
 const PROJECTS_DIR = path.join(CLAUDE_DIR, 'projects');
@@ -382,4 +382,92 @@ export async function getSessionWrittenFiles(
   }
 
   return Array.from(writtenFiles);
+}
+
+/**
+ * Extract cumulative token usage from a session's JSONL file.
+ * Reads all assistant messages and sums their usage data.
+ * Returns null if file doesn't exist or no usage data found.
+ */
+export async function extractSessionUsage(
+  directory: string,
+  claudeSessionId: string
+): Promise<{
+  usage: SDKUsage;
+  modelUsage: { [modelName: string]: SDKModelUsage };
+} | null> {
+  const filePath = getSessionFilePath(directory, claudeSessionId);
+
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+
+  const usage: SDKUsage = {
+    input_tokens: 0,
+    output_tokens: 0,
+    cache_creation_input_tokens: 0,
+    cache_read_input_tokens: 0,
+  };
+
+  // Track per-model usage
+  const modelUsageMap = new Map<string, SDKModelUsage>();
+
+  const fileStream = fs.createReadStream(filePath);
+  const rl = readline.createInterface({
+    input: fileStream,
+    crlfDelay: Infinity,
+  });
+
+  for await (const line of rl) {
+    if (!line.trim()) continue;
+
+    try {
+      const parsed = JSON.parse(line);
+
+      // Extract usage from assistant messages
+      if (parsed.type === 'assistant' && parsed.message?.usage) {
+        const msgUsage = parsed.message.usage;
+        usage.input_tokens! += msgUsage.input_tokens || 0;
+        usage.output_tokens! += msgUsage.output_tokens || 0;
+        usage.cache_creation_input_tokens! += msgUsage.cache_creation_input_tokens || 0;
+        usage.cache_read_input_tokens! += msgUsage.cache_read_input_tokens || 0;
+
+        // Track model usage if model info available
+        const model = parsed.message.model;
+        if (model) {
+          if (!modelUsageMap.has(model)) {
+            modelUsageMap.set(model, {
+              inputTokens: 0,
+              outputTokens: 0,
+              cacheReadInputTokens: 0,
+              cacheCreationInputTokens: 0,
+              webSearchRequests: 0,
+              costUSD: 0,
+              contextWindow: 200000, // All current Claude models are 200k
+            });
+          }
+          const modelData = modelUsageMap.get(model)!;
+          modelData.inputTokens += msgUsage.input_tokens || 0;
+          modelData.outputTokens += msgUsage.output_tokens || 0;
+          modelData.cacheReadInputTokens += msgUsage.cache_read_input_tokens || 0;
+          modelData.cacheCreationInputTokens += msgUsage.cache_creation_input_tokens || 0;
+        }
+      }
+    } catch {
+      // Skip malformed lines
+      continue;
+    }
+  }
+
+  const modelUsage: { [modelName: string]: SDKModelUsage } = {};
+  for (const [model, data] of modelUsageMap) {
+    modelUsage[model] = data;
+  }
+
+  // If no usage data found, return null
+  if (usage.input_tokens === 0 && usage.output_tokens === 0) {
+    return null;
+  }
+
+  return { usage, modelUsage };
 }

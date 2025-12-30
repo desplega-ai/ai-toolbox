@@ -18,14 +18,13 @@ export const CLAUDE_MODELS: { value: ClaudeModel; label: string }[] = [
 
 export const DEFAULT_MODEL: ClaudeModel = 'claude-opus-4-5';
 
-// Permission modes for Claude SDK
-export type PermissionMode = 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions';
+// Permission modes for ACP
+export type PermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions';
 
 export const PERMISSION_MODES: { value: PermissionMode; label: string; description: string; requiresConfirmation: boolean }[] = [
-  { value: 'default', label: 'Default', description: 'Standard permission prompts', requiresConfirmation: false },
-  { value: 'acceptEdits', label: 'Accept Edits', description: 'Auto-accept file edits', requiresConfirmation: false },
-  { value: 'plan', label: 'Plan Only', description: 'No execution, planning only', requiresConfirmation: false },
-  { value: 'bypassPermissions', label: 'Bypass All', description: 'Bypass all permission checks', requiresConfirmation: true },
+  { value: 'default', label: 'Default', description: 'Approval required for tools', requiresConfirmation: false },
+  { value: 'acceptEdits', label: 'Accept Edits', description: 'Auto-approve file edits', requiresConfirmation: false },
+  { value: 'bypassPermissions', label: 'Bypass All', description: 'No permission prompts', requiresConfirmation: true },
 ];
 
 export const DEFAULT_PERMISSION_MODE: PermissionMode = 'default';
@@ -208,7 +207,7 @@ export interface ProjectAnalytics {
 export type AnalyticsTimeRange = 'all' | 'today' | '7days' | '30days';
 
 // In-app notification types
-export type NotificationType = 'permission' | 'success' | 'error';
+export type NotificationType = 'permission' | 'question' | 'success' | 'error';
 
 export interface InAppNotification {
   id: string;

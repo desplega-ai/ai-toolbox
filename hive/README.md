@@ -8,11 +8,11 @@ A macOS desktop application for managing Claude Code sessions with an intuitive 
 
 ## What is Hive?
 
-Hive is an Electron-based desktop app that wraps the Claude Agent SDK, providing a visual interface for running Claude Code sessions. It supports multi-tab workflows, permission management, a thoughts/notes pane, git diff viewing, and native notifications.
+Hive is an Electron-based desktop app that communicates with Claude Code via the Agent Client Protocol (ACP), providing a visual interface for running Claude Code sessions. It supports multi-tab workflows, permission management, a thoughts/notes pane, git diff viewing, and native notifications.
 
 Built with:
 - Electron + Vite + React + TypeScript
-- Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`)
+- Agent Client Protocol SDK (`@agentclientprotocol/sdk`)
 - SQLite (better-sqlite3) for local storage at `~/.hive/`
 - Solarized theme with shadcn/ui components
 
@@ -51,7 +51,9 @@ Implementation plans and research documents are in:
 - `thoughts/shared/plans/2025-12-15-hive-phase-9-diff-tab.md` - Diff tab
 
 External resources:
-- [Claude Agent SDK](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk)
+- [Agent Client Protocol](https://agentclientprotocol.com/)
+- [ACP SDK](https://www.npmjs.com/package/@agentclientprotocol/sdk)
+- [Claude Code ACP](https://www.npmjs.com/package/@zed-industries/claude-code-acp)
 - [Electron Forge](https://www.electronforge.io/)
 - [better-sqlite3](https://github.com/WiseLibs/better-sqlite3)
 

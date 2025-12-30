@@ -3,6 +3,8 @@ import { MakerZIP } from '@electron-forge/maker-zip';
 import { MakerDMG } from '@electron-forge/maker-dmg';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { execSync } from 'node:child_process';
+import { cpSync } from 'node:fs';
+import path from 'node:path';
 
 const config: ForgeConfig = {
   packagerConfig: {
@@ -44,6 +46,13 @@ const config: ForgeConfig = {
      * This workaround can be removed when Forge 8.0.0 is released with the fix.
      */
     packageAfterPrune: async (_config, buildPath) => {
+      // Copy local file dependency to the expected location
+      // buildPath is .../Resources/app, so ../../claude-code-acp resolves to Contents/claude-code-acp
+      const localDepSource = path.resolve(__dirname, '../../claude-code-acp');
+      const localDepDest = path.resolve(buildPath, '../../claude-code-acp');
+      console.log(`Copying local dependency from ${localDepSource} to ${localDepDest}...`);
+      cpSync(localDepSource, localDepDest, { recursive: true });
+
       console.log('Installing production dependencies...');
       execSync('pnpm install --prod --ignore-scripts', {
         cwd: buildPath,

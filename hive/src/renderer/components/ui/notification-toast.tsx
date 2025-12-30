@@ -1,4 +1,4 @@
-import { X, AlertCircle, CheckCircle, ShieldQuestion } from 'lucide-react';
+import { X, AlertCircle, CheckCircle, ShieldQuestion, MessageCircleQuestion } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { InAppNotification } from '../../../shared/types';
 
@@ -10,18 +10,21 @@ interface NotificationToastProps {
 
 const iconMap = {
   permission: ShieldQuestion,
+  question: MessageCircleQuestion,
   success: CheckCircle,
   error: AlertCircle,
 };
 
 const colorMap = {
   permission: 'border-l-[var(--warning)]',
+  question: 'border-l-blue-500',
   success: 'border-l-[var(--success)]',
   error: 'border-l-[var(--destructive)]',
 };
 
 const iconColorMap = {
   permission: 'text-[var(--warning)]',
+  question: 'text-blue-500',
   success: 'text-[var(--success)]',
   error: 'text-[var(--destructive)]',
 };

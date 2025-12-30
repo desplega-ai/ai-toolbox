@@ -28,13 +28,21 @@ function getToolIcon(toolName: string) {
   }
 }
 
+// Helper to safely extract file path from tool input (handles different ACP formats)
+function extractFilePath(input: unknown): string | undefined {
+  if (!input || typeof input !== 'object') return undefined;
+  const inp = input as Record<string, unknown>;
+  // Try common field names
+  return (inp.file_path || inp.filePath || inp.path) as string | undefined;
+}
+
 function getToolSummary(toolName: string, input: unknown): string {
   const inp = input as Record<string, unknown>;
   switch (toolName) {
     case 'Write':
     case 'Read':
     case 'Edit':
-      return String(inp.file_path || '');
+      return extractFilePath(inp) || '';
     case 'Bash':
       const cmd = String(inp.command || '');
       return cmd.length > 50 ? cmd.slice(0, 50) + '...' : cmd;
@@ -50,13 +58,15 @@ function getToolSummary(toolName: string, input: unknown): string {
 }
 
 function ToolDetails({ toolName, input }: { toolName: string; input: Record<string, unknown> }) {
+  const filePath = extractFilePath(input);
+
   switch (toolName) {
     case 'Write':
       return (
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-xs">
             <span className="text-[var(--foreground-muted)]">File:</span>
-            <InlineFileLink path={input.file_path as string} />
+            <InlineFileLink path={filePath} />
           </div>
           <div className="text-xs text-[var(--foreground-muted)]">Content:</div>
           <pre className="text-xs bg-[var(--background)] p-2 overflow-auto max-h-40 font-mono border border-[var(--border)]">
@@ -71,7 +81,7 @@ function ToolDetails({ toolName, input }: { toolName: string; input: Record<stri
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-xs">
             <span className="text-[var(--foreground-muted)]">File:</span>
-            <InlineFileLink path={input.file_path as string} />
+            <InlineFileLink path={filePath} />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
@@ -106,7 +116,7 @@ function ToolDetails({ toolName, input }: { toolName: string; input: Record<stri
       return (
         <div className="flex items-center gap-2 text-xs flex-wrap">
           <span className="text-[var(--foreground-muted)]">File:</span>
-          <InlineFileLink path={String(input.file_path || '')} line={typeof input.offset === 'number' ? input.offset : undefined} />
+          <InlineFileLink path={filePath} line={typeof input.offset === 'number' ? input.offset : undefined} />
           {typeof input.offset === 'number' && <span className="text-[var(--foreground-muted)]">from line {input.offset}</span>}
           {typeof input.limit === 'number' && <span className="text-[var(--foreground-muted)]">({input.limit} lines)</span>}
         </div>
@@ -363,7 +373,7 @@ export function ToolGroupBlock({ group, pendingApproval, stagedDecision, resolve
             ✗ Will Deny
           </span>
         )}
-        {!isComplete && !isPending && (
+        {!isComplete && !isPending && !resolvedDecision && (
           <Loader2 className="h-3 w-3 animate-spin text-[var(--foreground-muted)]" />
         )}
         {/* Show resolved decision outcome */}

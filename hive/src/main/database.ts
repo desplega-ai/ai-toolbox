@@ -180,6 +180,26 @@ try {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_thought_comments_status ON thought_comments(status)`);
 }
 
+// Migration: Convert 'plan' permission mode to 'default' (plan mode removed in ACP migration)
+try {
+  db.exec(`UPDATE sessions SET permission_mode = 'default' WHERE permission_mode = 'plan'`);
+} catch {
+  // Already migrated or no 'plan' sessions
+}
+
+// Migration: Create submitted_questions table for AskUserQuestion tool
+db.exec(`
+  CREATE TABLE IF NOT EXISTS submitted_questions (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    tool_call_id TEXT NOT NULL,
+    request_json TEXT NOT NULL,
+    answers_json TEXT NOT NULL,
+    created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
+  )
+`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_submitted_questions_session ON submitted_questions(session_id)`);
+
 // Prepared statements
 const statements = {
   // Projects
@@ -372,6 +392,18 @@ const statements = {
            sent_at as sentAt, created_at as createdAt, updated_at as updatedAt
     FROM thought_comments WHERE id = ?
   `),
+
+  // Submitted Questions
+  insertSubmittedQuestion: db.prepare(`
+    INSERT INTO submitted_questions (id, session_id, tool_call_id, request_json, answers_json, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `),
+  getSubmittedQuestionsBySession: db.prepare(`
+    SELECT id, session_id as sessionId, tool_call_id as toolCallId,
+           request_json as requestJson, answers_json as answersJson, created_at as createdAt
+    FROM submitted_questions WHERE session_id = ? ORDER BY created_at ASC
+  `),
+  deleteSubmittedQuestionsBySession: db.prepare(`DELETE FROM submitted_questions WHERE session_id = ?`),
 };
 
 interface ProjectRow {
@@ -506,6 +538,24 @@ export interface PendingApproval {
   toolName: string;
   toolInput: unknown;
   hash: string;
+  createdAt: number;
+}
+
+interface SubmittedQuestionRow {
+  id: string;
+  sessionId: string;
+  toolCallId: string;
+  requestJson: string;
+  answersJson: string;
+  createdAt: number;
+}
+
+export interface SubmittedQuestionRecord {
+  id: string;
+  sessionId: string;
+  toolCallId: string;
+  request: unknown;
+  answers: Record<string, string | string[]>;
   createdAt: number;
 }
 
@@ -848,6 +898,50 @@ export const database = {
 
     delete(id: string): void {
       statements.deleteComment.run(id);
+    },
+  },
+
+  submittedQuestions: {
+    create(data: {
+      sessionId: string;
+      toolCallId: string;
+      request: unknown;
+      answers: Record<string, string | string[]>;
+    }): SubmittedQuestionRecord {
+      const id = nanoid();
+      const now = Date.now();
+      statements.insertSubmittedQuestion.run(
+        id,
+        data.sessionId,
+        data.toolCallId,
+        JSON.stringify(data.request),
+        JSON.stringify(data.answers),
+        now
+      );
+      return {
+        id,
+        sessionId: data.sessionId,
+        toolCallId: data.toolCallId,
+        request: data.request,
+        answers: data.answers,
+        createdAt: now,
+      };
+    },
+
+    listBySession(sessionId: string): SubmittedQuestionRecord[] {
+      const rows = statements.getSubmittedQuestionsBySession.all(sessionId) as SubmittedQuestionRow[];
+      return rows.map(row => ({
+        id: row.id,
+        sessionId: row.sessionId,
+        toolCallId: row.toolCallId,
+        request: JSON.parse(row.requestJson),
+        answers: JSON.parse(row.answersJson),
+        createdAt: row.createdAt,
+      }));
+    },
+
+    deleteBySession(sessionId: string): void {
+      statements.deleteSubmittedQuestionsBySession.run(sessionId);
     },
   },
 

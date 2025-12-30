@@ -250,14 +250,52 @@ export const useSessionMessagesStore = create<SessionMessagesState>((set, get) =
   streamingTextBySession: {},
   loadedSessions: new Set(),
   addMessage: (sessionId, message) => set((state) => {
-    // Ensure message has a timestamp (add one if missing)
-    const messageWithTimestamp = (message as { timestamp?: string }).timestamp
-      ? message
-      : { ...message, timestamp: new Date().toISOString() };
+    const existingMessages = state.messagesBySession[sessionId] || [];
+
+    // Check for duplicate by uuid (for tool_use messages)
+    const msgUuid = (message as { uuid?: string }).uuid;
+    let newMessages: SDKMessage[];
+
+    if (msgUuid) {
+      // If message has a uuid, replace existing message with same uuid (for updates)
+      const existingIndex = existingMessages.findIndex(
+        (m) => (m as { uuid?: string }).uuid === msgUuid
+      );
+      if (existingIndex >= 0) {
+        // Replace existing message but preserve original timestamp for ordering
+        const existingTimestamp = (existingMessages[existingIndex] as { timestamp?: string }).timestamp;
+        const updatedMessage = {
+          ...message,
+          timestamp: existingTimestamp || (message as { timestamp?: string }).timestamp || new Date().toISOString(),
+        };
+        newMessages = [...existingMessages];
+        newMessages[existingIndex] = updatedMessage;
+      } else {
+        // New message - add timestamp if missing
+        const messageWithTimestamp = (message as { timestamp?: string }).timestamp
+          ? message
+          : { ...message, timestamp: new Date().toISOString() };
+        newMessages = [...existingMessages, messageWithTimestamp];
+      }
+    } else {
+      // No uuid - just add with timestamp
+      const messageWithTimestamp = (message as { timestamp?: string }).timestamp
+        ? message
+        : { ...message, timestamp: new Date().toISOString() };
+      newMessages = [...existingMessages, messageWithTimestamp];
+    }
+
+    // Sort messages by timestamp to maintain correct order
+    newMessages.sort((a, b) => {
+      const aTime = (a as { timestamp?: string }).timestamp || '';
+      const bTime = (b as { timestamp?: string }).timestamp || '';
+      return aTime.localeCompare(bTime);
+    });
+
     return {
       messagesBySession: {
         ...state.messagesBySession,
-        [sessionId]: [...(state.messagesBySession[sessionId] || []), messageWithTimestamp],
+        [sessionId]: newMessages,
       },
     };
   }),
