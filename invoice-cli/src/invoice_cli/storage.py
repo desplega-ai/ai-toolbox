@@ -59,6 +59,12 @@ class InvoiceRecord(BaseModel):
     # Processing metadata
     processed_at: str = Field(default_factory=lambda: datetime.now().isoformat())
 
+    # Google Drive upload tracking
+    gdrive_uploaded: bool = False
+    gdrive_uploaded_at: str | None = None
+    gdrive_file_ids: list[str] = Field(default_factory=list)
+    gdrive_folder_path: str | None = None
+
 
 class InvoiceStorage:
     """Manages storage of invoice records and attachments."""

@@ -52,6 +52,15 @@ class OwnershipConfig(BaseModel):
     work_companies: list[str] = Field(default_factory=list)
 
 
+class DriveConfig(BaseModel):
+    """Configuration for Google Drive uploads."""
+
+    account: str | None = None  # Which account to use for Drive uploads
+    root_folder: str = "Invoices"  # Root folder name on Drive
+    root_folder_id: str | None = None  # Direct folder ID (overrides root_folder)
+    pattern: str = "year/company/month"  # Default folder pattern
+
+
 class Config(BaseModel):
     """Main configuration model."""
 
@@ -60,6 +69,7 @@ class Config(BaseModel):
     accounts: list[AccountConfig] = Field(default_factory=list)
     company: CompanyConfig = Field(default_factory=CompanyConfig)
     ownership: OwnershipConfig = Field(default_factory=OwnershipConfig)
+    drive: DriveConfig = Field(default_factory=DriveConfig)
 
 
 def get_config_dir() -> Path:

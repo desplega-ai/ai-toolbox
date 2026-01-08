@@ -33,6 +33,7 @@ from invoice_cli.gmail import (
     search_messages,
 )
 from invoice_cli.storage import InvoiceRecord, InvoiceStorage
+from invoice_cli.gdrive import get_drive_service, create_folder_path, upload_file
 
 app = typer.Typer(
     name="invoice-cli",
@@ -238,6 +239,39 @@ def remove_seller(
         return
 
     save_config(config)
+
+
+@app.command()
+def set_drive_account(
+    account_name: str = typer.Argument(..., help="Name of the account to use for Drive uploads"),
+) -> None:
+    """Set which Gmail account to use for Google Drive uploads.
+
+    All invoices from all accounts will be uploaded to this account's Drive.
+    """
+    config = load_config()
+
+    # Verify account exists
+    account_names = [a.name for a in config.accounts]
+    if account_name not in account_names:
+        console.print(f"[red]Account '{account_name}' not found.[/red]")
+        console.print(f"Available accounts: {', '.join(account_names) or 'none'}")
+        raise typer.Exit(1)
+
+    config.drive.account = account_name
+    save_config(config)
+
+    console.print(f"[green]Drive account set to:[/green] {account_name}")
+    console.print("[dim]All uploads will go to this account's Google Drive.[/dim]")
+
+    # Check if re-authentication might be needed
+    drive_account = next((a for a in config.accounts if a.name == account_name), None)
+    if drive_account:
+        token_path = Path(drive_account.token_file)
+        if token_path.exists():
+            console.print("\n[yellow]Note:[/yellow] You may need to re-authenticate to grant Drive access.")
+            console.print("[dim]If upload fails, delete the token file and run 'invoice-cli upload':[/dim]")
+            console.print(f"  rm {token_path}")
 
 
 @app.command()
@@ -581,6 +615,12 @@ def list_invoices(
         "-s",
         help="Sort order by date (asc or desc)",
     ),
+    no_attachments: bool = typer.Option(
+        False,
+        "--no-attachments",
+        "-m",
+        help="Show only invoices without attachments (need manual download)",
+    ),
 ) -> None:
     """List fetched invoices."""
     config = load_config()
@@ -606,6 +646,10 @@ def list_invoices(
     if work_only:
         records = [r for r in records if r.ownership == "work"]
 
+    # Filter to invoices without attachments (need manual download)
+    if no_attachments:
+        records = [r for r in records if not r.attachments]
+
     if not records:
         console.print("[yellow]No invoices found.[/yellow]")
         return
@@ -630,6 +674,7 @@ def list_invoices(
     table.add_column("Own", style="magenta", justify="center")
     table.add_column("Subject", style="white", max_width=40)
     table.add_column("Account", style="dim")
+    table.add_column("Gmail", style="blue")
 
     # Track totals by currency
     totals: dict[str, float] = {}
@@ -660,6 +705,12 @@ def list_invoices(
         elif record.ownership == "work":
             own_str = "W"
 
+        # Gmail link (only show for records without attachments to highlight manual action needed)
+        gmail_str = ""
+        if not record.attachments:
+            gmail_url = f"https://mail.google.com/mail/u/0/#inbox/{record.message_id}"
+            gmail_str = f"[link={gmail_url}]Open[/link]"
+
         table.add_row(
             record.message_id[:12],
             date_str,
@@ -669,6 +720,7 @@ def list_invoices(
             own_str,
             record.subject[:40],
             record.account_name,
+            gmail_str,
         )
 
     console.print(table)
@@ -711,6 +763,8 @@ def get(
 
     # Basic info
     console.print(f"[cyan]Message ID:[/cyan] {record.message_id}")
+    gmail_url = f"https://mail.google.com/mail/u/0/#inbox/{record.message_id}"
+    console.print(f"[cyan]Gmail Link:[/cyan] [link={gmail_url}]{gmail_url}[/link]")
     console.print(f"[cyan]Subject:[/cyan] {record.subject}")
     console.print(f"[cyan]Sender:[/cyan] {record.sender}")
 
@@ -811,6 +865,9 @@ def get(
                 console.print(f"    [dim]{att}[/dim]")
             else:
                 console.print(f"  • {att_path.name} [red](missing)[/red]")
+    else:
+        console.print(f"\n[yellow]No attachments - manual download may be needed[/yellow]")
+        console.print(f"[dim]Use Gmail link above to access the email[/dim]")
 
     # Processing info
     console.print(f"\n[dim]Processed: {record.processed_at}[/dim]")
@@ -970,6 +1027,187 @@ def organize(
         console.print(f"\n[dim]Would organize {len(invoices)} invoices[/dim]")
     else:
         console.print(f"\n[green]Done![/green] Created {created_count} symlinks")
+
+
+@app.command()
+def upload(
+    pattern: str = typer.Option(
+        None,
+        "--pattern",
+        "-p",
+        help="Folder pattern (defaults to config or 'year/company/month')",
+    ),
+    root: str = typer.Option(
+        None,
+        "--root",
+        "-r",
+        help="Root folder name on Drive (defaults to config or 'Invoices')",
+    ),
+    root_id: str = typer.Option(
+        None,
+        "--root-id",
+        help="Direct folder ID to upload to (overrides --root)",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        "-n",
+        help="Show what would be uploaded without making changes",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        "-f",
+        help="Re-upload even if already uploaded",
+    ),
+    from_account: str = typer.Option(
+        None,
+        "--from-account",
+        help="Only upload invoices from this Gmail account",
+    ),
+) -> None:
+    """Upload invoices to Google Drive.
+
+    Uploads invoice attachments to an organized folder structure on Drive.
+    Uses the account set with 'set-drive-account' for uploads.
+    """
+    config = load_config()
+    storage = InvoiceStorage(config.storage.base_path)
+
+    # Verify drive account is set
+    if not config.drive.account:
+        console.print("[red]No Drive account set.[/red]")
+        console.print("Run: invoice-cli set-drive-account <account-name>")
+        raise typer.Exit(1)
+
+    # Find the drive account config
+    drive_account = next(
+        (a for a in config.accounts if a.name == config.drive.account),
+        None,
+    )
+    if not drive_account:
+        console.print(f"[red]Drive account '{config.drive.account}' not found in config.[/red]")
+        raise typer.Exit(1)
+
+    # Use config defaults if not specified (None means use config, "" means flat)
+    folder_pattern = pattern if pattern is not None else config.drive.pattern
+    root_folder = root or config.drive.root_folder
+    root_folder_id = root_id or config.drive.root_folder_id
+
+    # Load invoices
+    records = storage.load_index()
+    invoices = [r for r in records if r.is_invoice]
+
+    # Filter by account if specified
+    if from_account:
+        invoices = [r for r in invoices if r.account_name == from_account]
+
+    # Filter out already uploaded unless force
+    if not force:
+        invoices = [r for r in invoices if not r.gdrive_uploaded]
+
+    if not invoices:
+        console.print("[yellow]No invoices to upload.[/yellow]")
+        return
+
+    console.print(f"[bold]Uploading {len(invoices)} invoices to Google Drive[/bold]")
+    console.print(f"  Account: {config.drive.account}")
+    if root_folder_id:
+        console.print(f"  Root folder ID: {root_folder_id}")
+    else:
+        console.print(f"  Root folder: {root_folder}")
+    console.print(f"  Pattern: {folder_pattern or '(flat)'}")
+    console.print()
+
+    if dry_run:
+        console.print("[dim]Dry run - no changes will be made[/dim]\n")
+
+    # Initialize Drive service (only if not dry run)
+    service = None
+    if not dry_run:
+        token_file = Path(drive_account.token_file)
+        service = get_drive_service(token_file)
+
+    uploaded_count = 0
+    skipped_count = 0
+
+    for record in invoices:
+        if not record.attachments:
+            console.print(f"[yellow]Skipping (no attachments):[/yellow] {record.subject[:50]}")
+            skipped_count += 1
+            continue
+
+        # Parse date
+        date = _parse_date(record.invoice_date or record.date)
+        if not date:
+            console.print(f"[yellow]Skipping (no date):[/yellow] {record.subject[:50]}")
+            skipped_count += 1
+            continue
+
+        # Build folder path based on pattern
+        company = _sanitize_name(record.company_name or "Unknown")
+        year = str(date.year)
+        month = date.strftime("%m")
+
+        folder_parts = []
+        if folder_pattern:  # Empty pattern = flat structure (all in root)
+            for part in folder_pattern.split("/"):
+                part = part.strip()
+                if not part:
+                    continue
+                if part == "year":
+                    folder_parts.append(year)
+                elif part == "month":
+                    folder_parts.append(month)
+                elif part == "company":
+                    folder_parts.append(company)
+                else:
+                    folder_parts.append(part)
+
+        folder_path = "/".join([root_folder] + folder_parts) if folder_parts else root_folder
+
+        # Upload each attachment
+        file_ids = []
+        for att_path_str in record.attachments:
+            att_path = Path(att_path_str)
+            if not att_path.exists():
+                console.print(f"  [yellow]Skipping (file missing):[/yellow] {att_path.name}")
+                continue
+
+            # Build filename: {date}-{company}-{description}.pdf
+            date_prefix = date.strftime("%Y-%m-%d")
+            desc = _sanitize_name(record.description or record.company_name or "invoice")[:50]
+            new_name = f"{date_prefix}-{company}-{desc}{att_path.suffix}"
+
+            if dry_run:
+                console.print(f"  [dim]Would upload:[/dim] {folder_path}/{new_name}")
+            else:
+                # Create folder structure and upload
+                target_folder_id = create_folder_path(
+                    service, folder_parts, root_folder, root_folder_id
+                )
+                file_id = upload_file(service, att_path, target_folder_id, new_name, skip_existing=True)
+
+                if file_id:
+                    file_ids.append(file_id)
+                    console.print(f"  [green]Uploaded:[/green] {folder_path}/{new_name}")
+                    uploaded_count += 1
+                else:
+                    console.print(f"  [yellow]Skipped (exists):[/yellow] {new_name}")
+                    skipped_count += 1
+
+        # Update record if uploaded
+        if not dry_run and file_ids:
+            record.gdrive_uploaded = True
+            record.gdrive_uploaded_at = datetime.now().isoformat()
+            record.gdrive_file_ids = file_ids
+            record.gdrive_folder_path = folder_path
+            storage.save_record(record)
+
+    if dry_run:
+        console.print(f"\n[dim]Would upload from {len(invoices)} invoices[/dim]")
+    else:
+        console.print(f"\n[green]Done![/green] Uploaded {uploaded_count}, skipped {skipped_count}")
 
 
 def _normalize_id(value: str | None) -> str | None:

@@ -11,8 +11,11 @@ from googleapiclient.discovery import build
 
 from invoice_cli.config import get_config_dir
 
-# Gmail API scopes - read-only access
-SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+# Gmail and Drive API scopes
+SCOPES = [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/drive.file",
+]
 
 
 @dataclass
