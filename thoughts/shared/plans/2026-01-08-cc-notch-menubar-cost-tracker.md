@@ -131,12 +131,12 @@ bun init -y
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] `cd cc-notch && bun install` completes successfully
-- [ ] `bun tsc --noEmit` passes (no TypeScript errors)
-- [ ] `bun run lint` passes
+- [x] `cd cc-notch && bun install` completes successfully
+- [x] `bun tsc --noEmit` passes (no TypeScript errors)
+- [x] `bun run lint` passes
 
 #### Manual Verification:
-- [ ] Project structure matches template above
+- [x] Project structure matches template above
 
 ---
 
@@ -261,12 +261,12 @@ main();
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] `bun run dev` outputs valid SwiftBar format (text before `---`, menu items after)
-- [ ] `bun tsc --noEmit` passes
-- [ ] `bun run lint` passes
+- [x] `bun run dev` outputs valid SwiftBar format (text before `---`, menu items after)
+- [x] `bun tsc --noEmit` passes
+- [x] `bun run lint` passes
 
 #### Manual Verification:
-- [ ] Output looks correct with real ccusage data (run `bun src/plugin.ts` manually)
+- [x] Output looks correct with real ccusage data (run `bun src/plugin.ts` manually)
 
 ---
 
@@ -393,12 +393,12 @@ main();
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] `bun tsc --noEmit` passes
-- [ ] `bun run lint` passes
+- [x] `bun tsc --noEmit` passes
+- [x] `bun run lint` passes
 
 #### Manual Verification:
-- [ ] `bun run install:swiftbar` creates symlink in correct location
-- [ ] `bun run uninstall:swiftbar` removes the symlink
+- [x] `bun run install:swiftbar` creates symlink in correct location
+- [x] `bun run uninstall:swiftbar` removes the symlink
 
 ---
 
@@ -431,12 +431,12 @@ Install SwiftBar and verify the full integration works.
 ### Success Criteria:
 
 #### Manual Verification:
-- [ ] SwiftBar is installed and running
-- [ ] cc-notch appears in menu bar showing today's cost
-- [ ] Dropdown shows today's cost, tokens, monthly cost
-- [ ] Dropdown shows model breakdown (if multiple models used)
-- [ ] Refresh button works
-- [ ] Plugin auto-refreshes every 5 minutes
+- [x] SwiftBar is installed and running
+- [x] cc-notch appears in menu bar showing today's cost
+- [x] Dropdown shows today's cost, tokens, monthly cost
+- [x] Dropdown shows model breakdown (if multiple models used)
+- [x] Refresh button works
+- [x] Plugin auto-refreshes every 5 minutes
 
 ---
 

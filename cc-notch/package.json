@@ -1,0 +1,26 @@
+{
+  "name": "cc-notch",
+  "version": "0.1.0",
+  "description": "macOS menu bar cost tracker for Claude Code",
+  "type": "module",
+  "scripts": {
+    "dev": "bun src/plugin.ts",
+    "lint": "biome check src scripts",
+    "lint:fix": "biome check --write src scripts",
+    "format": "biome format --write src scripts",
+    "test": "bun test",
+    "tsc:check": "bun tsc --noEmit",
+    "install:swiftbar": "bun scripts/install.ts",
+    "uninstall:swiftbar": "bun scripts/uninstall.ts"
+  },
+  "dependencies": {
+    "ccusage": "^17.2.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.9",
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
