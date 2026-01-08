@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { Command } from "commander";
+import pkg from "../package.json";
 import { cdCommand } from "./commands/cd.ts";
 import { cleanupCommand } from "./commands/cleanup.ts";
 import { createCommand } from "./commands/create.ts";
@@ -11,7 +12,7 @@ import { switchCommand } from "./commands/switch.ts";
 
 const program = new Command();
 
-program.name("wts").description("Git worktree manager with tmux integration").version("0.1.0");
+program.name("wts").description(pkg.description).version(pkg.version);
 
 program.addCommand(initCommand);
 program.addCommand(listCommand);
