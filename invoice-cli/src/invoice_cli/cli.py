@@ -302,6 +302,7 @@ def set_ownership(
 @app.command()
 def add_account(
     name: str = typer.Argument(..., help="Name for this Gmail account"),
+    force: bool = typer.Option(False, "--force", "-f", help="Re-authenticate existing account"),
 ) -> None:
     """Add a Gmail account via OAuth2 authentication."""
     # Check for credentials.json
@@ -323,10 +324,26 @@ def add_account(
     config = load_config()
 
     # Check if account already exists
+    existing_account = None
     for acc in config.accounts:
         if acc.name == name:
+            existing_account = acc
+            break
+
+    if existing_account:
+        if not force:
             console.print(f"[yellow]Account '{name}' already exists[/yellow]")
+            console.print("[dim]Use --force to re-authenticate[/dim]")
             raise typer.Exit(1)
+
+        # Remove existing token file
+        old_token = Path(existing_account.token_file)
+        if old_token.exists():
+            old_token.unlink()
+            console.print(f"[dim]Removed old token: {old_token}[/dim]")
+
+        # Remove from config
+        config.accounts = [a for a in config.accounts if a.name != name]
 
     # Set up token file path
     tokens_dir = get_tokens_dir()
