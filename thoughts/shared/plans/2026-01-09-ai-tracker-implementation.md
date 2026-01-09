@@ -345,9 +345,9 @@ ai-tracker git-install        # Install git hooks
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] `uv run ai-tracker stats` displays table without error
-- [ ] `uv run ai-tracker stats --chart` shows ASCII chart
-- [ ] `uv run ai-tracker --help` shows all commands
+- [x] `uv run ai-tracker stats` displays table without error
+- [x] `uv run ai-tracker stats --chart` shows ASCII chart
+- [x] `uv run ai-tracker --help` shows all commands
 
 #### Manual Verification:
 - [ ] Stats accurately reflect recent commits

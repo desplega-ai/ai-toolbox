@@ -1,0 +1,19 @@
+[project]
+name = "ai-tracker"
+version = "0.1.0"
+description = "Track AI-generated vs human-made code changes in git repos"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+dependencies = [
+    "rich>=13.0.0",
+    "plotext>=5.0.0",
+    "click>=8.0.0",
+]
+
+[project.scripts]
+ai-tracker = "ai_tracker.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
