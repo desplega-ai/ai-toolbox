@@ -84,7 +84,7 @@ def display_stats(days: int = 30, repo: str | None = None, show_chart: bool = Fa
                     str(r["total_commits"]),
                     f"{r['ai_lines_added']:,}",
                     f"{r['human_lines_added']:,}",
-                    f"{ai_bar} {r['ai_percent']:.0f}%",
+                    f"{ai_bar} {r['ai_percent']:3.0f}%",
                 )
 
             console.print()
