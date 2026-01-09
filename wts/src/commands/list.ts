@@ -82,7 +82,7 @@ async function listAllProjects(jsonOutput?: boolean): Promise<void> {
 
 function printWorktreeTable(worktrees: Worktree[], projectName: string): void {
   console.log(chalk.bold.blue(`${projectName}`));
-  console.log(chalk.dim("─".repeat(60)));
+  console.log(chalk.dim("-".repeat(60)));
 
   if (worktrees.length === 0) {
     console.log(chalk.dim("  No worktrees"));

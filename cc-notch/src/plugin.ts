@@ -31,6 +31,30 @@ interface DailyResponse {
 	daily: DailyEntry[];
 }
 
+interface SessionData {
+	sessionId: string;
+	inputTokens: number;
+	outputTokens: number;
+	cacheCreationTokens: number;
+	cacheReadTokens: number;
+	totalCost: number;
+	modelBreakdowns: Array<{
+		modelName: string;
+		cost: number;
+	}>;
+}
+
+interface SessionResponse {
+	sessions: SessionData[];
+}
+
+interface ActiveProject {
+	projectPath: string;
+	projectKey: string;
+	projectName: string;
+	lastActivity: number;
+}
+
 function formatCost(cost: number): string {
 	return `$${cost.toFixed(2)}`;
 }
@@ -62,9 +86,91 @@ async function runCcusage(
 	}
 }
 
+function pathToProjectKey(projectPath: string): string {
+	// Remove leading slash, then replace all slashes with dashes
+	return projectPath.replace(/^\//, "").replace(/\//g, "-");
+}
+
+function getProjectName(projectPath: string): string {
+	return projectPath.split("/").pop() || projectPath;
+}
+
+async function getRecentlyActiveProjects(
+	minutesAgo = 30,
+): Promise<ActiveProject[]> {
+	const historyPath = `${process.env.HOME}/.claude/history.jsonl`;
+	const cutoffTime = Date.now() - minutesAgo * 60 * 1000;
+
+	try {
+		const file = Bun.file(historyPath);
+		const text = await file.text();
+		const lines = text.trim().split("\n");
+
+		// Read last 200 lines to find recent activity
+		const recentLines = lines.slice(-200);
+		const projectMap = new Map<string, number>();
+
+		for (const line of recentLines) {
+			try {
+				const entry = JSON.parse(line) as {
+					project?: string;
+					timestamp?: number;
+				};
+				if (entry.project && entry.timestamp && entry.timestamp >= cutoffTime) {
+					const existing = projectMap.get(entry.project);
+					if (!existing || entry.timestamp > existing) {
+						projectMap.set(entry.project, entry.timestamp);
+					}
+				}
+			} catch {
+				// Skip malformed lines
+			}
+		}
+
+		const activeProjects: ActiveProject[] = [];
+		for (const [projectPath, lastActivity] of projectMap) {
+			activeProjects.push({
+				projectPath,
+				projectKey: pathToProjectKey(projectPath),
+				projectName: getProjectName(projectPath),
+				lastActivity,
+			});
+		}
+
+		// Sort by most recent activity
+		return activeProjects.sort((a, b) => b.lastActivity - a.lastActivity);
+	} catch {
+		return [];
+	}
+}
+
+async function getSessionCosts(): Promise<Map<string, SessionData>> {
+	const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+	const result = await runCcusage(`session --since ${today}`);
+	const sessionMap = new Map<string, SessionData>();
+
+	if (result.success && result.stdout) {
+		try {
+			const parsed = JSON.parse(result.stdout) as SessionResponse;
+			for (const session of parsed.sessions) {
+				sessionMap.set(session.sessionId, session);
+			}
+		} catch {
+			// Return empty map on parse error
+		}
+	}
+
+	return sessionMap;
+}
+
 async function main() {
 	try {
-		const dailyResult = await runCcusage("daily");
+		// Fetch all data in parallel
+		const [dailyResult, activeProjects, sessionCosts] = await Promise.all([
+			runCcusage("daily"),
+			getRecentlyActiveProjects(30),
+			getSessionCosts(),
+		]);
 
 		let todayCost = 0;
 		let monthCost = 0;
@@ -84,14 +190,41 @@ async function main() {
 				.reduce((sum, day) => sum + day.totalCost, 0);
 		}
 
-		// Menu bar display
+		// Menu bar display with active session count
 		const color = getCostColor(todayCost);
-		console.log(
-			`${formatCost(todayCost)} | color=${color} font=SF\\ Mono size=12`,
-		);
+		const activeCount = activeProjects.length;
+		const menuBarText =
+			activeCount > 0
+				? `(${activeCount}) ${formatCost(todayCost)}`
+				: formatCost(todayCost);
+		console.log(`${menuBarText} | color=${color} font=SF\\ Mono size=12`);
 
 		// Dropdown separator
 		console.log("---");
+
+		// Active sessions section (if any)
+		if (activeCount > 0) {
+			console.log(`Active (${activeCount}): | size=14`);
+			for (const project of activeProjects) {
+				const sessionData = sessionCosts.get(project.projectKey);
+				const cost = sessionData?.totalCost ?? 0;
+				console.log(
+					`--${project.projectName}: ${formatCost(cost)} | color=#888888`,
+				);
+				// Model breakdown for this session
+				if (sessionData?.modelBreakdowns) {
+					for (const breakdown of sessionData.modelBreakdowns) {
+						const shortModel = breakdown.modelName
+							.replace("claude-", "")
+							.replace("-20", " ");
+						console.log(
+							`----${shortModel}: ${formatCost(breakdown.cost)} | color=#666666 size=11`,
+						);
+					}
+				}
+			}
+			console.log("---");
+		}
 
 		// Today's summary
 		console.log(`Today: ${formatCost(todayCost)} | size=14`);
