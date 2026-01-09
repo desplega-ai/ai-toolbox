@@ -3,6 +3,7 @@ import { Command } from "commander";
 import { resolveConfig } from "../config/local.ts";
 import type { Worktree } from "../config/types.ts";
 import {
+  deleteBranch,
   getGitRoot,
   isBranchMerged,
   listWorktrees,
@@ -17,6 +18,7 @@ interface CleanupOptions {
   force?: boolean;
   olderThan?: string;
   unmerged?: boolean;
+  deleteBranches?: boolean;
 }
 
 /**
@@ -104,6 +106,7 @@ export const cleanupCommand = new Command("cleanup")
   .option("-f, --force", "Force removal without confirmation")
   .option("--older-than <days>", "Include worktrees older than N days")
   .option("--unmerged", "Include all unmerged worktrees")
+  .option("--delete-branches", "Also delete the associated branches")
   .action(async (options: CleanupOptions) => {
     const gitRoot = await getGitRoot();
 
@@ -171,6 +174,10 @@ export const cleanupCommand = new Command("cleanup")
       console.log();
     }
 
+    if (options.deleteBranches) {
+      console.log(chalk.dim("(branches will also be deleted)"));
+    }
+
     if (options.dryRun) {
       console.log(chalk.dim("(dry run - no changes made)"));
       return;
@@ -178,7 +185,10 @@ export const cleanupCommand = new Command("cleanup")
 
     // Confirm removal
     if (!options.force) {
-      const shouldProceed = await confirm(`Remove ${toRemove.length} worktree(s)?`, false);
+      const message = options.deleteBranches
+        ? `Remove ${toRemove.length} worktree(s) and their branches?`
+        : `Remove ${toRemove.length} worktree(s)?`;
+      const shouldProceed = await confirm(message, false);
       if (!shouldProceed) {
         console.log(chalk.dim("Cancelled"));
         return;
@@ -186,14 +196,26 @@ export const cleanupCommand = new Command("cleanup")
     }
 
     // Remove worktrees
-    let removed = 0;
+    let removedWorktrees = 0;
+    let removedBranches = 0;
     let failed = 0;
 
     for (const wt of toRemove) {
       try {
         console.log(chalk.dim(`Removing ${wt.alias ?? wt.branch}...`));
         await removeWorktree(wt.path, true, gitRoot);
-        removed++;
+        removedWorktrees++;
+
+        // Delete branch if requested
+        if (options.deleteBranches && wt.branch && wt.branch !== "detached") {
+          try {
+            await deleteBranch(wt.branch, true, gitRoot);
+            removedBranches++;
+          } catch (error) {
+            console.error(chalk.yellow(`  Warning: Could not delete branch ${wt.branch}:`));
+            console.error(chalk.dim(`  ${error instanceof Error ? error.message : String(error)}`));
+          }
+        }
       } catch (error) {
         console.error(chalk.red(`  Failed to remove ${wt.alias ?? wt.branch}:`));
         console.error(chalk.dim(`  ${error instanceof Error ? error.message : String(error)}`));
@@ -203,8 +225,11 @@ export const cleanupCommand = new Command("cleanup")
 
     // Summary
     console.log();
-    if (removed > 0) {
-      console.log(chalk.green(`Removed ${removed} worktree(s)`));
+    if (removedWorktrees > 0) {
+      console.log(chalk.green(`Removed ${removedWorktrees} worktree(s)`));
+    }
+    if (removedBranches > 0) {
+      console.log(chalk.green(`Deleted ${removedBranches} branch(es)`));
     }
     if (failed > 0) {
       console.log(chalk.red(`Failed to remove ${failed} worktree(s)`));

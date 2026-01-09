@@ -215,6 +215,14 @@ export async function pruneWorktrees(cwd?: string): Promise<void> {
 }
 
 /**
+ * Delete a local branch
+ */
+export async function deleteBranch(branch: string, force = false, cwd?: string): Promise<void> {
+  const flag = force ? "-D" : "-d";
+  await Bun.$`git branch ${flag} ${branch}`.cwd(cwd ?? process.cwd());
+}
+
+/**
  * Generate the full path for a new worktree
  */
 export function generateWorktreePath(baseDir: string, alias: string): string {

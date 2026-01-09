@@ -1,6 +1,6 @@
 {
   "name": "@desplega.ai/wts",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Git worktree manager with tmux integration",
   "type": "module",
   "bin": {
