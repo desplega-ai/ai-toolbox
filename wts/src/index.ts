@@ -8,6 +8,7 @@ import { deleteCommand } from "./commands/delete.ts";
 import { initCommand } from "./commands/init.ts";
 import { listCommand } from "./commands/list.ts";
 import { prCommand } from "./commands/pr.ts";
+import { setupCommand } from "./commands/setup.ts";
 import { switchCommand } from "./commands/switch.ts";
 
 const program = new Command();
@@ -21,6 +22,7 @@ program.addCommand(deleteCommand);
 program.addCommand(cdCommand);
 program.addCommand(switchCommand);
 program.addCommand(prCommand);
+program.addCommand(setupCommand);
 program.addCommand(cleanupCommand);
 
 program.parse();
