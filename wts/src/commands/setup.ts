@@ -8,8 +8,13 @@ import { confirm, select } from "../utils/prompts.ts";
 
 const SHELL_TEMPLATE = `#!/bin/bash
 # wts setup script - runs after worktree creation
-# Working directory: the new worktree
-# Environment: WTS_WORKTREE_PATH contains the worktree path
+#
+# Environment variables:
+#   WTS_WORKTREE_PATH - path to the new worktree (also the working directory)
+#   WTS_GIT_ROOT      - path to the main repository root
+#
+# Example: copy .env from main repo to worktree
+#   cp "$WTS_GIT_ROOT/.env" "$WTS_WORKTREE_PATH/.env"
 
 set -e
 
@@ -19,21 +24,22 @@ echo "Setting up worktree..."
 # npm install
 # bun install
 
-# Copy environment files
-# cp .env.example .env
-
-# Run any other setup tasks
-# ...
+# Copy files from main repo
+# cp "$WTS_GIT_ROOT/.env" .env
+# cp -r "$WTS_GIT_ROOT/node_modules" .
 
 echo "Setup complete!"
 `;
 
 const TS_TEMPLATE = `#!/usr/bin/env bun
 // wts setup script - runs after worktree creation
-// Working directory: the new worktree
-// Environment: WTS_WORKTREE_PATH contains the worktree path
+//
+// Environment variables:
+//   WTS_WORKTREE_PATH - path to the new worktree (also the working directory)
+//   WTS_GIT_ROOT      - path to the main repository root
 
-const worktreePath = process.env.WTS_WORKTREE_PATH;
+const worktreePath = process.env.WTS_WORKTREE_PATH!;
+const gitRoot = process.env.WTS_GIT_ROOT!;
 
 console.log("Setting up worktree...");
 
@@ -41,11 +47,9 @@ console.log("Setting up worktree...");
 // await Bun.$\`npm install\`;
 // await Bun.$\`bun install\`;
 
-// Copy environment files
-// await Bun.$\`cp .env.example .env\`;
-
-// Run any other setup tasks
-// ...
+// Copy files from main repo
+// await Bun.$\`cp \${gitRoot}/.env .env\`;
+// await Bun.$\`cp -r \${gitRoot}/node_modules .\`;
 
 console.log("Setup complete!");
 `;

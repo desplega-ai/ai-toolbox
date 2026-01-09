@@ -25,23 +25,21 @@ export async function runSetupScript(
   const ext = scriptPath.split(".").pop()?.toLowerCase();
 
   try {
+    const env = {
+      ...process.env,
+      WTS_WORKTREE_PATH: worktreePath,
+      WTS_GIT_ROOT: gitRoot,
+    };
+
     if (ext === "ts") {
-      await Bun.$`bun ${fullScriptPath}`
-        .cwd(worktreePath)
-        .env({ ...process.env, WTS_WORKTREE_PATH: worktreePath });
+      await Bun.$`bun ${fullScriptPath}`.cwd(worktreePath).env(env);
     } else if (ext === "sh") {
-      await Bun.$`bash ${fullScriptPath}`
-        .cwd(worktreePath)
-        .env({ ...process.env, WTS_WORKTREE_PATH: worktreePath });
+      await Bun.$`bash ${fullScriptPath}`.cwd(worktreePath).env(env);
     } else if (ext === "js" || ext === "mjs") {
-      await Bun.$`bun ${fullScriptPath}`
-        .cwd(worktreePath)
-        .env({ ...process.env, WTS_WORKTREE_PATH: worktreePath });
+      await Bun.$`bun ${fullScriptPath}`.cwd(worktreePath).env(env);
     } else {
       // Try to execute directly (for scripts with shebang)
-      await Bun.$`${fullScriptPath}`
-        .cwd(worktreePath)
-        .env({ ...process.env, WTS_WORKTREE_PATH: worktreePath });
+      await Bun.$`${fullScriptPath}`.cwd(worktreePath).env(env);
     }
     console.log(chalk.green("Setup script completed"));
   } catch (error) {
