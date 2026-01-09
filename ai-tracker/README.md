@@ -15,7 +15,7 @@ uv sync
 # Install Claude Code hooks
 uv run ai-tracker setup
 
-# Install global git hooks
+# Install global git hooks (works across all repos)
 uv run ai-tracker git-install
 ```
 
@@ -37,8 +37,36 @@ uv run ai-tracker stats --chart
 
 ## How It Works
 
-1. **Claude Code Hooks** - Logs every Edit/Write operation with line counts
-2. **Git Post-commit Hook** - Attributes committed changes to AI or human
-3. **CLI Stats** - Queries SQLite database and displays statistics
+1. **Claude Code Hooks** (`PostToolUse`) - Logs every Edit/Write operation with line-level counts
+2. **Git Post-commit Hook** - Attributes committed changes to AI or human based on the edit log
+3. **CLI Stats** - Queries SQLite database and displays statistics with Rich formatting
 
-Data is stored in `~/.config/ai-tracker/tracker.db`.
+## Architecture
+
+```
+~/.config/ai-tracker/
+├── tracker.db          # SQLite database (WAL mode)
+├── cache/              # Temporary cache for Write tool pre-capture
+└── git-hooks/
+    └── post-commit     # Global git hook (delegates to local hooks)
+```
+
+## Database
+
+Data is stored in `~/.config/ai-tracker/tracker.db` using SQLite with WAL mode for concurrent access.
+
+Query the database directly:
+```bash
+# View recent edits
+sqlite3 ~/.config/ai-tracker/tracker.db "SELECT * FROM edits ORDER BY timestamp DESC LIMIT 10"
+
+# View commits with attribution
+sqlite3 ~/.config/ai-tracker/tracker.db "SELECT * FROM commits ORDER BY timestamp DESC LIMIT 10"
+```
+
+## Uninstall
+
+```bash
+# Remove git hooks
+uv run ai-tracker git-uninstall
+```

@@ -40,5 +40,13 @@ def git_install(global_install: bool) -> None:
     install_git_hooks(global_install=global_install)
 
 
+@main.command("git-uninstall")
+def git_uninstall() -> None:
+    """Uninstall git hooks."""
+    from .git.install import uninstall_git_hooks
+
+    uninstall_git_hooks()
+
+
 if __name__ == "__main__":
     main()
