@@ -4,9 +4,33 @@ Track what percentage of code changes in git repos are AI-generated (via Claude 
 
 ## Installation
 
+### Local (development)
+
 ```bash
 cd ai-tracker
 uv sync
+uv run ai-tracker stats
+```
+
+### Global (run from anywhere)
+
+```bash
+cd ai-tracker
+uv tool install .
+```
+
+This installs `ai-tracker` globally so you can run it from any directory:
+
+```bash
+ai-tracker stats
+ai-tracker stats --days 7 --chart
+```
+
+To upgrade after making changes:
+
+```bash
+cd ai-tracker
+uv tool install . --force
 ```
 
 ## Setup

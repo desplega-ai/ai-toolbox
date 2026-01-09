@@ -222,7 +222,7 @@ Adds hooks to `~/.claude/settings.json` following the pattern in `cc-hooks/setup
 - [x] After making a Claude Code edit, entry appears in `edits` table
 
 #### Manual Verification:
-- [ ] Use Claude Code to make an Edit - verify log entry created
+- [x] Use Claude Code to make an Edit - verify log entry created
 - [ ] Use Claude Code to Write a new file - verify log entry with correct line count
 
 ---
@@ -285,10 +285,10 @@ done
 
 #### Automated Verification:
 - [x] `uv run python -m ai_tracker.git.install --global` sets up global hooks
-- [ ] After a commit, entry appears in `commits` table
+- [x] After a commit, entry appears in `commits` table
 
 #### Manual Verification:
-- [ ] Make a Claude Code edit, then commit - verify AI attribution
+- [x] Make a Claude Code edit, then commit - verify AI attribution
 - [ ] Make a manual edit in neovim, then commit - verify human attribution
 - [ ] Verify Husky/pre-commit hooks still work in repos that use them
 
@@ -350,9 +350,9 @@ ai-tracker git-install        # Install git hooks
 - [x] `uv run ai-tracker --help` shows all commands
 
 #### Manual Verification:
-- [ ] Stats accurately reflect recent commits
-- [ ] Percentages add up to 100%
-- [ ] Output looks good in terminal
+- [x] Stats accurately reflect recent commits
+- [x] Percentages add up to 100%
+- [x] Output looks good in terminal
 
 ---
 
