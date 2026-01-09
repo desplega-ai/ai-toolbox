@@ -59,8 +59,8 @@ async function promptForConfig(existing?: LocalConfig): Promise<LocalConfig> {
   const config: LocalConfig = {};
 
   // Worktree directory
-  const worktreeDir = await prompt("Worktree directory", existing?.worktreeDir ?? ".worktrees");
-  if (worktreeDir !== ".worktrees") {
+  const worktreeDir = await prompt("Worktree directory", existing?.worktreeDir ?? "~/.worktrees");
+  if (worktreeDir !== "~/.worktrees") {
     config.worktreeDir = worktreeDir;
   }
 

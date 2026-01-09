@@ -22,7 +22,7 @@ export interface ProjectEntry {
  * Default settings that can be overridden per-project
  */
 export interface DefaultSettings {
-  /** Base directory for worktrees (relative to git root) */
+  /** Base directory for worktrees (absolute like ~/.worktrees, or relative to git root) */
   worktreeDir: string;
   /** tmux window name template */
   tmuxWindowTemplate: string;
@@ -92,7 +92,7 @@ export interface Worktree {
 export const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
   projects: {},
   defaults: {
-    worktreeDir: ".worktrees",
+    worktreeDir: "~/.worktrees",
     tmuxWindowTemplate: "{project}-{alias}",
     autoTmux: false,
     autoClaude: false,

@@ -1,4 +1,5 @@
-import { join } from "node:path";
+import { homedir } from "node:os";
+import { isAbsolute, join } from "node:path";
 import { getProjectName } from "../utils/paths.ts";
 import { loadGlobalConfig } from "./global.ts";
 import type { LocalConfig, ResolvedConfig } from "./types.ts";
@@ -56,5 +57,17 @@ export async function resolveConfig(gitRoot: string): Promise<ResolvedConfig> {
  * Get the absolute worktree base directory for a project
  */
 export function getWorktreeBaseDir(config: ResolvedConfig): string {
-  return join(config.gitRoot, config.worktreeDir, config.projectName);
+  let baseDir = config.worktreeDir;
+
+  // Expand ~ to home directory
+  if (baseDir.startsWith("~")) {
+    baseDir = join(homedir(), baseDir.slice(1));
+  }
+
+  // If absolute path, use directly; otherwise join with gitRoot
+  if (isAbsolute(baseDir)) {
+    return join(baseDir, config.projectName);
+  }
+
+  return join(config.gitRoot, baseDir, config.projectName);
 }
