@@ -14,6 +14,7 @@ import { confirm } from "../utils/prompts.ts";
 
 interface MergeOptions {
   cleanup?: boolean;
+  pull?: boolean;
   force?: boolean;
 }
 
@@ -21,6 +22,7 @@ export const mergeCommand = new Command("merge")
   .description("Merge a worktree branch into main")
   .argument("[alias]", "Alias of the worktree to merge")
   .option("--no-cleanup", "Skip cleanup prompt")
+  .option("--no-pull", "Skip pulling latest main")
   .option("-f, --force", "Skip confirmations (except cleanup)")
   .action(async (alias: string | undefined, options: MergeOptions) => {
     const gitRoot = await getGitRoot();
@@ -31,6 +33,14 @@ export const mergeCommand = new Command("merge")
 
     const config = await resolveConfig(gitRoot);
     const worktrees = await listWorktrees(gitRoot, config.projectName);
+
+    // Find the main worktree (where we'll do the merge)
+    const mainWorktree = worktrees.find((wt) => wt.isMain);
+    if (!mainWorktree) {
+      console.error(chalk.red("Error: Could not find main worktree"));
+      process.exit(1);
+    }
+    const mainPath = mainWorktree.path;
 
     // Find or select worktree
     let worktree;
@@ -72,18 +82,23 @@ export const mergeCommand = new Command("merge")
       }
     }
     console.log(chalk.dim(`Switching to ${defaultBranch}...`));
-    await Bun.$`git checkout ${defaultBranch}`.cwd(gitRoot);
+    await Bun.$`git checkout ${defaultBranch}`.cwd(mainPath);
 
-    // Step 2: Pull latest
-    if (!options.force) {
-      const proceed = await confirm(`Pull latest ${defaultBranch}?`, true);
-      if (!proceed) {
-        console.log(chalk.dim("Cancelled"));
-        return;
+    // Step 2: Pull latest (skip with --no-pull)
+    if (options.pull !== false) {
+      if (!options.force) {
+        const proceed = await confirm(`Pull latest ${defaultBranch}?`, true);
+        if (!proceed) {
+          console.log(chalk.dim("Skipped pull"));
+        } else {
+          console.log(chalk.dim(`Pulling latest...`));
+          await Bun.$`git pull`.cwd(mainPath);
+        }
+      } else {
+        console.log(chalk.dim(`Pulling latest...`));
+        await Bun.$`git pull`.cwd(mainPath);
       }
     }
-    console.log(chalk.dim(`Pulling latest...`));
-    await Bun.$`git pull`.cwd(gitRoot);
 
     // Step 3: Merge
     if (!options.force) {
@@ -94,7 +109,7 @@ export const mergeCommand = new Command("merge")
       }
     }
     console.log(chalk.dim(`Merging ${branchToMerge}...`));
-    await Bun.$`git merge ${branchToMerge}`.cwd(gitRoot);
+    await Bun.$`git merge ${branchToMerge}`.cwd(mainPath);
 
     // Step 4: Push
     if (!options.force) {
@@ -103,11 +118,11 @@ export const mergeCommand = new Command("merge")
         console.log(chalk.dim("Skipped push"));
       } else {
         console.log(chalk.dim(`Pushing...`));
-        await Bun.$`git push`.cwd(gitRoot);
+        await Bun.$`git push`.cwd(mainPath);
       }
     } else {
       console.log(chalk.dim(`Pushing...`));
-      await Bun.$`git push`.cwd(gitRoot);
+      await Bun.$`git push`.cwd(mainPath);
     }
 
     console.log(chalk.green(`\n✓ Merged ${branchToMerge} into ${defaultBranch}`));
@@ -117,9 +132,9 @@ export const mergeCommand = new Command("merge")
       const cleanup = await confirm(`\nClean up worktree and branch?`, false);
       if (cleanup) {
         console.log(chalk.dim(`Removing worktree...`));
-        await removeWorktree(worktree.path, true, gitRoot);
+        await removeWorktree(worktree.path, true, mainPath);
         console.log(chalk.dim(`Deleting branch ${branchToMerge}...`));
-        await deleteBranch(branchToMerge, true, gitRoot);
+        await deleteBranch(branchToMerge, true, mainPath);
         console.log(chalk.green(`✓ Cleaned up`));
       }
     }
