@@ -12,6 +12,22 @@ import {
 import { selectWorktree } from "../integrations/fzf.ts";
 import { confirm } from "../utils/prompts.ts";
 
+/**
+ * Get commits that would be merged from branch into baseBranch
+ */
+async function getCommitsToMerge(
+  branch: string,
+  baseBranch: string,
+  cwd: string,
+): Promise<string[]> {
+  const result = await Bun.$`git log ${baseBranch}..${branch} --oneline`.cwd(cwd).quiet();
+  return result.stdout
+    .toString()
+    .trim()
+    .split("\n")
+    .filter(Boolean);
+}
+
 interface MergeOptions {
   cleanup?: boolean;
   pull?: boolean;
@@ -100,7 +116,28 @@ export const mergeCommand = new Command("merge")
       }
     }
 
-    // Step 3: Merge
+    // Step 3: Check if there are commits to merge
+    const commitsToMerge = await getCommitsToMerge(branchToMerge, defaultBranch, mainPath);
+    if (commitsToMerge.length === 0) {
+      console.log(
+        chalk.yellow(
+          `\nNo commits to merge - ${branchToMerge} has no new commits compared to ${defaultBranch}`,
+        ),
+      );
+      console.log(chalk.dim("The branch may need to be rebased on latest main first."));
+      console.log(chalk.dim("Aborting to prevent accidental data loss."));
+      process.exit(1);
+    }
+
+    console.log(chalk.dim(`\nCommits to merge (${commitsToMerge.length}):`));
+    for (const commit of commitsToMerge.slice(0, 5)) {
+      console.log(chalk.dim(`  ${commit}`));
+    }
+    if (commitsToMerge.length > 5) {
+      console.log(chalk.dim(`  ... and ${commitsToMerge.length - 5} more`));
+    }
+
+    // Step 4: Merge
     if (!options.force) {
       const proceed = await confirm(`Merge ${branchToMerge}?`, true);
       if (!proceed) {
@@ -109,9 +146,18 @@ export const mergeCommand = new Command("merge")
       }
     }
     console.log(chalk.dim(`Merging ${branchToMerge}...`));
-    await Bun.$`git merge ${branchToMerge}`.cwd(mainPath);
+    const mergeResult = await Bun.$`git merge ${branchToMerge}`.cwd(mainPath).quiet();
+    const mergeOutput = mergeResult.stdout.toString();
+    console.log(chalk.dim(mergeOutput.trim()));
 
-    // Step 4: Push
+    // Safety check: verify merge actually did something
+    if (mergeOutput.includes("Already up to date")) {
+      console.log(chalk.yellow("\nMerge reported 'Already up to date' - no changes were made"));
+      console.log(chalk.red("Aborting cleanup to prevent data loss"));
+      process.exit(1);
+    }
+
+    // Step 5: Push
     if (!options.force) {
       const proceed = await confirm(`Push to origin?`, true);
       if (!proceed) {
@@ -127,14 +173,20 @@ export const mergeCommand = new Command("merge")
 
     console.log(chalk.green(`\n✓ Merged ${branchToMerge} into ${defaultBranch}`));
 
-    // Step 5: Cleanup (--no-cleanup sets options.cleanup to false)
+    // Step 6: Cleanup (--no-cleanup sets options.cleanup to false)
     if (options.cleanup !== false) {
       const cleanup = await confirm(`\nClean up worktree and branch?`, false);
       if (cleanup) {
         console.log(chalk.dim(`Removing worktree...`));
         await removeWorktree(worktree.path, true, mainPath);
         console.log(chalk.dim(`Deleting branch ${branchToMerge}...`));
-        await deleteBranch(branchToMerge, true, mainPath);
+        // Use safe delete (-d) instead of force delete (-D)
+        try {
+          await deleteBranch(branchToMerge, false, mainPath);
+        } catch {
+          console.error(chalk.red("Branch not fully merged - keeping branch for safety"));
+          console.log(chalk.dim("Use 'git branch -D <branch>' to force delete if intended"));
+        }
         console.log(chalk.green(`✓ Cleaned up`));
       }
     }
