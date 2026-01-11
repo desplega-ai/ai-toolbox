@@ -79,7 +79,7 @@ async function runCcusage(
 	command: string,
 ): Promise<{ stdout: string; success: boolean }> {
 	try {
-		const result = await $`bunx ccusage --json ${command}`.quiet();
+		const result = await $`npx ccusage --json ${command}`.quiet();
 		return { stdout: result.stdout.toString(), success: true };
 	} catch {
 		return { stdout: "", success: false };
@@ -87,8 +87,8 @@ async function runCcusage(
 }
 
 function pathToProjectKey(projectPath: string): string {
-	// Remove leading slash, then replace all slashes with dashes
-	return projectPath.replace(/^\//, "").replace(/\//g, "-");
+	// Replace all slashes with dashes to match ccusage sessionId format
+	return projectPath.replace(/\//g, "-");
 }
 
 function getProjectName(projectPath: string): string {
@@ -146,18 +146,21 @@ async function getRecentlyActiveProjects(
 
 async function getSessionCosts(): Promise<Map<string, SessionData>> {
 	const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-	const result = await runCcusage(`session --since ${today}`);
 	const sessionMap = new Map<string, SessionData>();
 
-	if (result.success && result.stdout) {
-		try {
-			const parsed = JSON.parse(result.stdout) as SessionResponse;
+	try {
+		// Use npx to avoid bunx caching issues
+		const result =
+			await $`npx ccusage session --json --since ${today}`.quiet();
+		const stdout = result.stdout.toString();
+		const parsed = JSON.parse(stdout) as SessionResponse;
+		if (parsed.sessions) {
 			for (const session of parsed.sessions) {
 				sessionMap.set(session.sessionId, session);
 			}
-		} catch {
-			// Return empty map on parse error
 		}
+	} catch {
+		// Return empty map on error
 	}
 
 	return sessionMap;
