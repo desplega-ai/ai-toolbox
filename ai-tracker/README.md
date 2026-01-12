@@ -12,6 +12,12 @@ uv sync
 uv run ai-tracker stats
 ```
 
+### From PyPI (recommended)
+
+```bash
+uvx --from cc-ai-tracker ai-tracker stats
+```
+
 ### Global (run from anywhere)
 
 ```bash
