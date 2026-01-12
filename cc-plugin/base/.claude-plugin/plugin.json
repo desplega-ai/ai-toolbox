@@ -1,7 +1,7 @@
 {
     "name": "base",
     "description": "Plugin for effective agentic development",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": {
         "name": "desplega.ai",
         "email": "contact@desplega.ai"
