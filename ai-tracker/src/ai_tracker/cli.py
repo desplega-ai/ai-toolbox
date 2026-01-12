@@ -16,11 +16,15 @@ def main() -> None:
 @click.option("--days", default=30, help="Number of days to show stats for")
 @click.option("--repo", default=None, help="Filter by repository name")
 @click.option("--chart", is_flag=True, help="Show ASCII chart")
-def stats(days: int, repo: str | None, chart: bool) -> None:
+@click.option("--global", "show_global", is_flag=True, help="Show all-time global statistics")
+def stats(days: int, repo: str | None, chart: bool, show_global: bool) -> None:
     """Show AI vs human code statistics."""
-    from .stats.display import display_stats
+    from .stats.display import display_global_stats, display_stats
 
-    display_stats(days=days, repo=repo, show_chart=chart)
+    if show_global:
+        display_global_stats()
+    else:
+        display_stats(days=days, repo=repo, show_chart=chart)
 
 
 @main.command()

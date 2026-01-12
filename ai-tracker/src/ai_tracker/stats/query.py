@@ -174,6 +174,106 @@ def get_time_series(
         ]
 
 
+def get_global_stats(db_path: Path | None = None) -> dict:
+    """Get all-time global statistics across all repositories.
+
+    Args:
+        db_path: Optional path to database (for testing)
+
+    Returns:
+        Dict with all-time totals, commit type breakdown, and percentages
+    """
+    with get_connection(db_path) as conn:
+        # Get totals and time range
+        cursor = conn.execute(
+            """
+            SELECT
+                COUNT(*) as total_commits,
+                COALESCE(SUM(ai_lines_added), 0) as ai_added,
+                COALESCE(SUM(ai_lines_removed), 0) as ai_removed,
+                COALESCE(SUM(human_lines_added), 0) as human_added,
+                COALESCE(SUM(human_lines_removed), 0) as human_removed,
+                MIN(timestamp) as earliest,
+                MAX(timestamp) as latest
+            FROM commits
+            """
+        )
+        totals = cursor.fetchone()
+
+        # Get commit type breakdown
+        cursor = conn.execute(
+            """
+            SELECT
+                SUM(CASE WHEN (human_lines_added + human_lines_removed) = 0
+                         AND (ai_lines_added + ai_lines_removed) > 0 THEN 1 ELSE 0 END) as ai_only,
+                SUM(CASE WHEN (ai_lines_added + ai_lines_removed) = 0
+                         AND (human_lines_added + human_lines_removed) > 0 THEN 1 ELSE 0 END) as human_only,
+                SUM(CASE WHEN (ai_lines_added + ai_lines_removed) > 0
+                         AND (human_lines_added + human_lines_removed) > 0 THEN 1 ELSE 0 END) as mixed
+            FROM commits
+            """
+        )
+        breakdown = cursor.fetchone()
+
+        # Get average AI percentage per commit
+        cursor = conn.execute(
+            """
+            SELECT AVG(
+                CASE
+                    WHEN (ai_lines_added + ai_lines_removed + human_lines_added + human_lines_removed) > 0
+                    THEN (ai_lines_added + ai_lines_removed) * 100.0 /
+                         (ai_lines_added + ai_lines_removed + human_lines_added + human_lines_removed)
+                    ELSE 0
+                END
+            ) as avg_ai_percent
+            FROM commits
+            """
+        )
+        avg_row = cursor.fetchone()
+
+    total_commits = totals["total_commits"]
+    ai_added = totals["ai_added"]
+    ai_removed = totals["ai_removed"]
+    human_added = totals["human_added"]
+    human_removed = totals["human_removed"]
+
+    total_added = ai_added + human_added
+    total_removed = ai_removed + human_removed
+
+    ai_only = breakdown["ai_only"] or 0
+    human_only = breakdown["human_only"] or 0
+    mixed = breakdown["mixed"] or 0
+    commits_with_ai = ai_only + mixed
+
+    return {
+        # Totals
+        "total_commits": total_commits,
+        "total_ai_lines_added": ai_added,
+        "total_ai_lines_removed": ai_removed,
+        "total_human_lines_added": human_added,
+        "total_human_lines_removed": human_removed,
+        # Line percentages
+        "ai_percent_added": (ai_added / total_added * 100) if total_added > 0 else 0,
+        "ai_percent_removed": (ai_removed / total_removed * 100) if total_removed > 0 else 0,
+        "human_percent_added": (human_added / total_added * 100) if total_added > 0 else 0,
+        "human_percent_removed": (human_removed / total_removed * 100) if total_removed > 0 else 0,
+        # Commit breakdown
+        "ai_only_commits": ai_only,
+        "human_only_commits": human_only,
+        "mixed_commits": mixed,
+        # Commit percentages
+        "percent_ai_only": (ai_only / total_commits * 100) if total_commits > 0 else 0,
+        "percent_human_only": (human_only / total_commits * 100) if total_commits > 0 else 0,
+        "percent_mixed": (mixed / total_commits * 100) if total_commits > 0 else 0,
+        "percent_commits_with_ai": (commits_with_ai / total_commits * 100) if total_commits > 0 else 0,
+        # Average
+        "avg_ai_percent_per_commit": avg_row["avg_ai_percent"] or 0,
+        # Time range
+        "earliest_commit": totals["earliest"],
+        "latest_commit": totals["latest"],
+    }
+
+
 def get_recent_commits(limit: int = 10, db_path: Path | None = None) -> list[dict]:
     """Get recent commits with attribution.
 
