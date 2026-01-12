@@ -18,6 +18,12 @@ uv run ai-tracker stats
 uvx --from cc-ai-tracker ai-tracker stats
 ```
 
+To force reinstall (e.g., after a new release):
+
+```bash
+uvx --force-reinstall --from cc-ai-tracker ai-tracker stats
+```
+
 ### Global (run from anywhere)
 
 ```bash
