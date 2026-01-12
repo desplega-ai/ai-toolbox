@@ -1,0 +1,13 @@
+{
+    "name": "swarm",
+    "description": "Multi-agent coordination with agent-swarm MCP",
+    "version": "1.0.0",
+    "author": {
+        "name": "desplega.ai",
+        "email": "contact@desplega.ai"
+    },
+    "homepage": "https://desplega.ai",
+    "repository": "https://github.com/desplega-ai/ai-toolbox",
+    "keywords": ["ai", "agent", "swarm", "multi-agent", "mcp"],
+    "license": "MIT"
+}

@@ -33,10 +33,10 @@ A `swarm` plugin that:
 4. References detailed MCP documentation as needed
 
 ### Verification
-- [ ] Plugin directory structure matches convention
-- [ ] `plugin.json` validates with required fields
-- [ ] `SKILL.md` has valid frontmatter with name and description
-- [ ] Skill content covers main use cases: join, delegate, status, tasks, chat
+- [x] Plugin directory structure matches convention
+- [x] `plugin.json` validates with required fields
+- [x] `SKILL.md` has valid frontmatter with name and description
+- [x] Skill content covers main use cases: join, delegate, status, tasks, chat
 
 ## What We're NOT Doing
 
@@ -92,11 +92,11 @@ cc-plugin/swarm/
 ### Success Criteria
 
 #### Automated Verification
-- [ ] Directory structure exists: `ls cc-plugin/swarm/.claude-plugin/plugin.json`
-- [ ] JSON is valid: `cat cc-plugin/swarm/.claude-plugin/plugin.json | jq .`
+- [x] Directory structure exists: `ls cc-plugin/swarm/.claude-plugin/plugin.json`
+- [x] JSON is valid: `cat cc-plugin/swarm/.claude-plugin/plugin.json | jq .`
 
 #### Manual Verification
-- [ ] Plugin can be discovered by Claude Code
+- [x] Plugin can be discovered by Claude Code
 
 ---
 
@@ -371,16 +371,16 @@ Ask about swarm coordination and Claude will automatically use the swarm-expert 
 ### Success Criteria
 
 #### Automated Verification
-- [ ] SKILL.md exists: `ls cc-plugin/swarm/skills/swarm-expert/SKILL.md`
-- [ ] SKILL.md has valid frontmatter with name and description
-- [ ] MCP-REFERENCE.md exists: `ls cc-plugin/swarm/skills/swarm-expert/MCP-REFERENCE.md`
-- [ ] README.md exists: `ls cc-plugin/swarm/README.md`
+- [x] SKILL.md exists: `ls cc-plugin/swarm/skills/swarm-expert/SKILL.md`
+- [x] SKILL.md has valid frontmatter with name and description
+- [x] MCP-REFERENCE.md exists: `ls cc-plugin/swarm/skills/swarm-expert/MCP-REFERENCE.md`
+- [x] README.md exists: `ls cc-plugin/swarm/README.md`
 
 #### Manual Verification
-- [ ] Skill is discovered when asking about swarm coordination
-- [ ] Quick reference table is useful for common operations
-- [ ] Workflows guide makes sense for leader/worker patterns
-- [ ] MCP reference provides accurate tool documentation
+- [x] Skill is discovered when asking about swarm coordination
+- [x] Quick reference table is useful for common operations
+- [x] Workflows guide makes sense for leader/worker patterns
+- [x] MCP reference provides accurate tool documentation
 
 ---
 
