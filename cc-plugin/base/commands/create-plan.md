@@ -1,5 +1,6 @@
 ---
 description: Create detailed implementation plans through interactive research and iteration
+model: opus
 ---
 
 # Implementation Plan
@@ -47,6 +48,7 @@ Then wait for the user's input.
    - Use the **codebase-locator** agent to find all files related to the task
    - Use the **codebase-analyzer** agent to understand how the current implementation works
    - If relevant, use the **thoughts-locator** agent to find any existing thoughts documents about this feature
+   - Use the context7 MCP if available for deeper library/framework insights
 
    These agents will:
    - Find relevant source files, configs, and tests
@@ -79,7 +81,7 @@ Then wait for the user's input.
    - [Design preference that affects implementation]
    ```
 
-   Only ask questions that you genuinely cannot answer through code investigation.
+   Only ask questions that you genuinely cannot answer through code investigation! If you are in plan mode, use the `AskUserQuestion` tool to ask these questions to the user.
 
 ### Step 2: Research & Discovery
 
@@ -149,9 +151,11 @@ Once aligned on approach:
    Does this phasing make sense? Should I adjust the order or granularity?
    ```
 
-2. **Get feedback on structure** before writing details
+2. **Get feedback on structure** before writing details, use the `AskUserQuestion` tool if in plan mode
 
 ### Step 4: Detailed Plan Writing
+
+Before proceeding, exit plan mode so that you can write the plan file.
 
 After structure approval:
 
@@ -161,6 +165,8 @@ After structure approval:
      - description is a brief kebab-case description
    - Example: `2025-01-08-improve-error-handling.md`
 2. **Use this template structure**:
+
+<start markdown>
 
 ````markdown
 # [Feature/Task Name] Implementation Plan
@@ -258,13 +264,11 @@ After structure approval:
 - Similar implementation: `[file:line]`
 ````
 
+<end markdown>
+
 ### Step 5: Sync and Review
 
-1. **Sync the thoughts directory**:
-   - Run `humanlayer thoughts sync` to sync the newly created plan
-   - This ensures the plan is properly indexed and available
-
-2. **Present the draft plan location**:
+1. **Present the draft plan location**:
    ```
    I've created the initial implementation plan at:
    `thoughts/shared/plans/YYYY-MM-DD-ENG-XXXX-description.md`
@@ -276,14 +280,16 @@ After structure approval:
    - Missing edge cases or considerations?
    ```
 
-3. **Iterate based on feedback** - be ready to:
+2. **Iterate based on feedback** - be ready to:
    - Add missing phases
    - Adjust technical approach
    - Clarify success criteria (both automated and manual)
    - Add/remove scope items
    - After making changes, run `humanlayer thoughts sync` again
 
-4. **Continue refining** until the user is satisfied
+3. **Continue refining** until the user is satisfied
+
+4. **Finalize the plan** and ensure it's ready for implementation, but stop once the user is happy with the plan, DO NOT START implementation!
 
 ## Important Guidelines
 
@@ -412,3 +418,15 @@ tasks = [
 ]
 ```
 
+## Important notes:
+- If you are in plan mode, always use the `AskUserQuestion` tool to ask the questiong
+- Always use parallel Task agents to maximize efficiency and minimize context usage
+- The thoughts/ directory provides historical context to supplement live findings
+- Plan documents should be self-contained with all necessary context
+- **Frontmatter consistency**:
+  - Always include frontmatter at the beginning of research documents
+  - Keep frontmatter fields consistent across all research documents
+  - Update frontmatter when adding follow-up research
+  - Use snake_case for multi-word field names (e.g., `last_updated`, `git_commit`)
+- **NEVER START IMPLEMENTATION** - This command is ONLY for creating plans. Stop once the user approves the plan.
+- **Always exit plan mode** before writing the final plan file so you can write freely without tool restrictions.

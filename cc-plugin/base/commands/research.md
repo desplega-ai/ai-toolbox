@@ -1,5 +1,6 @@
 ---
 description: Document codebase as-is with thoughts directory for historical context
+model: opus
 argument-hint: [query]
 allowed-tools: Read, Grep, Glob
 ---
@@ -64,11 +65,18 @@ Thank you for your research question: "[user's question]". To ensure I fully und
    - Use the **codebase-analyzer** agent to understand HOW specific code works (without critiquing it)
    - Use the **codebase-pattern-finder** agent to find examples of existing patterns (without evaluating them)
 
-   **IMPORTANT**: All agents are documentarians, not critics. They will describe what exists without suggesting improvements or identifying issues.
+   **For library and framework research:**
+   - Use the context7 MCP to fetch for libraries/frameworks documentation
+   - Use the query docs tool of the context7 MCP to find relevant sections
 
    **For web research (only if user explicitly asks):**
    - Use the **web-search-researcher** agent for external documentation and resources
    - IF you use web-research agents, instruct them to return LINKS with their findings, and please INCLUDE those links in your final report
+
+   **For nested researches:**
+   - Spawn additional `Task`s using this command `/research <topic>` for deep dives into subtopics as needed, ensure they create their own research documents and reference them in your final synthesis
+
+   **IMPORTANT**: All agents are documentarians, not critics. They will describe what exists without suggesting improvements or identifying issues.
 
    The key is to use these agents intelligently:
    - Start with locator agents to find what exists
@@ -90,6 +98,7 @@ Thank you for your research question: "[user's question]". To ensure I fully und
    - Answer the user's specific questions with concrete evidence
 
 5. **Generate research document:**
+   - If you in plan mode, exit plan mode before proceeding so that you can write the document
    - Use the metadata gathered in step 4
    - Structure the document with YAML frontmatter followed by content:
      ```markdown
@@ -170,7 +179,10 @@ Thank you for your research question: "[user's question]". To ensure I fully und
    - Spawn new sub-agents as needed for additional investigation
    - Continue updating the document and syncing
 
+Once you are done with the research, and the document is complete, stop immediately.
+
 ## Important notes:
+- If you are in plan mode, always use the `AskUserQuestion` tool to ask the questiong
 - Always use parallel Task agents to maximize efficiency and minimize context usage
 - Always run fresh codebase research - never rely solely on existing research documents
 - The thoughts/ directory provides historical context to supplement live findings
