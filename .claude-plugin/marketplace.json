@@ -20,7 +20,7 @@
         },
         {
             "name": "wts",
-            "source": "./cc-plugin/wst",
+            "source": "./cc-plugin/wts",
             "description": "Plugin for Git worktree management using @desplega.ai/wts"
         }
     ]
