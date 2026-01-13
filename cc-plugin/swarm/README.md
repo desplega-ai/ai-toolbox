@@ -12,6 +12,7 @@ This plugin requires the [agent-swarm](https://github.com/desplega-ai/agent-swar
 |---------|-------------|
 | `/swarm-status` | Quick overview of agents and tasks |
 | `/kick-task <description>` | Send a task to the pool |
+| `/teleport` | Transfer current context to a swarm worker |
 
 ## Skills
 
