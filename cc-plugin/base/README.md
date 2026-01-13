@@ -45,7 +45,7 @@ claude plugin marketplace add desplega-ai/ai-toolbox
 Then install the plugin inside it with:
 
 ```bash
-/plugin install base@desplega-ai-toolbox
+/plugin install desplega@desplega-ai-toolbox
 ```
 
 ### What's inside?
@@ -57,6 +57,8 @@ Inside you will find:
 - [skills](./skills)
 
 #### Commands
+
+The basic commands provided are:
 
 1. `research`
 2. `create-plan`

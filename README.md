@@ -18,9 +18,56 @@ A collection of AI and developer tools.
 
 The [thoughts](./thoughts) directory contains research notes and implementation plans generated via Claude Code skills from the [base plugin](./cc-plugin/base):
 
-- `/base:research` - Document codebase state with research notes ([research.md](./cc-plugin/base/commands/research.md))
-- `/base:create-plan` - Create detailed implementation plans ([create-plan.md](./cc-plugin/base/commands/create-plan.md))
-- `/base:implement-plan` - Execute plans from a plan file ([implement-plan.md](./cc-plugin/base/commands/implement-plan.md))
+- `/desplega:research` - Document codebase state with research notes ([research.md](./cc-plugin/base/commands/research.md))
+- `/desplega:create-plan` - Create detailed implementation plans ([create-plan.md](./cc-plugin/base/commands/create-plan.md))
+- `/desplega:implement-plan` - Execute plans from a plan file ([implement-plan.md](./cc-plugin/base/commands/implement-plan.md))
+
+## Claude Plugin
+
+### Installation
+
+From inside Claude Code, run:
+
+```bash
+/plugin marketplace add desplega-ai/ai-toolbox
+```
+
+or from the terminal
+
+```bash
+claude plugin marketplace add desplega-ai/ai-toolbox
+```
+
+Then install the plugins inside it with:
+
+#### Base desplega.ai agentic coding patterns
+
+```bash
+/plugin install desplega@desplega-ai-toolbox
+```
+
+#### Agent Swarm plugin
+
+```bash
+/plugin install agent-swarm@desplega-ai-toolbox
+```
+
+#### `wts` worktree manager plugin
+
+```bash
+/plugin install wts@desplega-ai-toolbox
+```
+
+#### Bash install 
+
+You can also install them from the terminal with:
+
+```bash
+# Scope can be 'user' (default), 'project' or 'local'
+claude plugin install desplega@desplega-ai-toolbox --scope user
+claude plugin install agent-swarm@desplega-ai-toolbox --scope user
+claude plugin install wts@desplega-ai-toolbox --scope user
+```
 
 ## Development
 
