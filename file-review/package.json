@@ -1,0 +1,31 @@
+{
+  "name": "file-review",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "check": "tsc --noEmit",
+    "install:app": "bun run tauri build && mkdir -p ~/.local/bin && ln -sf \"$(pwd)/src-tauri/target/release/file-review\" ~/.local/bin/file-review && echo '✓ Installed to ~/.local/bin/file-review'",
+    "uninstall:app": "rm -f ~/.local/bin/file-review && echo '✓ Removed ~/.local/bin/file-review'"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2",
+    "@tauri-apps/plugin-fs": "^2",
+    "codemirror": "^6.0.1",
+    "@codemirror/lang-markdown": "^6.3.2",
+    "@codemirror/view": "^6.36.4",
+    "@codemirror/state": "^6.5.2",
+    "@codemirror/commands": "^6.8.0",
+    "@replit/codemirror-vim": "^6.2.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "vite": "^6.0.3",
+    "typescript": "~5.6.2"
+  }
+}

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>File Review</title>
+  <link rel="stylesheet" href="/src/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <div id="toolbar">
+      <div id="toolbar-left">
+        <button id="open-file-btn" class="toolbar-btn" title="Open file (⌘O)">
+          <span class="icon">📂</span> Open File
+        </button>
+        <div id="file-name" class="file-name" style="display: none;">
+          <span class="icon">📄</span>
+          <span class="name"></span>
+        </div>
+        <button id="add-comment-btn" style="display: none;" title="Add comment (⌘K)">
+          <span class="label">Comment Line</span>
+          <span class="shortcut">⌘K</span>
+        </button>
+      </div>
+      <div id="toolbar-right">
+        <button id="vim-toggle" class="toolbar-btn icon-btn" title="Toggle Vim mode (⌘⇧V)">
+          <span>VIM</span>
+        </button>
+        <button id="theme-toggle" class="toolbar-btn icon-btn" title="Toggle theme (⌘T)">
+          <span>🌙</span>
+        </button>
+        <button id="help-btn" class="toolbar-btn icon-btn" title="Shortcuts (⌘/)">
+          <span>?</span>
+        </button>
+      </div>
+    </div>
+    <div id="main-container">
+      <div id="editor-container"></div>
+      <div id="sidebar">
+        <div id="sidebar-header">Comments</div>
+
+        <!-- Comment input area (hidden by default) -->
+        <div id="comment-input-area" style="display: none;">
+          <div class="input-header">
+            <span id="comment-line-label">Line 0</span>
+          </div>
+          <textarea
+            id="comment-textarea"
+            placeholder="Enter your comment... (⌘↵ to submit)"
+            rows="4"
+          ></textarea>
+          <div class="input-actions">
+            <button id="comment-cancel-btn" class="cancel-btn">Cancel</button>
+            <button id="comment-submit-btn" class="submit-btn">Add Comment</button>
+          </div>
+        </div>
+
+        <div id="comments-list"></div>
+      </div>
+    </div>
+
+    <!-- Empty state when no file is open -->
+    <div id="empty-state" style="display: none;">
+      <div class="empty-content">
+        <div class="empty-icon">📝</div>
+        <h2>No file open</h2>
+        <p>Open a markdown file to start reviewing</p>
+        <button id="empty-open-btn" class="primary-btn">Open File</button>
+        <div class="shortcut-hint">or press ⌘O</div>
+      </div>
+    </div>
+  </div>
+  <div id="toast-container"></div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

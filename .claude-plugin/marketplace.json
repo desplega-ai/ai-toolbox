@@ -22,6 +22,11 @@
             "name": "wts",
             "source": "./cc-plugin/wts",
             "description": "Plugin for Git worktree management using @desplega.ai/wts"
+        },
+        {
+            "name": "file-review",
+            "source": "./cc-plugin/file-review",
+            "description": "Plugin for reviewing markdown files with inline comments using file-review GUI"
         }
     ]
 }
