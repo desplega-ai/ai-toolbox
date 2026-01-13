@@ -16,11 +16,16 @@ def main() -> None:
 @click.option("--days", default=30, help="Number of days to show stats for")
 @click.option("--repo", default=None, help="Filter by repository name")
 @click.option("--chart", is_flag=True, help="Show ASCII chart")
+@click.option("--graph", is_flag=True, help="Show ASCII chart for last 7 days (shortcut for --chart --days 7)")
 @click.option("--global", "show_global", is_flag=True, help="Show all-time global statistics")
 @click.option("--plain", is_flag=True, help="Plain output without borders (easier to read in pipes)")
-def stats(days: int, repo: str | None, chart: bool, show_global: bool, plain: bool) -> None:
+def stats(days: int, repo: str | None, chart: bool, graph: bool, show_global: bool, plain: bool) -> None:
     """Show AI vs human code statistics."""
     from .stats.display import display_global_stats, display_stats
+
+    if graph:
+        days = 7
+        chart = True
 
     if show_global:
         display_global_stats(plain=plain)
@@ -29,8 +34,32 @@ def stats(days: int, repo: str | None, chart: bool, show_global: bool, plain: bo
 
 
 @main.command()
+def install() -> None:
+    """Install all hooks (Claude Code + git)."""
+    from .git.install import install_git_hooks
+    from .setup import install_claude_hooks
+
+    print("=== Installing Claude Code hooks ===\n")
+    install_claude_hooks()
+    print("\n=== Installing git hooks ===\n")
+    install_git_hooks(global_install=True)
+
+
+@main.command()
+def uninstall() -> None:
+    """Uninstall all hooks (Claude Code + git)."""
+    from .git.install import uninstall_git_hooks
+    from .setup import uninstall_claude_hooks
+
+    print("=== Removing Claude Code hooks ===\n")
+    uninstall_claude_hooks()
+    print("\n=== Removing git hooks ===\n")
+    uninstall_git_hooks()
+
+
+@main.command()
 def setup() -> None:
-    """Install Claude Code hooks."""
+    """Install Claude Code hooks only."""
     from .setup import install_claude_hooks
 
     install_claude_hooks()
@@ -51,6 +80,30 @@ def git_uninstall() -> None:
     from .git.install import uninstall_git_hooks
 
     uninstall_git_hooks()
+
+
+@main.command("git-post-commit")
+def git_post_commit() -> None:
+    """Run post-commit hook (called by git)."""
+    from .git.post_commit import run_post_commit
+
+    run_post_commit()
+
+
+@main.command("hook-post-tool")
+def hook_post_tool() -> None:
+    """Run PostToolUse hook (called by Claude Code)."""
+    from .hooks.log_claude_edit import run_hook
+
+    run_hook()
+
+
+@main.command("hook-pre-tool")
+def hook_pre_tool() -> None:
+    """Run PreToolUse hook (called by Claude Code)."""
+    from .hooks.capture_before_write import run_hook
+
+    run_hook()
 
 
 if __name__ == "__main__":

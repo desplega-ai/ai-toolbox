@@ -13,17 +13,18 @@ def display_stats(days: int = 30, repo: str | None = None, show_chart: bool = Fa
     """Display AI vs human code statistics.
 
     Args:
-        days: Number of days to show stats for
+        days: Number of days for chart and per-repo breakdown
         repo: Optional repository name to filter by
         show_chart: Whether to show ASCII chart
         plain: Whether to use plain output without borders
     """
-    stats = get_stats(days=days, repo=repo)
+    # Use all-time stats for summary, time-windowed for chart/repos
+    global_stats = get_global_stats()
 
     # Check if we have any data
-    if stats["total_commits"] == 0:
+    if global_stats["total_commits"] == 0:
         if plain:
-            console.print("No commits tracked in the last {days} days.")
+            console.print("No commits tracked yet.")
             console.print()
             console.print("Make sure:")
             console.print("1. Claude Code hooks are installed: ai-tracker setup")
@@ -32,7 +33,7 @@ def display_stats(days: int = 30, repo: str | None = None, show_chart: bool = Fa
         else:
             console.print(
                 Panel(
-                    f"[yellow]No commits tracked in the last {days} days.[/yellow]\n\n"
+                    "[yellow]No commits tracked yet.[/yellow]\n\n"
                     "Make sure:\n"
                     "1. Claude Code hooks are installed: [cyan]ai-tracker setup[/cyan]\n"
                     "2. Git hooks are installed: [cyan]ai-tracker git-install[/cyan]\n"
@@ -43,10 +44,25 @@ def display_stats(days: int = 30, repo: str | None = None, show_chart: bool = Fa
             )
         return
 
-    # Summary panel
-    title = f"AI vs Human Code Stats - Last {days} Days"
+    # Convert global stats format to match display functions
+    stats = {
+        "ai_lines_added": global_stats["total_ai_lines_added"],
+        "ai_lines_removed": global_stats["total_ai_lines_removed"],
+        "human_lines_added": global_stats["total_human_lines_added"],
+        "human_lines_removed": global_stats["total_human_lines_removed"],
+        "total_commits": global_stats["total_commits"],
+        "ai_percent_added": global_stats["ai_percent_added"],
+        "ai_percent_removed": global_stats["ai_percent_removed"],
+        "human_percent_added": global_stats["human_percent_added"],
+        "human_percent_removed": global_stats["human_percent_removed"],
+    }
+
+    # Summary panel - all time
+    title = "AI vs Human Code Stats (All Time)"
     if repo:
-        title += f" ({repo})"
+        # If filtering by repo, use time-windowed stats instead
+        stats = get_stats(days=days, repo=repo)
+        title = f"AI vs Human Code Stats - {repo}"
 
     total_added = stats["ai_lines_added"] + stats["human_lines_added"]
     total_removed = stats["ai_lines_removed"] + stats["human_lines_removed"]
@@ -160,32 +176,83 @@ def _make_bar(percent: float, width: int = 10) -> str:
 
 
 def _display_chart(days: int = 30) -> None:
-    """Display ASCII time series chart using plotext."""
-    try:
-        import plotext as plt
-    except ImportError:
-        console.print("[yellow]plotext not installed, skipping chart[/yellow]")
-        return
-
+    """Display simple vertical ASCII bar chart."""
     time_data = get_time_series(days=days)
     if not time_data:
         return
 
-    periods = [d["period"] for d in time_data]
-    ai_lines = [d["ai_lines"] for d in time_data]
-    human_lines = [d["human_lines"] for d in time_data]
+    console.print()
+    console.print("[bold]Lines Added Over Time[/bold]")
+    console.print()
 
-    plt.clear_figure()
-    plt.theme("dark")
-    plt.title("Lines Added Over Time")
-    plt.xlabel("Date")
-    plt.ylabel("Lines")
+    # Chart dimensions
+    height = 10
+    col_width = 7
 
-    # Use simple bar chart with stacked appearance
-    plt.bar(periods, ai_lines, label="AI", color="cyan")
-    plt.bar(periods, human_lines, label="Human", color="green")
+    # Find max for scaling
+    max_lines = max((d["ai_lines"] + d["human_lines"]) for d in time_data) or 1
 
-    plt.show()
+    # Build columns for each day
+    columns = []
+    for d in time_data:
+        ai = d["ai_lines"]
+        human = d["human_lines"]
+        total = ai + human
+
+        # Calculate heights
+        total_height = int((total / max_lines) * height)
+        ai_height = int((ai / max_lines) * height) if total > 0 else 0
+        human_height = total_height - ai_height
+
+        columns.append({
+            "date": d["period"][5:],  # MM-DD
+            "ai_height": ai_height,
+            "human_height": human_height,
+            "ai": ai,
+            "human": human,
+        })
+
+    # Y-axis label width
+    y_label_width = len(f"{max_lines:,}") + 1
+
+    # Render rows from top to bottom
+    for row in range(height, 0, -1):
+        # Y-axis label (show at top, middle, bottom)
+        if row == height:
+            y_label = f"{max_lines:>,}"
+        elif row == height // 2:
+            y_label = f"{max_lines // 2:>,}"
+        elif row == 1:
+            y_label = "0"
+        else:
+            y_label = ""
+
+        line = f"{y_label:>{y_label_width}} │ "
+
+        for col in columns:
+            ai_h = col["ai_height"]
+            human_h = col["human_height"]
+
+            if row <= ai_h:
+                line += "[cyan]█████[/cyan]  "
+            elif row <= ai_h + human_h:
+                line += "[green]░░░░░[/green]  "
+            else:
+                line += "       "
+        console.print(line)
+
+    # X-axis line
+    console.print(" " * y_label_width + " └─" + "─" * (len(columns) * col_width))
+
+    # Date labels
+    date_line = " " * y_label_width + "   "
+    for col in columns:
+        date_line += f"{col['date']}  "
+    console.print(date_line)
+
+    # Legend
+    console.print()
+    console.print(" " * y_label_width + "   [cyan]█[/cyan] AI  [green]░[/green] Human")
 
 
 def display_global_stats(db_path=None, plain: bool = False) -> None:

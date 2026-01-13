@@ -36,13 +36,13 @@ def get_write_cache_path(session_id: str, file_path: str) -> Path:
     return cache_dir / f"{safe_name}.json"
 
 
-def main() -> None:
-    """Main entry point for the hook."""
+def run_hook() -> None:
+    """Run the PreToolUse hook logic. Called by CLI command."""
     try:
         data = json.load(sys.stdin)
     except json.JSONDecodeError as e:
         print(f"Error: Invalid JSON input: {e}", file=sys.stderr)
-        sys.exit(0)  # Don't fail the hook
+        return
 
     tool_name = data.get("tool_name")
     tool_input = data.get("tool_input", {})
@@ -50,11 +50,11 @@ def main() -> None:
 
     # Only process Write tool
     if tool_name != "Write":
-        sys.exit(0)
+        return
 
     file_path = tool_input.get("file_path")
     if not file_path:
-        sys.exit(0)
+        return
 
     original_content = ""
     is_new_file = True
@@ -67,7 +67,7 @@ def main() -> None:
                 raw_content = f.read()
                 if is_binary_content(raw_content):
                     # Skip binary files
-                    sys.exit(0)
+                    return
 
             # Read as text
             with open(file_path, encoding="utf-8", errors="replace") as f:
@@ -91,6 +91,10 @@ def main() -> None:
     except (OSError, IOError) as e:
         print(f"Warning: Could not write cache file: {e}", file=sys.stderr)
 
+
+def main() -> None:
+    """Main entry point for the hook."""
+    run_hook()
     sys.exit(0)
 
 

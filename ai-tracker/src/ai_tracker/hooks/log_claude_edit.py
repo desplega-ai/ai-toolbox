@@ -86,13 +86,13 @@ def get_write_cache_path(session_id: str, file_path: str) -> Path:
     return cache_dir / f"{safe_name}.json"
 
 
-def main() -> None:
-    """Main entry point for the hook."""
+def run_hook() -> None:
+    """Run the PostToolUse hook logic. Called by CLI command."""
     try:
         data = json.load(sys.stdin)
     except json.JSONDecodeError as e:
         print(f"Error: Invalid JSON input: {e}", file=sys.stderr)
-        sys.exit(0)  # Don't fail the hook
+        return
 
     tool_name = data.get("tool_name")
     tool_input = data.get("tool_input", {})
@@ -101,15 +101,15 @@ def main() -> None:
 
     # Only process Edit and Write tools
     if tool_name not in ("Edit", "Write"):
-        sys.exit(0)
+        return
 
     file_path = tool_input.get("file_path")
     if not file_path:
-        sys.exit(0)
+        return
 
     # Skip binary files
     if os.path.exists(file_path) and is_binary_file(file_path):
-        sys.exit(0)
+        return
 
     lines_added = 0
     lines_removed = 0
@@ -154,6 +154,10 @@ def main() -> None:
     except Exception as e:
         print(f"Error logging edit: {e}", file=sys.stderr)
 
+
+def main() -> None:
+    """Main entry point for the hook."""
+    run_hook()
     sys.exit(0)
 
 

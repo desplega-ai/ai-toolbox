@@ -7,13 +7,27 @@ from pathlib import Path
 
 from ..config import get_git_hooks_dir
 
+
+def _is_uvx_install() -> bool:
+    """Check if running from uvx cache."""
+    return ".cache/uv" in str(Path(__file__).resolve())
+
+
+def _get_post_commit_command() -> str:
+    """Get the appropriate command based on install method."""
+    if _is_uvx_install():
+        return "uvx cc-ai-tracker git-post-commit"
+    else:
+        return "ai-tracker git-post-commit"
+
+
 # The post-commit hook script that delegates to local hooks
-POST_COMMIT_HOOK = '''#!/bin/bash
+POST_COMMIT_HOOK_TEMPLATE = '''#!/bin/bash
 # ai-tracker global post-commit hook
 # This hook tracks commits and delegates to local hooks
 
 # Run ai-tracker post-commit hook
-python3 "{post_commit_script}" 2>/dev/null || true
+{command} 2>/dev/null || true
 
 # Delegate to local hooks (supports Husky, pre-commit, and standard git hooks)
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
@@ -52,16 +66,16 @@ def install_git_hooks(global_install: bool = True) -> None:
     hooks_dir = get_git_hooks_dir()
     post_commit_path = hooks_dir / "post-commit"
 
-    # Get the path to our post_commit.py script
-    script_dir = Path(__file__).parent.resolve()
-    post_commit_script = script_dir / "post_commit.py"
+    # Get the appropriate command based on installation method
+    command = _get_post_commit_command()
 
     # Write the post-commit hook
-    hook_content = POST_COMMIT_HOOK.format(post_commit_script=post_commit_script)
+    hook_content = POST_COMMIT_HOOK_TEMPLATE.format(command=command)
     post_commit_path.write_text(hook_content)
     os.chmod(post_commit_path, 0o755)
 
     print(f"Created post-commit hook: {post_commit_path}")
+    print(f"Using command: {command}")
 
     # Set global git hooks path
     try:

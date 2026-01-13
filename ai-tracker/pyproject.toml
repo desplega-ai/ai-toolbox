@@ -27,6 +27,7 @@ dependencies = [
 
 [project.scripts]
 ai-tracker = "ai_tracker.cli:main"
+cc-ai-tracker = "ai_tracker.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/desplega-ai/ai-toolbox/tree/main/ai-tracker"

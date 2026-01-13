@@ -4,71 +4,63 @@ Track what percentage of code changes in git repos are AI-generated (via Claude 
 
 ## Installation
 
-### Local (development)
+### Option 1: uvx (recommended)
+
+No installation needed - runs directly from PyPI:
 
 ```bash
-cd ai-tracker
-uv sync
-uv run ai-tracker stats
+uvx cc-ai-tracker stats
 ```
 
-### From PyPI (recommended)
+### Option 2: Local install
+
+Install globally with uv:
 
 ```bash
-uvx --from cc-ai-tracker ai-tracker stats
+uv tool install cc-ai-tracker
 ```
 
-To force reinstall (e.g., after a new release):
-
-```bash
-uvx --force-reinstall --from cc-ai-tracker ai-tracker stats
-```
-
-### Global (run from anywhere)
+Or install from source:
 
 ```bash
 cd ai-tracker
 uv tool install .
 ```
 
-This installs `ai-tracker` globally so you can run it from any directory:
+Then run directly:
 
 ```bash
 ai-tracker stats
-ai-tracker stats --days 7 --chart
-```
-
-To upgrade after making changes:
-
-```bash
-cd ai-tracker
-uv tool install . --force
 ```
 
 ## Setup
 
-```bash
-# Install Claude Code hooks
-uv run ai-tracker setup
+After installation, set up the hooks to start tracking:
 
-# Install global git hooks (works across all repos)
-uv run ai-tracker git-install
+```bash
+ai-tracker install    # Install all hooks (Claude Code + git)
+```
+
+Or with uvx:
+```bash
+uvx cc-ai-tracker install
 ```
 
 ## Usage
 
+**With uvx:**
 ```bash
-# Show stats for last 30 days
-uv run ai-tracker stats
+uvx cc-ai-tracker stats           # All-time stats
+uvx cc-ai-tracker stats --graph   # Stats + chart for last 7 days
+uvx cc-ai-tracker stats --chart --days 14  # Custom chart period
+```
 
-# Last 7 days
-uv run ai-tracker stats --days 7
-
-# Specific repo
-uv run ai-tracker stats --repo my-project
-
-# Include ASCII chart
-uv run ai-tracker stats --chart
+**With local install:**
+```bash
+ai-tracker stats           # All-time stats
+ai-tracker stats --graph   # Stats + chart for last 7 days
+ai-tracker stats --chart --days 14  # Custom chart period
+ai-tracker stats --repo my-project  # Filter by repo
 ```
 
 ## How It Works
@@ -103,6 +95,5 @@ sqlite3 ~/.config/ai-tracker/tracker.db "SELECT * FROM commits ORDER BY timestam
 ## Uninstall
 
 ```bash
-# Remove git hooks
-uv run ai-tracker git-uninstall
+ai-tracker uninstall    # Remove all hooks (Claude Code + git)
 ```

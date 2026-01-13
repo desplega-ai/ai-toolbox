@@ -193,15 +193,15 @@ def attribute_changes(file_stats: list[dict]) -> dict:
     }
 
 
-def main() -> None:
-    """Main entry point for the post-commit hook."""
+def run_post_commit() -> None:
+    """Run the post-commit hook logic. Called by CLI command."""
     cwd = os.getcwd()
 
     # Get commit info
     commit_sha = get_commit_sha(cwd)
     if not commit_sha:
         # Not in a git repo or no commits
-        sys.exit(0)
+        return
 
     repo_name = get_repo_name(cwd)
     repo_path = get_repo_path(cwd)
@@ -210,7 +210,7 @@ def main() -> None:
     file_stats = get_commit_file_stats(cwd)
     if not file_stats:
         # No file changes (e.g., empty commit)
-        sys.exit(0)
+        return
 
     # Attribute changes to AI vs human
     attribution = attribute_changes(file_stats)
@@ -233,6 +233,10 @@ def main() -> None:
     except Exception as e:
         print(f"ai-tracker: Error logging commit: {e}", file=sys.stderr)
 
+
+def main() -> None:
+    """Main entry point for the post-commit hook."""
+    run_post_commit()
     sys.exit(0)
 
 
