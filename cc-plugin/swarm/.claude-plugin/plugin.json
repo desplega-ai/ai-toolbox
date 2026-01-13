@@ -1,7 +1,7 @@
 {
-    "name": "swarm",
+    "name": "agent-swarm",
     "description": "Multi-agent coordination with agent-swarm MCP",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "author": {
         "name": "desplega.ai",
         "email": "contact@desplega.ai"

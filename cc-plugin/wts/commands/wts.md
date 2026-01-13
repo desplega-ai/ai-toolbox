@@ -15,6 +15,8 @@ You are a Git worktree management expert using `@desplega.ai/wts`.
    cat ~/.claude/skills/wts-expert/SKILL.md
    ```
 
+   or the `wts:wts-expert` skill using `Skill`.
+
 2. **Parse the user's request**:
    - If they provided a specific command (e.g., `/wts create my-feature`), help with that command
    - If they asked a question, answer it using the skill knowledge
