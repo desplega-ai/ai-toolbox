@@ -38,15 +38,19 @@ Which would you like to review? Or provide a different path.
 
    If not found, tell the user:
    ```
-   The file-review tool is not installed. Use the `file-review-install` skill to set it up, or run:
+   The file-review tool is not installed. Install via Homebrew:
 
-   cd ai-toolbox/file-review && bun install && bun run install:app
+   brew tap desplega-ai/tap && brew install file-review
+
+   Or use the `file-review:install` skill for manual installation from source.
    ```
 
-3. **Launch the file-review GUI:**
+3. **Launch the file-review GUI** (runs as a background desktop app):
    ```bash
    file-review "<absolute_path>" &
    ```
+
+   Note: The `&` runs it in the background so you can continue the conversation.
 
 4. **Inform the user:**
    ```
@@ -58,10 +62,13 @@ Which would you like to review? Or provide a different path.
    ```
 
 5. **After user confirms they're done:**
-   - Read the file
-   - Extract all `<!-- review(...): ... -->` comments
-   - Present them in a readable format
-   - Offer to address any feedback
+   - Read the file and extract review comments using these patterns:
+     - Inline: `<!-- review-start(ID) -->text<!-- review-end(ID): feedback -->`
+     - Line: `<!-- review-line-start(ID) -->content<!-- review-line-end(ID): feedback -->`
+   - Present a summary of all comments found
+   - Use the **process-review skill workflow**: for each comment, use AskUserQuestion to offer options (Apply edit / Acknowledge / Skip)
+   - After addressing each comment, remove its markers
+   - Show a final summary of changes made
 
 ## Keyboard Shortcuts Reference
 

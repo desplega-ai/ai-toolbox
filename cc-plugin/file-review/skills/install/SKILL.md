@@ -1,13 +1,35 @@
 ---
 name: file-review-install
-description: Install the file-review tool from source. Use when user needs to install file-review on a new machine or asks how to set it up.
+description: Install the file-review tool. Use when user needs to install file-review on a new machine or asks how to set it up.
 ---
 
 # Install File Review
 
-Guide for installing the file-review tool on a fresh machine.
+Guide for installing the file-review tool.
 
-## Prerequisites
+## Quick Install (Homebrew)
+
+For macOS and Linux with Homebrew installed:
+
+```bash
+brew tap desplega-ai/tap
+brew install file-review
+```
+
+Verify installation:
+```bash
+which file-review
+```
+
+If Homebrew is not available on the platform, use the manual installation below.
+
+---
+
+## Manual Installation (from source)
+
+Use this method if Homebrew is unavailable or you prefer building from source.
+
+### Prerequisites
 
 Ensure the user has:
 - **bun** - JavaScript runtime
@@ -22,7 +44,7 @@ curl -fsSL https://bun.sh/install | bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-## Installation Steps
+### Installation Steps
 
 1. **Clone the repository:**
    ```bash
