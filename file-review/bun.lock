@@ -9,7 +9,7 @@
         "@codemirror/lang-markdown": "^6.3.2",
         "@codemirror/state": "^6.5.2",
         "@codemirror/view": "^6.36.4",
-        "@replit/codemirror-vim": "^6.2.1",
+        "@replit/codemirror-vim": "^6.3.0",
         "@tauri-apps/api": "^2",
         "@tauri-apps/plugin-dialog": "^2",
         "@tauri-apps/plugin-fs": "^2",

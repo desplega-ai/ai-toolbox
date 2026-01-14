@@ -22,7 +22,7 @@
     "@codemirror/view": "^6.36.4",
     "@codemirror/state": "^6.5.2",
     "@codemirror/commands": "^6.8.0",
-    "@replit/codemirror-vim": "^6.2.1"
+    "@replit/codemirror-vim": "^6.3.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",

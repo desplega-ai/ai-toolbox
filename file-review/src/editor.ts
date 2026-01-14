@@ -3,8 +3,9 @@ import {
   lineNumbers,
   highlightActiveLine,
   keymap,
+  drawSelection,
 } from "@codemirror/view";
-import { EditorState, Compartment } from "@codemirror/state";
+import { EditorState, Compartment, Prec } from "@codemirror/state";
 import { markdown } from "@codemirror/lang-markdown";
 import { defaultKeymap, history, historyKeymap, undo, redo } from "@codemirror/commands";
 import { vim, Vim } from "@replit/codemirror-vim";
@@ -35,6 +36,8 @@ export function initEditor(container: HTMLElement, fontSize: number = 14) {
   const startState = EditorState.create({
     doc: "",
     extensions: [
+      vimCompartment.of([]),  // Vim FIRST for proper precedence
+      drawSelection(),        // Required for vim visual mode
       history(),
       lineNumbers(),
       highlightActiveLine(),
@@ -42,7 +45,6 @@ export function initEditor(container: HTMLElement, fontSize: number = 14) {
       commentHighlightField,
       keymapCompartment.of(keymap.of([...filteredKeymap, ...historyKeymap])),
       themeCompartment.of(getThemeExtension("dark")),
-      vimCompartment.of([]),
       fontSizeCompartment.of(createFontSizeTheme(fontSize)),
     ],
   });
@@ -71,7 +73,10 @@ export function updateVimMode(enabled: boolean) {
     Vim.map("<C-q>", "<C-v>", "normal");
   }
   editorView.dispatch({
-    effects: vimCompartment.reconfigure(enabled ? vim({ status: true }) : []),
+    // Use Prec.high to ensure vim keybindings take precedence over CodeMirror defaults
+    effects: vimCompartment.reconfigure(
+      enabled ? Prec.high(vim({ status: true })) : []
+    ),
   });
 }
 
