@@ -10,7 +10,8 @@
     "tauri": "tauri",
     "check": "tsc --noEmit",
     "install:app": "bun run tauri build && mkdir -p ~/.local/bin && ln -sf \"$(pwd)/src-tauri/target/release/file-review\" ~/.local/bin/file-review && echo '✓ Installed to ~/.local/bin/file-review'",
-    "uninstall:app": "rm -f ~/.local/bin/file-review && echo '✓ Removed ~/.local/bin/file-review'"
+    "uninstall:app": "rm -f ~/.local/bin/file-review && echo '✓ Removed ~/.local/bin/file-review'",
+    "release": "bun run scripts/release.ts"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

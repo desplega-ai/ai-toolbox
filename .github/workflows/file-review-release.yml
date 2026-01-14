@@ -1,0 +1,128 @@
+name: File Review Release
+
+on:
+  push:
+    tags:
+      - 'file-review-v*'
+
+permissions:
+  contents: write
+
+env:
+  APP_NAME: file-review
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            runner: macos-14
+            arch: arm64
+          - target: x86_64-apple-darwin
+            runner: macos-13
+            arch: x86_64
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Rust
+        uses: dtolnay/rust-action@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Install frontend dependencies
+        working-directory: ./file-review
+        run: bun install
+
+      - name: Build Tauri app
+        working-directory: ./file-review
+        run: bun run tauri build --target ${{ matrix.target }}
+
+      - name: Prepare release artifact
+        working-directory: ./file-review
+        run: |
+          BINARY_PATH="src-tauri/target/${{ matrix.target }}/release/${{ env.APP_NAME }}"
+          ARTIFACT_NAME="${{ env.APP_NAME }}-darwin-${{ matrix.arch }}"
+
+          cp "$BINARY_PATH" "$ARTIFACT_NAME"
+          shasum -a 256 "$ARTIFACT_NAME" > "$ARTIFACT_NAME.sha256"
+
+          echo "Built: $ARTIFACT_NAME"
+          cat "$ARTIFACT_NAME.sha256"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-darwin-${{ matrix.arch }}
+          path: |
+            ./file-review/${{ env.APP_NAME }}-darwin-${{ matrix.arch }}
+            ./file-review/${{ env.APP_NAME }}-darwin-${{ matrix.arch }}.sha256
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Display artifacts
+        run: |
+          ls -la artifacts/
+          echo "--- SHA256 Checksums ---"
+          cat artifacts/*.sha256
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#file-review-v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "File Review v${{ steps.version.outputs.version }}"
+          body: |
+            ## Installation via Homebrew
+
+            ```bash
+            brew tap desplega-ai/tap
+            brew install file-review
+            ```
+
+            ## Manual Installation
+
+            Download the appropriate binary for your Mac:
+            - **Apple Silicon (M1/M2/M3)**: `file-review-darwin-arm64`
+            - **Intel**: `file-review-darwin-x86_64`
+
+            ```bash
+            chmod +x file-review-darwin-*
+            mv file-review-darwin-* /usr/local/bin/file-review
+            ```
+
+            ## SHA256 Checksums
+            See the `.sha256` files for verification.
+          files: |
+            artifacts/file-review-darwin-arm64
+            artifacts/file-review-darwin-arm64.sha256
+            artifacts/file-review-darwin-x86_64
+            artifacts/file-review-darwin-x86_64.sha256
+          draft: false
+          prerelease: false
