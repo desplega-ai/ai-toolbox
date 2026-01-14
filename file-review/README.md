@@ -35,11 +35,13 @@ bun run tauri build
 
 To create a new release:
 
+1. Bump the version in `package.json`
+2. Run:
 ```bash
-bun run release 1.0.0
+bun run release
 ```
 
-This will tag and push `file-review-v1.0.0`, triggering the GitHub Actions workflow to build binaries for both Apple Silicon and Intel Macs.
+This reads the version from `package.json`, validates it's newer than the last release, then tags and pushes to trigger the GitHub Actions workflow.
 
 ---
 
