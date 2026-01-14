@@ -9,6 +9,9 @@ import {
   scrollToPosition,
   updateTheme,
   updateVimMode,
+  updateFontSize,
+  editorUndo,
+  editorRedo,
   focusEditor,
   onSelectionChange,
 } from "./editor";
@@ -100,6 +103,10 @@ async function init() {
     toggleTheme,
     toggleVim,
     openFile: showFilePickerAndLoad,
+    zoomIn,
+    zoomOut,
+    undo: editorUndo,
+    redo: editorRedo,
   });
 
   // Get file path from Rust state (set from CLI args)
@@ -153,6 +160,7 @@ async function init() {
     updateThemeButton();
     updateVimMode(vimEnabled);
     updateVimButton();
+    updateFontSize(appConfig.font_size || 14);
 
     showToast("Config reloaded", "info");
   });
@@ -210,6 +218,18 @@ function updateVimButton() {
   if (btn) {
     btn.classList.toggle("active", vimEnabled);
   }
+}
+
+async function zoomIn() {
+  appConfig.font_size = Math.min(32, (appConfig.font_size || 14) + 2);
+  updateFontSize(appConfig.font_size);
+  await saveConfig(appConfig);
+}
+
+async function zoomOut() {
+  appConfig.font_size = Math.max(8, (appConfig.font_size || 14) - 2);
+  updateFontSize(appConfig.font_size);
+  await saveConfig(appConfig);
 }
 
 function handleAddCommentShortcut() {
@@ -346,7 +366,9 @@ function handleCommentClick(comment: ReviewComment) {
 }
 
 // Initialize the app
-document.addEventListener("DOMContentLoaded", () => {
-  initEditor(document.getElementById("editor-container")!);
+document.addEventListener("DOMContentLoaded", async () => {
+  // Pre-load config to get font size for editor initialization
+  const config = await loadConfig();
+  initEditor(document.getElementById("editor-container")!, config.font_size || 14);
   init();
 });

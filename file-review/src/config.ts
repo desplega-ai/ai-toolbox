@@ -8,6 +8,7 @@ export interface WindowConfig {
 export interface AppConfig {
   theme: "dark" | "light";
   vim_mode: boolean;
+  font_size: number;
   window: WindowConfig;
 }
 

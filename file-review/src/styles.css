@@ -521,7 +521,6 @@ body {
 
 .cm-editor .cm-content {
   font-family: 'SF Mono', Monaco, Consolas, monospace;
-  font-size: 14px;
 }
 
 /* Vim statusline */

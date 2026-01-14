@@ -6,7 +6,7 @@ import {
 } from "@codemirror/view";
 import { EditorState, Compartment } from "@codemirror/state";
 import { markdown } from "@codemirror/lang-markdown";
-import { defaultKeymap } from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap, undo, redo } from "@codemirror/commands";
 import { vim, Vim } from "@replit/codemirror-vim";
 import { commentHighlightField } from "./comments";
 import { getThemeExtension, type Theme } from "./theme";
@@ -14,18 +14,36 @@ import { getThemeExtension, type Theme } from "./theme";
 let editorView: EditorView;
 const themeCompartment = new Compartment();
 const vimCompartment = new Compartment();
+const fontSizeCompartment = new Compartment();
+const keymapCompartment = new Compartment();
 
-export function initEditor(container: HTMLElement) {
+// Filter out Ctrl+D from defaultKeymap (conflicts with vim half-page scroll)
+const filteredKeymap = defaultKeymap.filter(
+  (binding) => binding.key !== "Mod-d"
+);
+
+function createFontSizeTheme(size: number) {
+  return EditorView.theme({
+    "&": { fontSize: `${size}px` },
+    ".cm-content": { fontSize: `${size}px` },
+    ".cm-gutters": { fontSize: `${size}px` },
+    ".cm-line": { fontSize: `${size}px` },
+  });
+}
+
+export function initEditor(container: HTMLElement, fontSize: number = 14) {
   const startState = EditorState.create({
     doc: "",
     extensions: [
+      history(),
       lineNumbers(),
       highlightActiveLine(),
       markdown(),
       commentHighlightField,
-      keymap.of(defaultKeymap),
+      keymapCompartment.of(keymap.of([...filteredKeymap, ...historyKeymap])),
       themeCompartment.of(getThemeExtension("dark")),
       vimCompartment.of([]),
+      fontSizeCompartment.of(createFontSizeTheme(fontSize)),
     ],
   });
 
@@ -41,6 +59,12 @@ export function updateTheme(theme: Theme) {
   });
 }
 
+export function updateFontSize(size: number) {
+  editorView.dispatch({
+    effects: fontSizeCompartment.reconfigure(createFontSizeTheme(size)),
+  });
+}
+
 export function updateVimMode(enabled: boolean) {
   if (enabled) {
     // Map Ctrl+Q to visual block mode (Ctrl+V is captured by OS for paste)
@@ -49,6 +73,14 @@ export function updateVimMode(enabled: boolean) {
   editorView.dispatch({
     effects: vimCompartment.reconfigure(enabled ? vim({ status: true }) : []),
   });
+}
+
+export function editorUndo() {
+  undo(editorView);
+}
+
+export function editorRedo() {
+  redo(editorView);
 }
 
 export function getEditorContent(): string {

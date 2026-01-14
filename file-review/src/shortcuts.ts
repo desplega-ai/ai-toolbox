@@ -8,12 +8,18 @@ export interface Shortcut {
 export const shortcuts: Shortcut[] = [
   { keys: "⌘K", description: "Add comment to selection" },
   { keys: "⌘S", description: "Save file" },
+  { keys: "⌘Z", description: "Undo" },
+  { keys: "⌘⇧Z", description: "Redo" },
   { keys: "⌘Q", description: "Quit application" },
   { keys: "⌘/", description: "Toggle shortcuts help" },
   { keys: "⌘T", description: "Toggle theme (light/dark)" },
   { keys: "⌘⇧V", description: "Toggle vim mode" },
   { keys: "⌘O", description: "Open file" },
+  { keys: "⌘+", description: "Zoom in" },
+  { keys: "⌘-", description: "Zoom out" },
   { keys: "^Q", description: "Vim visual block mode" },
+  { keys: "^D", description: "Vim half-page down" },
+  { keys: "^U", description: "Vim half-page up" },
 ];
 
 let helpModalVisible = false;
@@ -58,6 +64,10 @@ export async function showShortcutsHelp() {
           <div class="setting-item">
             <span class="setting-label">Vim Mode</span>
             <span class="setting-value">${config.vim_mode ? "Enabled" : "Disabled"}</span>
+          </div>
+          <div class="setting-item">
+            <span class="setting-label">Font Size</span>
+            <span class="setting-value">${config.font_size || 14}px</span>
           </div>
           <div class="setting-item">
             <span class="setting-label">Window Size</span>
@@ -119,6 +129,18 @@ export function initShortcuts(handlers: Record<string, () => void>) {
     } else if (isMeta && e.key === "o") {
       e.preventDefault();
       handlers.openFile?.();
+    } else if (isMeta && (e.key === "=" || e.key === "+")) {
+      e.preventDefault();
+      handlers.zoomIn?.();
+    } else if (isMeta && e.key === "-") {
+      e.preventDefault();
+      handlers.zoomOut?.();
+    } else if (isMeta && e.key === "z" && e.shiftKey) {
+      e.preventDefault();
+      handlers.redo?.();
+    } else if (isMeta && e.key === "z") {
+      e.preventDefault();
+      handlers.undo?.();
     }
   });
 }

@@ -1,5 +1,5 @@
 mod comments;
-mod config;
+pub mod config;
 mod file_ops;
 
 use file_ops::AppState;
