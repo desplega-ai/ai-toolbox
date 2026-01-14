@@ -1,6 +1,6 @@
 [package]
 name = "file-review"
-version = "1.0.4"
+version = "1.1.0"
 description = "A Tauri application for reviewing and managing files."
 authors = ["contact@desplega.ai"]
 edition = "2021"

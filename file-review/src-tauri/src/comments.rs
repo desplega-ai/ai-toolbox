@@ -14,15 +14,98 @@ pub struct ReviewComment {
     pub highlight_end: usize,
 }
 
-#[tauri::command]
-pub fn parse_comments(content: String) -> Vec<ReviewComment> {
+/// Comment structure for CLI output (with line numbers and content)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OutputComment {
+    pub id: String,
+    pub comment: String,
+    #[serde(rename = "type")]
+    pub comment_type: String,
+    pub start_line: usize,
+    pub end_line: usize,
+    pub content: String,
+}
+
+/// Calculate line number from character position
+fn char_pos_to_line(content: &str, pos: usize) -> usize {
+    content[..pos.min(content.len())]
+        .chars()
+        .filter(|&c| c == '\n')
+        .count()
+        + 1
+}
+
+/// Parse comments and return OutputComment structs with line numbers
+pub fn parse_comments_for_output(content: &str) -> Vec<OutputComment> {
+    let comments = parse_comments_internal(content);
+
+    comments
+        .into_iter()
+        .map(|c| {
+            let start_line = char_pos_to_line(content, c.highlight_start);
+            let end_line = char_pos_to_line(content, c.highlight_end);
+            let highlighted_content = content
+                .get(c.highlight_start..c.highlight_end)
+                .unwrap_or("")
+                .to_string();
+
+            OutputComment {
+                id: c.id,
+                comment: c.text,
+                comment_type: c.comment_type,
+                start_line,
+                end_line,
+                content: highlighted_content,
+            }
+        })
+        .collect()
+}
+
+/// Format comments as human-readable string
+pub fn format_comments_readable(comments: &[OutputComment]) -> String {
+    if comments.is_empty() {
+        return String::from("No review comments found.");
+    }
+
+    let mut output = format!("=== Review Comments ({}) ===\n", comments.len());
+
+    for c in comments {
+        let line_info = if c.start_line == c.end_line {
+            format!("Line {}", c.start_line)
+        } else {
+            format!("Lines {}-{}", c.start_line, c.end_line)
+        };
+
+        output.push_str(&format!("\n[{}] {} ({}):\n", c.id, line_info, c.comment_type));
+
+        // Indent the content, handling multi-line
+        if c.content.is_empty() {
+            output.push_str("    (empty selection)\n");
+        } else {
+            for line in c.content.lines() {
+                output.push_str(&format!("    \"{}\"\n", line));
+            }
+        }
+        output.push_str(&format!("    → {}\n", c.comment));
+    }
+
+    output
+}
+
+/// Format comments as JSON string
+pub fn format_comments_json(comments: &[OutputComment]) -> String {
+    serde_json::to_string_pretty(comments).unwrap_or_else(|_| "[]".to_string())
+}
+
+/// Internal parsing logic (shared between Tauri command and output functions)
+fn parse_comments_internal(content: &str) -> Vec<ReviewComment> {
     let mut comments = Vec::new();
 
     // Parse inline wrapped comments: <!-- review-start(id) -->...<!-- review-end(id): text -->
     let inline_start_re = Regex::new(r"<!--\s*review-start\(([a-zA-Z0-9-]+)\)\s*-->").unwrap();
     let inline_end_template = r"<!--\s*review-end\(ID\):\s*([\s\S]*?)\s*-->";
 
-    for start_cap in inline_start_re.captures_iter(&content) {
+    for start_cap in inline_start_re.captures_iter(content) {
         let id = start_cap.get(1).map_or("", |m| m.as_str()).to_string();
         let start_match = start_cap.get(0).unwrap();
         let start_marker_pos = start_match.start();
@@ -52,7 +135,7 @@ pub fn parse_comments(content: String) -> Vec<ReviewComment> {
     let line_start_re = Regex::new(r"<!--\s*review-line-start\(([a-zA-Z0-9-]+)\)\s*-->\n?").unwrap();
     let line_end_template = r"<!--\s*review-line-end\(ID\):\s*([\s\S]*?)\s*-->";
 
-    for start_cap in line_start_re.captures_iter(&content) {
+    for start_cap in line_start_re.captures_iter(content) {
         let id = start_cap.get(1).map_or("", |m| m.as_str()).to_string();
         let start_match = start_cap.get(0).unwrap();
         let start_marker_pos = start_match.start();
@@ -84,6 +167,11 @@ pub fn parse_comments(content: String) -> Vec<ReviewComment> {
     }
 
     comments
+}
+
+#[tauri::command]
+pub fn parse_comments(content: String) -> Vec<ReviewComment> {
+    parse_comments_internal(&content)
 }
 
 #[tauri::command]

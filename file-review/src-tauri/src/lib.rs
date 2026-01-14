@@ -1,7 +1,8 @@
-mod comments;
+pub mod comments;
 pub mod config;
 mod file_ops;
 
+use comments::{format_comments_json, format_comments_readable, parse_comments_for_output};
 use file_ops::AppState;
 use std::sync::Mutex;
 use tauri::{
@@ -10,17 +11,13 @@ use tauri::{
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
+pub fn run(file_path: Option<String>, silent: bool, json_output: bool) {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .setup(|app| {
-            // Get command line arguments
-            let args: Vec<String> = std::env::args().collect();
-            let file_path = args.get(1).cloned();
-
+        .setup(move |app| {
             // Store file path for frontend to retrieve
-            if let Some(path) = file_path {
+            if let Some(ref path) = file_path {
                 let state: tauri::State<'_, AppState> = app.state();
                 let mut current = state.current_file.lock().unwrap();
                 *current = Some(std::path::PathBuf::from(path));
@@ -55,7 +52,11 @@ pub fn run() {
                         }
                     }
                     "quit" => {
-                        app.exit(0);
+                        // Close the window instead of directly exiting
+                        // This triggers CloseRequested event which outputs comments
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.close();
+                        }
                     }
                     _ => {}
                 }
@@ -69,16 +70,34 @@ pub fn run() {
                     cfg.window.height as f64,
                 )));
 
-                // Save window size on close
+                // Save window size and output comments on close
                 let app_handle = app.handle().clone();
                 window.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { .. } = event {
                         if let Some(win) = app_handle.get_webview_window("main") {
+                            // Save window size
                             if let Ok(size) = win.inner_size() {
                                 let mut cfg = config::load_config();
                                 cfg.window.width = size.width;
                                 cfg.window.height = size.height;
                                 let _ = config::save_config(cfg);
+                            }
+
+                            // Output comments if not silent
+                            let state: tauri::State<'_, AppState> = app_handle.state();
+                            if !state.silent {
+                                if let Some(file_path) = state.current_file.lock().ok().and_then(|f| f.clone()) {
+                                    if let Ok(content) = std::fs::read_to_string(&file_path) {
+                                        let comments = parse_comments_for_output(&content);
+                                        if !comments.is_empty() {
+                                            if state.json_output {
+                                                println!("{}", format_comments_json(&comments));
+                                            } else {
+                                                println!("{}", format_comments_readable(&comments));
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -89,6 +108,8 @@ pub fn run() {
         })
         .manage(AppState {
             current_file: Mutex::new(None),
+            silent,
+            json_output,
         })
         .invoke_handler(tauri::generate_handler![
             file_ops::read_file,

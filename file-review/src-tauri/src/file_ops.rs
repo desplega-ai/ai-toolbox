@@ -5,6 +5,8 @@ use tauri::State;
 
 pub struct AppState {
     pub current_file: Mutex<Option<PathBuf>>,
+    pub silent: bool,
+    pub json_output: bool,
 }
 
 #[tauri::command]

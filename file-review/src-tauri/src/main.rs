@@ -14,7 +14,18 @@ fn main() {
         return;
     }
 
-    file_review_lib::run()
+    // Parse flags
+    let silent = args.iter().any(|a| a == "--silent" || a == "-s");
+    let json_output = args.iter().any(|a| a == "--json" || a == "-j");
+
+    // Extract file path (first non-flag argument after program name)
+    let file_path = args
+        .iter()
+        .skip(1)
+        .find(|a| !a.starts_with('-'))
+        .cloned();
+
+    file_review_lib::run(file_path, silent, json_output)
 }
 
 fn print_help() {
@@ -25,7 +36,13 @@ fn print_help() {
     println!("    file-review [OPTIONS] [FILE]\n");
     println!("OPTIONS:");
     println!("    -h, --help       Show this help message");
-    println!("    -v, --version    Show version\n");
+    println!("    -v, --version    Show version");
+    println!("    -s, --silent     Suppress comment output on close");
+    println!("    -j, --json       Output comments as JSON on close\n");
+    println!("OUTPUT:");
+    println!("    By default, review comments are printed to stdout when");
+    println!("    the application closes. Use --silent to suppress this,");
+    println!("    or --json for machine-readable output.\n");
     println!("CONFIG:");
     println!("    Path: {}", config_path.display());
 

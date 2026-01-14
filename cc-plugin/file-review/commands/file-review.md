@@ -1,11 +1,19 @@
 ---
 description: Open a file in the file-review GUI for adding inline comments
-argument-hint: [file_path] [--bg]
+argument-hint: [file_path] [--bg] [--silent] [--json]
 ---
 
 # File Review
 
 Launch the file-review tool to add inline review comments to a markdown file.
+
+## CLI Flags
+
+| Flag | Description |
+|------|-------------|
+| `--bg` | Run in background mode (don't wait for app to close) |
+| `--silent` | Suppress comment output when app closes |
+| `--json` | Output comments as JSON when app closes (default: human-readable) |
 
 ## Instructions
 
@@ -49,13 +57,13 @@ Which would you like to review? Or provide a different path.
 
    **Default (foreground)** - no `--bg` flag:
    ```bash
-   file-review "<absolute_path>"
+   file-review "<absolute_path>" [--silent] [--json]
    ```
-   Wait for the process to complete. When user quits the app, continue to step 4.
+   Wait for the process to complete. When user quits the app, comments are printed to stdout (unless `--silent`). Continue to step 4.
 
    **Background mode** - with `--bg` flag:
    ```bash
-   file-review "<absolute_path>" &
+   file-review "<absolute_path>" [--silent] [--json] &
    ```
    Runs in background. Inform user and wait for them to confirm when done.
 
@@ -70,12 +78,29 @@ Which would you like to review? Or provide a different path.
    If running in background: add "Let me know when you're done reviewing!"
 
 5. **After review is complete:**
-   - Read the file and extract review comments using these patterns:
-     - Inline: `<!-- review-start(ID) -->text<!-- review-end(ID): feedback -->`
-     - Line: `<!-- review-line-start(ID) -->content<!-- review-line-end(ID): feedback -->`
-   - Present a summary of all comments found
+
+   When the app closes, it outputs review comments to stdout in this format:
+   ```
+   === Review Comments (N) ===
+
+   [abc123] Line 15 (inline):
+       "highlighted code"
+       → Comment text here
+
+   [def456] Lines 20-25 (line):
+       "multi-line"
+       "content"
+       → Another comment
+   ```
+
+   Or with `--json`:
+   ```json
+   [{"id": "abc123", "comment": "...", "type": "inline", "start_line": 15, "end_line": 15, "content": "..."}]
+   ```
+
+   - Present the comment output to the user
    - Invoke the **file-review:process-review** skill: for each comment, use AskUserQuestion to offer options (Apply edit / Acknowledge / Skip)
-   - After addressing each comment, remove its markers
+   - After addressing each comment, remove its markers from the file
    - Show a final summary of changes made
 
 ## Keyboard Shortcuts Reference
