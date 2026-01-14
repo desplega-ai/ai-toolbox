@@ -35,28 +35,32 @@ fn byte_pos_to_line(content: &str, byte_pos: usize) -> usize {
         + 1
 }
 
-/// Convert character offset to byte offset
-/// Returns None if char_pos is beyond the string length
-fn char_offset_to_byte_offset(content: &str, char_pos: usize) -> Option<usize> {
-    content
-        .char_indices()
-        .nth(char_pos)
-        .map(|(byte_idx, _)| byte_idx)
-        .or_else(|| {
-            // If char_pos equals the character count, return the byte length
-            if content.chars().count() == char_pos {
-                Some(content.len())
-            } else {
-                None
-            }
-        })
+/// Convert UTF-16 code unit offset (from JavaScript/CodeMirror) to byte offset
+/// JavaScript strings and CodeMirror positions use UTF-16 code units, where
+/// characters outside BMP (like emoji) count as 2 units (surrogate pairs)
+fn char_offset_to_byte_offset(content: &str, utf16_pos: usize) -> Option<usize> {
+    let mut utf16_count = 0;
+    for (byte_idx, ch) in content.char_indices() {
+        if utf16_count == utf16_pos {
+            return Some(byte_idx);
+        }
+        // Characters outside BMP need 2 UTF-16 code units (surrogate pair)
+        utf16_count += ch.len_utf16();
+    }
+    // Handle position at end of string
+    if utf16_count == utf16_pos {
+        Some(content.len())
+    } else {
+        None
+    }
 }
 
-/// Convert byte offset to character offset
+/// Convert byte offset to UTF-16 code unit offset (for JavaScript/CodeMirror)
 fn byte_offset_to_char_offset(content: &str, byte_pos: usize) -> usize {
     content[..byte_pos.min(content.len())]
         .chars()
-        .count()
+        .map(|ch| ch.len_utf16())
+        .sum()
 }
 
 /// Parse comments and return OutputComment structs with line numbers
