@@ -18,6 +18,7 @@ import {
 import {
   parseComments,
   insertWrappedComment,
+  insertLineComment,
   removeComment,
   addHighlight,
   clearHighlights,
@@ -260,12 +261,34 @@ async function handleCommentSubmit(text: string, _lineNumber: number) {
   }
 
   const content = getEditorContent();
-  const [newContent] = await insertWrappedComment(
-    content,
-    selection.from,
-    selection.to,
-    text
-  );
+  const view = getEditorView();
+
+  // Check if selection spans multiple lines or is a full line selection
+  const startLine = view.state.doc.lineAt(selection.from);
+  const endLine = view.state.doc.lineAt(selection.to);
+  const isMultiLine = startLine.number !== endLine.number;
+  const isFullLineSelection =
+    selection.from === startLine.from && selection.to === startLine.to;
+
+  let newContent: string;
+
+  if (isMultiLine || isFullLineSelection) {
+    // For multi-line or full-line selections, use line-based comments
+    // Expand selection to include full lines
+    const lineStart = startLine.from;
+    const lineEnd = endLine.to;
+
+    [newContent] = await insertLineComment(content, lineStart, lineEnd, text);
+  } else {
+    // For partial single-line selections, use wrapped inline comments
+    [newContent] = await insertWrappedComment(
+      content,
+      selection.from,
+      selection.to,
+      text
+    );
+  }
+
   setEditorContent(newContent);
   await refreshComments();
   showToast("Comment added", "success");

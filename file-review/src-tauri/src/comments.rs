@@ -7,9 +7,9 @@ pub struct ReviewComment {
     pub id: String,
     pub text: String,
     pub comment_type: String, // "inline" or "line"
-    // Position of the start marker
+    // Position of the start marker (character offset for frontend compatibility)
     pub marker_pos: usize,
-    // Position of the highlighted content (absolute char positions in document)
+    // Position of the highlighted content (character offsets for frontend compatibility)
     pub highlight_start: usize,
     pub highlight_end: usize,
 }
@@ -26,39 +26,125 @@ pub struct OutputComment {
     pub content: String,
 }
 
-/// Calculate line number from character position
-fn char_pos_to_line(content: &str, pos: usize) -> usize {
-    content[..pos.min(content.len())]
+/// Calculate line number from byte position
+fn byte_pos_to_line(content: &str, byte_pos: usize) -> usize {
+    content[..byte_pos.min(content.len())]
         .chars()
         .filter(|&c| c == '\n')
         .count()
         + 1
 }
 
-/// Parse comments and return OutputComment structs with line numbers
-pub fn parse_comments_for_output(content: &str) -> Vec<OutputComment> {
-    let comments = parse_comments_internal(content);
+/// Convert UTF-16 code unit offset (from JavaScript/CodeMirror) to byte offset
+/// JavaScript strings and CodeMirror positions use UTF-16 code units, where
+/// characters outside BMP (like emoji) count as 2 units (surrogate pairs)
+fn char_offset_to_byte_offset(content: &str, utf16_pos: usize) -> Option<usize> {
+    let mut utf16_count = 0;
+    for (byte_idx, ch) in content.char_indices() {
+        if utf16_count == utf16_pos {
+            return Some(byte_idx);
+        }
+        // Characters outside BMP need 2 UTF-16 code units (surrogate pair)
+        utf16_count += ch.len_utf16();
+    }
+    // Handle position at end of string
+    if utf16_count == utf16_pos {
+        Some(content.len())
+    } else {
+        None
+    }
+}
 
-    comments
-        .into_iter()
-        .map(|c| {
-            let start_line = char_pos_to_line(content, c.highlight_start);
-            let end_line = char_pos_to_line(content, c.highlight_end);
+/// Convert byte offset to UTF-16 code unit offset (for JavaScript/CodeMirror)
+fn byte_offset_to_char_offset(content: &str, byte_pos: usize) -> usize {
+    content[..byte_pos.min(content.len())]
+        .chars()
+        .map(|ch| ch.len_utf16())
+        .sum()
+}
+
+/// Parse comments and return OutputComment structs with line numbers
+/// Uses byte positions internally for accurate string slicing
+pub fn parse_comments_for_output(content: &str) -> Vec<OutputComment> {
+    let mut comments = Vec::new();
+
+    // Parse inline wrapped comments
+    let inline_start_re = Regex::new(r"<!--\s*review-start\(([a-zA-Z0-9-]+)\)\s*-->").unwrap();
+    let inline_end_template = r"<!--\s*review-end\(ID\):\s*([\s\S]*?)\s*-->";
+
+    for start_cap in inline_start_re.captures_iter(content) {
+        let id = start_cap.get(1).map_or("", |m| m.as_str()).to_string();
+        let start_match = start_cap.get(0).unwrap();
+        let byte_content_start = start_match.end();
+
+        let end_pattern = inline_end_template.replace("ID", &regex::escape(&id));
+        let end_re = Regex::new(&end_pattern).unwrap();
+
+        if let Some(end_cap) = end_re.captures(&content[byte_content_start..]) {
+            let comment_text = end_cap.get(1).map_or("", |m| m.as_str()).to_string();
+            let end_match = end_cap.get(0).unwrap();
+            let byte_content_end = byte_content_start + end_match.start();
+
+            let start_line = byte_pos_to_line(content, byte_content_start);
+            let end_line = byte_pos_to_line(content, byte_content_end);
             let highlighted_content = content
-                .get(c.highlight_start..c.highlight_end)
+                .get(byte_content_start..byte_content_end)
                 .unwrap_or("")
                 .to_string();
 
-            OutputComment {
-                id: c.id,
-                comment: c.text,
-                comment_type: c.comment_type,
+            comments.push(OutputComment {
+                id,
+                comment: comment_text,
+                comment_type: "inline".to_string(),
                 start_line,
                 end_line,
                 content: highlighted_content,
+            });
+        }
+    }
+
+    // Parse line comments
+    let line_start_re = Regex::new(r"<!--\s*review-line-start\(([a-zA-Z0-9-]+)\)\s*-->\n?").unwrap();
+    let line_end_template = r"<!--\s*review-line-end\(ID\):\s*([\s\S]*?)\s*-->";
+
+    for start_cap in line_start_re.captures_iter(content) {
+        let id = start_cap.get(1).map_or("", |m| m.as_str()).to_string();
+        let start_match = start_cap.get(0).unwrap();
+        let byte_content_start = start_match.end();
+
+        let end_pattern = line_end_template.replace("ID", &regex::escape(&id));
+        let end_re = Regex::new(&end_pattern).unwrap();
+
+        if let Some(end_cap) = end_re.captures(&content[byte_content_start..]) {
+            let comment_text = end_cap.get(1).map_or("", |m| m.as_str()).to_string();
+            let end_match = end_cap.get(0).unwrap();
+            let mut byte_content_end = byte_content_start + end_match.start();
+
+            if byte_content_end > byte_content_start
+                && content.as_bytes().get(byte_content_end - 1) == Some(&b'\n')
+            {
+                byte_content_end -= 1;
             }
-        })
-        .collect()
+
+            let start_line = byte_pos_to_line(content, byte_content_start);
+            let end_line = byte_pos_to_line(content, byte_content_end);
+            let highlighted_content = content
+                .get(byte_content_start..byte_content_end)
+                .unwrap_or("")
+                .to_string();
+
+            comments.push(OutputComment {
+                id,
+                comment: comment_text,
+                comment_type: "line".to_string(),
+                start_line,
+                end_line,
+                content: highlighted_content,
+            });
+        }
+    }
+
+    comments
 }
 
 /// Format comments as human-readable string
@@ -97,7 +183,7 @@ pub fn format_comments_json(comments: &[OutputComment]) -> String {
     serde_json::to_string_pretty(comments).unwrap_or_else(|_| "[]".to_string())
 }
 
-/// Internal parsing logic (shared between Tauri command and output functions)
+/// Internal parsing logic for Tauri command - returns character positions for frontend
 fn parse_comments_internal(content: &str) -> Vec<ReviewComment> {
     let mut comments = Vec::new();
 
@@ -108,25 +194,30 @@ fn parse_comments_internal(content: &str) -> Vec<ReviewComment> {
     for start_cap in inline_start_re.captures_iter(content) {
         let id = start_cap.get(1).map_or("", |m| m.as_str()).to_string();
         let start_match = start_cap.get(0).unwrap();
-        let start_marker_pos = start_match.start();
-        let content_start = start_match.end();
+        let byte_marker_pos = start_match.start();
+        let byte_content_start = start_match.end();
 
         // Find matching end marker
         let end_pattern = inline_end_template.replace("ID", &regex::escape(&id));
         let end_re = Regex::new(&end_pattern).unwrap();
 
-        if let Some(end_cap) = end_re.captures(&content[content_start..]) {
+        if let Some(end_cap) = end_re.captures(&content[byte_content_start..]) {
             let comment_text = end_cap.get(1).map_or("", |m| m.as_str()).to_string();
             let end_match = end_cap.get(0).unwrap();
-            let content_end = content_start + end_match.start();
+            let byte_content_end = byte_content_start + end_match.start();
+
+            // Convert byte positions to character positions for frontend compatibility
+            let char_marker_pos = byte_offset_to_char_offset(content, byte_marker_pos);
+            let char_content_start = byte_offset_to_char_offset(content, byte_content_start);
+            let char_content_end = byte_offset_to_char_offset(content, byte_content_end);
 
             comments.push(ReviewComment {
                 id,
                 text: comment_text,
                 comment_type: "inline".to_string(),
-                marker_pos: start_marker_pos,
-                highlight_start: content_start,
-                highlight_end: content_end,
+                marker_pos: char_marker_pos,
+                highlight_start: char_content_start,
+                highlight_end: char_content_end,
             });
         }
     }
@@ -138,30 +229,35 @@ fn parse_comments_internal(content: &str) -> Vec<ReviewComment> {
     for start_cap in line_start_re.captures_iter(content) {
         let id = start_cap.get(1).map_or("", |m| m.as_str()).to_string();
         let start_match = start_cap.get(0).unwrap();
-        let start_marker_pos = start_match.start();
-        let content_start = start_match.end();
+        let byte_marker_pos = start_match.start();
+        let byte_content_start = start_match.end();
 
         // Find matching end marker
         let end_pattern = line_end_template.replace("ID", &regex::escape(&id));
         let end_re = Regex::new(&end_pattern).unwrap();
 
-        if let Some(end_cap) = end_re.captures(&content[content_start..]) {
+        if let Some(end_cap) = end_re.captures(&content[byte_content_start..]) {
             let comment_text = end_cap.get(1).map_or("", |m| m.as_str()).to_string();
             let end_match = end_cap.get(0).unwrap();
-            let mut content_end = content_start + end_match.start();
+            let mut byte_content_end = byte_content_start + end_match.start();
 
             // Trim trailing newline from highlighted content
-            if content_end > content_start && content.as_bytes().get(content_end - 1) == Some(&b'\n') {
-                content_end -= 1;
+            if byte_content_end > byte_content_start && content.as_bytes().get(byte_content_end - 1) == Some(&b'\n') {
+                byte_content_end -= 1;
             }
+
+            // Convert byte positions to character positions for frontend compatibility
+            let char_marker_pos = byte_offset_to_char_offset(content, byte_marker_pos);
+            let char_content_start = byte_offset_to_char_offset(content, byte_content_start);
+            let char_content_end = byte_offset_to_char_offset(content, byte_content_end);
 
             comments.push(ReviewComment {
                 id,
                 text: comment_text,
                 comment_type: "line".to_string(),
-                marker_pos: start_marker_pos,
-                highlight_start: content_start,
-                highlight_end: content_end,
+                marker_pos: char_marker_pos,
+                highlight_start: char_content_start,
+                highlight_end: char_content_end,
             });
         }
     }
@@ -177,20 +273,26 @@ pub fn parse_comments(content: String) -> Vec<ReviewComment> {
 #[tauri::command]
 pub fn insert_wrapped_comment(
     content: String,
-    start_pos: usize,
-    end_pos: usize,
+    start_pos: usize,  // Character offset from frontend
+    end_pos: usize,    // Character offset from frontend
     text: String,
 ) -> (String, String) {
     let id = Uuid::new_v4().to_string()[..8].to_string();
     let start_marker = format!("<!-- review-start({}) -->", id);
     let end_marker = format!("<!-- review-end({}): {} -->", id, text);
 
+    // Convert character offsets to byte offsets for string slicing
+    let byte_start = char_offset_to_byte_offset(&content, start_pos)
+        .unwrap_or(content.len());
+    let byte_end = char_offset_to_byte_offset(&content, end_pos)
+        .unwrap_or(content.len());
+
     let mut result = String::new();
-    result.push_str(&content[..start_pos]);
+    result.push_str(&content[..byte_start]);
     result.push_str(&start_marker);
-    result.push_str(&content[start_pos..end_pos]);
+    result.push_str(&content[byte_start..byte_end]);
     result.push_str(&end_marker);
-    result.push_str(&content[end_pos..]);
+    result.push_str(&content[byte_end..]);
 
     (result, id)
 }
@@ -198,20 +300,26 @@ pub fn insert_wrapped_comment(
 #[tauri::command]
 pub fn insert_nextline_comment(
     content: String,
-    line_start_pos: usize,
-    line_end_pos: usize,
+    line_start_pos: usize,  // Character offset from frontend
+    line_end_pos: usize,    // Character offset from frontend
     text: String,
 ) -> (String, String) {
     let id = Uuid::new_v4().to_string()[..8].to_string();
     let start_marker = format!("<!-- review-line-start({}) -->\n", id);
     let end_marker = format!("\n<!-- review-line-end({}): {} -->", id, text);
 
+    // Convert character offsets to byte offsets for string slicing
+    let byte_start = char_offset_to_byte_offset(&content, line_start_pos)
+        .unwrap_or(content.len());
+    let byte_end = char_offset_to_byte_offset(&content, line_end_pos)
+        .unwrap_or(content.len());
+
     let mut result = String::new();
-    result.push_str(&content[..line_start_pos]);
+    result.push_str(&content[..byte_start]);
     result.push_str(&start_marker);
-    result.push_str(&content[line_start_pos..line_end_pos]);
+    result.push_str(&content[byte_start..byte_end]);
     result.push_str(&end_marker);
-    result.push_str(&content[line_end_pos..]);
+    result.push_str(&content[byte_end..]);
 
     (result, id)
 }
