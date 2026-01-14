@@ -1,6 +1,6 @@
 ---
 description: Open a file in the file-review GUI for adding inline comments
-argument-hint: [file_path]
+argument-hint: [file_path] [--bg]
 ---
 
 # File Review
@@ -42,31 +42,39 @@ Which would you like to review? Or provide a different path.
 
    brew tap desplega-ai/tap && brew install file-review
 
-   Or use the `file-review:install` skill for manual installation from source.
+   Or invoke the `file-review:install` skill for manual installation from source.
    ```
 
-3. **Launch the file-review GUI** (runs as a background desktop app):
+3. **Launch the file-review GUI:**
+
+   **Default (foreground)** - no `--bg` flag:
+   ```bash
+   file-review "<absolute_path>"
+   ```
+   Wait for the process to complete. When user quits the app, continue to step 4.
+
+   **Background mode** - with `--bg` flag:
    ```bash
    file-review "<absolute_path>" &
    ```
-
-   Note: The `&` runs it in the background so you can continue the conversation.
+   Runs in background. Inform user and wait for them to confirm when done.
 
 4. **Inform the user:**
    ```
    I've opened file-review for <filename>.
 
    Shortcuts: ⌘K (add comment), ⌘S (save), ⌘Q (quit), ⌘/ (help)
-
-   Let me know when you're done reviewing!
    ```
 
-5. **After user confirms they're done:**
+   If running in foreground: proceed to step 5 automatically when app closes.
+   If running in background: add "Let me know when you're done reviewing!"
+
+5. **After review is complete:**
    - Read the file and extract review comments using these patterns:
      - Inline: `<!-- review-start(ID) -->text<!-- review-end(ID): feedback -->`
      - Line: `<!-- review-line-start(ID) -->content<!-- review-line-end(ID): feedback -->`
    - Present a summary of all comments found
-   - Use the **process-review skill workflow**: for each comment, use AskUserQuestion to offer options (Apply edit / Acknowledge / Skip)
+   - Invoke the **file-review:process-review** skill: for each comment, use AskUserQuestion to offer options (Apply edit / Acknowledge / Skip)
    - After addressing each comment, remove its markers
    - Show a final summary of changes made
 
