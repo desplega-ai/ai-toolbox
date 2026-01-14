@@ -1,6 +1,12 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use chrono::Local;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use std::io::{self, IsTerminal, Read};
+use std::path::PathBuf;
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
 
@@ -19,13 +25,78 @@ fn main() {
     let json_output = args.iter().any(|a| a == "--json" || a == "-j");
 
     // Extract file path (first non-flag argument after program name)
-    let file_path = args
+    let file_arg = args
         .iter()
         .skip(1)
         .find(|a| !a.starts_with('-'))
         .cloned();
 
-    file_review_lib::run(file_path, silent, json_output)
+    // Determine if stdin mode
+    let (file_path, stdin_mode, original_content) = match file_arg.as_deref() {
+        Some("-") => {
+            // Explicit stdin mode with "-" argument
+            match read_stdin_to_temp() {
+                Ok((path, content)) => {
+                    (Some(path.to_string_lossy().to_string()), true, Some(content))
+                }
+                Err(e) => {
+                    eprintln!("Error reading stdin: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+        None if !io::stdin().is_terminal() => {
+            // Auto-detect piped stdin (no file arg and stdin is not a terminal)
+            match read_stdin_to_temp() {
+                Ok((path, content)) => {
+                    (Some(path.to_string_lossy().to_string()), true, Some(content))
+                }
+                Err(e) => {
+                    eprintln!("Error reading stdin: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+        _ => (file_arg, false, None),
+    };
+
+    file_review_lib::run(file_path, silent, json_output, stdin_mode, original_content)
+}
+
+/// Read all stdin content and write to a persistent temp file
+fn read_stdin_to_temp() -> io::Result<(PathBuf, String)> {
+    let mut content = String::new();
+    io::stdin().read_to_string(&mut content)?;
+
+    // Check for empty content
+    if content.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "stdin is empty - nothing to review",
+        ));
+    }
+
+    // Warn about large content (but still proceed)
+    if content.len() > 10_000_000 {
+        eprintln!(
+            "Warning: Large content ({} bytes) may affect performance",
+            content.len()
+        );
+    }
+
+    // Generate unique filename with timestamp and content hash
+    let timestamp = Local::now().format("%Y%m%d").to_string();
+    let mut hasher = DefaultHasher::new();
+    content.hash(&mut hasher);
+    let hash = format!("{:x}", hasher.finish());
+    let hash_short = &hash[..8.min(hash.len())];
+    let filename = format!("file-review-{}-{}.md", timestamp, hash_short);
+    let path = std::env::temp_dir().join(filename);
+
+    // Write content to temp file (persistent - not auto-deleted)
+    std::fs::write(&path, &content)?;
+
+    Ok((path, content))
 }
 
 fn print_help() {
@@ -33,16 +104,19 @@ fn print_help() {
 
     println!("file-review - Code review tool with inline comments\n");
     println!("USAGE:");
-    println!("    file-review [OPTIONS] [FILE]\n");
+    println!("    file-review [OPTIONS] [FILE]");
+    println!("    cat content.md | file-review [OPTIONS]");
+    println!("    file-review - [OPTIONS]  # Read from stdin explicitly\n");
     println!("OPTIONS:");
     println!("    -h, --help       Show this help message");
     println!("    -v, --version    Show version");
-    println!("    -s, --silent     Suppress comment output on close");
-    println!("    -j, --json       Output comments as JSON on close\n");
+    println!("    -s, --silent     Suppress output on close");
+    println!("    -j, --json       Output as JSON on close\n");
     println!("OUTPUT:");
     println!("    By default, review comments are printed to stdout when");
     println!("    the application closes. Use --silent to suppress this,");
     println!("    or --json for machine-readable output.\n");
+    println!("    In stdin mode, output includes file path, content, and comments.\n");
     println!("CONFIG:");
     println!("    Path: {}", config_path.display());
 

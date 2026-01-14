@@ -183,6 +183,85 @@ pub fn format_comments_json(comments: &[OutputComment]) -> String {
     serde_json::to_string_pretty(comments).unwrap_or_else(|_| "[]".to_string())
 }
 
+/// Combined output for stdin mode (file path + content + comments)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StdinOutput {
+    pub file: String,
+    pub content: String,
+    pub comments: Vec<OutputComment>,
+    pub modified: bool,
+}
+
+/// Format stdin output as JSON string
+pub fn format_stdin_output_json(
+    file: &str,
+    content: &str,
+    comments: &[OutputComment],
+    modified: bool,
+) -> String {
+    let output = StdinOutput {
+        file: file.to_string(),
+        content: content.to_string(),
+        comments: comments.to_vec(),
+        modified,
+    };
+    serde_json::to_string_pretty(&output).unwrap_or_else(|_| "{}".to_string())
+}
+
+/// Format stdin output as human-readable string
+pub fn format_stdin_output_readable(
+    file: &str,
+    content: &str,
+    comments: &[OutputComment],
+    modified: bool,
+) -> String {
+    let mut output = String::new();
+
+    // File section
+    output.push_str("=== File ===\n");
+    output.push_str(file);
+    output.push('\n');
+
+    // Content section
+    output.push_str("\n=== Content ===\n");
+    output.push_str(content);
+    if !content.ends_with('\n') {
+        output.push('\n');
+    }
+
+    // Comments section
+    output.push_str("\n=== Review Comments");
+    if modified {
+        output.push_str(" (content modified)");
+    }
+    output.push_str(" ===\n");
+
+    if comments.is_empty() {
+        output.push_str("No review comments.\n");
+    } else {
+        for c in comments {
+            let line_info = if c.start_line == c.end_line {
+                format!("Line {}", c.start_line)
+            } else {
+                format!("Lines {}-{}", c.start_line, c.end_line)
+            };
+
+            output.push_str(&format!("\n[{}] {} ({}):\n", c.id, line_info, c.comment_type));
+
+            if c.content.is_empty() {
+                output.push_str("    (empty selection)\n");
+            } else {
+                for line in c.content.lines() {
+                    output.push_str(&format!("    \"{}\"\n", line));
+                }
+            }
+            output.push_str(&format!("    → {}\n", c.comment));
+        }
+    }
+
+    output
+}
+
 /// Internal parsing logic for Tauri command - returns character positions for frontend
 fn parse_comments_internal(content: &str) -> Vec<ReviewComment> {
     let mut comments = Vec::new();

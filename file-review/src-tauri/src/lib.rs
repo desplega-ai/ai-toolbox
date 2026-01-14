@@ -2,7 +2,10 @@ pub mod comments;
 pub mod config;
 mod file_ops;
 
-use comments::{format_comments_json, format_comments_readable, parse_comments_for_output};
+use comments::{
+    format_comments_json, format_comments_readable, format_stdin_output_json,
+    format_stdin_output_readable, parse_comments_for_output,
+};
 use file_ops::AppState;
 use std::sync::Mutex;
 use tauri::{
@@ -11,7 +14,13 @@ use tauri::{
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run(file_path: Option<String>, silent: bool, json_output: bool) {
+pub fn run(
+    file_path: Option<String>,
+    silent: bool,
+    json_output: bool,
+    stdin_mode: bool,
+    original_content: Option<String>,
+) {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -89,11 +98,48 @@ pub fn run(file_path: Option<String>, silent: bool, json_output: bool) {
                                 if let Some(file_path) = state.current_file.lock().ok().and_then(|f| f.clone()) {
                                     if let Ok(content) = std::fs::read_to_string(&file_path) {
                                         let comments = parse_comments_for_output(&content);
-                                        if !comments.is_empty() {
+
+                                        if state.stdin_mode {
+                                            // In stdin mode, always output file + content + comments
+                                            let file_path_str = file_path.to_string_lossy().to_string();
+                                            let modified = state
+                                                .original_content
+                                                .lock()
+                                                .ok()
+                                                .and_then(|orig| {
+                                                    orig.as_ref().map(|o| o != &content)
+                                                })
+                                                .unwrap_or(false);
+
                                             if state.json_output {
-                                                println!("{}", format_comments_json(&comments));
+                                                println!(
+                                                    "{}",
+                                                    format_stdin_output_json(
+                                                        &file_path_str,
+                                                        &content,
+                                                        &comments,
+                                                        modified
+                                                    )
+                                                );
                                             } else {
-                                                println!("{}", format_comments_readable(&comments));
+                                                println!(
+                                                    "{}",
+                                                    format_stdin_output_readable(
+                                                        &file_path_str,
+                                                        &content,
+                                                        &comments,
+                                                        modified
+                                                    )
+                                                );
+                                            }
+                                        } else {
+                                            // Normal file mode - only output comments
+                                            if !comments.is_empty() {
+                                                if state.json_output {
+                                                    println!("{}", format_comments_json(&comments));
+                                                } else {
+                                                    println!("{}", format_comments_readable(&comments));
+                                                }
                                             }
                                         }
                                     }
@@ -110,6 +156,8 @@ pub fn run(file_path: Option<String>, silent: bool, json_output: bool) {
             current_file: Mutex::new(None),
             silent,
             json_output,
+            stdin_mode,
+            original_content: Mutex::new(original_content),
         })
         .invoke_handler(tauri::generate_handler![
             file_ops::read_file,
@@ -117,6 +165,8 @@ pub fn run(file_path: Option<String>, silent: bool, json_output: bool) {
             file_ops::set_current_file,
             file_ops::get_current_file,
             file_ops::reveal_in_finder,
+            file_ops::is_stdin_mode,
+            file_ops::get_version,
             comments::parse_comments,
             comments::insert_wrapped_comment,
             comments::insert_nextline_comment,

@@ -110,6 +110,11 @@ async function init() {
     redo: editorRedo,
   });
 
+  // Set version badge
+  const version = await invoke<string>("get_version");
+  const versionBadge = document.getElementById("version-badge");
+  if (versionBadge) versionBadge.textContent = `v${version}`;
+
   // Get file path from Rust state (set from CLI args)
   const filePath = await invoke<string | null>("get_current_file");
 
@@ -302,9 +307,9 @@ async function loadFile(path: string) {
     await invoke("set_current_file", { path });
     setEditorContent(content);
 
-    // Set window title to full path
-    document.title = path;
-    updateFileNameDisplay(path);
+    // Check if stdin mode for UI adjustments
+    const isStdin = await invoke<boolean>("is_stdin_mode");
+    updateFileNameDisplay(path, isStdin);
 
     // Show comment button
     const commentBtn = document.getElementById("add-comment-btn");
@@ -320,16 +325,27 @@ async function loadFile(path: string) {
   }
 }
 
-function updateFileNameDisplay(path: string) {
+function updateFileNameDisplay(path: string, isStdin = false) {
   const fileNameEl = document.getElementById("file-name");
   const openBtn = document.getElementById("open-file-btn");
 
   if (fileNameEl) {
     const nameSpan = fileNameEl.querySelector(".name");
-    if (nameSpan) nameSpan.textContent = path.split("/").pop() || path;
-    fileNameEl.title = `Click to reveal in Finder: ${path}`;
-    fileNameEl.style.display = "flex";
-    fileNameEl.onclick = () => revealInFinder(path);
+    if (isStdin) {
+      // In stdin mode, show "(stdin)" and disable reveal in Finder
+      if (nameSpan) nameSpan.textContent = "(stdin)";
+      fileNameEl.title = "Content from stdin (temporary file)";
+      fileNameEl.style.display = "flex";
+      fileNameEl.onclick = null;
+      fileNameEl.style.cursor = "default";
+    } else {
+      // Normal file mode
+      if (nameSpan) nameSpan.textContent = path.split("/").pop() || path;
+      fileNameEl.title = `Click to reveal in Finder: ${path}`;
+      fileNameEl.style.display = "flex";
+      fileNameEl.onclick = () => revealInFinder(path);
+      fileNameEl.style.cursor = "pointer";
+    }
   }
   if (openBtn) openBtn.style.display = "none";
 }
