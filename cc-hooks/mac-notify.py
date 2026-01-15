@@ -2,30 +2,48 @@
 
 """
 MacOS Notification Script for Claude AI
+
+Uses PyObjC for fast native notifications (~1-5ms) with osascript fallback (~100-200ms).
 """
 
 import json
 import sys
 import os
 
-# {
-#   "session_id": "abc123",
-#   "transcript_path": "/Users/.../.claude/projects/.../00893aaf-19fa-41d2-8238-13269b9b3ca0.jsonl",
-#   "cwd": "/Users/...",
-#   "permission_mode": "default",
-#   "hook_event_name": "Notification",
-#   "message": "Claude needs your permission to use Bash",
-#   "notification_type": "permission_prompt"
-# }
+# Try PyObjC import (fast path)
+try:
+    from Foundation import NSUserNotification, NSUserNotificationCenter, NSUserNotificationDefaultSoundName
+    HAS_PYOBJC = True
+except ImportError:
+    HAS_PYOBJC = False
+
+
+def notify_pyobjc(title, subtitle, message):
+    """Send notification via PyObjC (~1-5ms)."""
+    notification = NSUserNotification.alloc().init()
+    notification.setTitle_(title)
+    notification.setSubtitle_(subtitle)
+    notification.setInformativeText_(message)
+    notification.setSoundName_(NSUserNotificationDefaultSoundName)
+    NSUserNotificationCenter.defaultUserNotificationCenter().deliverNotification_(notification)
+
+
+def notify_osascript(title, subtitle, message, sound="Glass"):
+    """Fallback: Send notification via osascript (~100-200ms)."""
+    # Escape quotes and backslashes for AppleScript
+    title = title.replace('\\', '\\\\').replace('"', '\\"')
+    subtitle = subtitle.replace('\\', '\\\\').replace('"', '\\"')
+    message = message.replace('\\', '\\\\').replace('"', '\\"')
+    apple_script = f'display notification "{message}" with title "{title}" subtitle "{subtitle}" sound name "{sound}"'
+    os.system(f"osascript -e '{apple_script}'")
+
 
 # Main execution
 try:
     input_data = json.load(sys.stdin)
 
     notification_type = input_data.get("notification_type")
-    permission_mode = input_data.get("permission_mode")
     message = input_data.get("message")
-
     cwd = input_data.get("cwd", os.getcwd())
 
     # Get the shortened cwd for display
@@ -36,18 +54,16 @@ try:
         print("Missing required fields in input JSON.")
         sys.exit(0)
 
-    # Use AppleScript to display notification
-    # osascript -e 'display notification "Task completed!" with title "Build Status" subtitle "Success" sound name "Glass"'
-
     title = f"👀 Claude - {notification_type.replace('_', ' ').title()}"
 
-    apple_script = f'display notification "{message}" with title "{title}" subtitle "{cwd}" sound name "Glass"'
+    if HAS_PYOBJC:
+        notify_pyobjc(title, cwd, message)
+    else:
+        notify_osascript(title, cwd, message)
 
-    os.system(f"osascript -e '{apple_script}'")
     print("Notification displayed successfully.")
-
     sys.exit(0)
-    
+
 except Exception as e:
     print(f"Could not process notification: {e}", file=sys.stderr)
     sys.exit(1)
