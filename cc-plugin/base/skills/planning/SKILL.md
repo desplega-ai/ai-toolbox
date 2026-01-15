@@ -26,6 +26,22 @@ At the start of planning, adapt your interaction level based on the autonomy mod
 
 The autonomy mode is passed by the invoking command. If not specified, default to **Critical**.
 
+## Initial Setup Questions
+
+Before starting planning (unless autonomy is Autopilot), use **AskUserQuestion** to ask:
+
+### Review Preference
+
+Check if the `file-review` plugin is available (look for `file-review:file-review` in available commands).
+
+**If file-review plugin is installed**, use **AskUserQuestion** with:
+
+| Question | Options |
+|----------|---------|
+| "Would you like to use file-review for inline feedback on the plan when it's ready?" | 1. Yes, open file-review when plan is ready (Recommended), 2. No, just show me the plan |
+
+Store this preference and act on it after plan creation (see "Review Integration" section).
+
 ## Process Steps
 
 ### Step 1: Context Gathering & Initial Analysis
@@ -48,17 +64,22 @@ The autonomy mode is passed by the invoking command. If not specified, default t
    - Note assumptions needing verification
 
 5. **Present understanding and questions (if not Autopilot):**
+
+   First, present your findings as text:
    ```
    Based on the research of the codebase, I understand we need to [summary].
 
    I've found that:
    - [Current implementation detail with file:line reference]
    - [Relevant pattern or constraint discovered]
-
-   Questions that my research couldn't answer:
-   - [Specific technical question]
-   - [Design preference that affects implementation]
    ```
+
+   Then, if there are questions that research couldn't answer, use **AskUserQuestion** with:
+
+   | Question | Options |
+   |----------|---------|
+   | "[Specific technical question]" | Provide relevant options based on the choices available |
+   | "[Design preference question]" | Provide relevant options based on the choices available |
 
 ### Step 2: Research & Discovery
 
@@ -74,20 +95,26 @@ The autonomy mode is passed by the invoking command. If not specified, default t
    - **codebase-pattern-finder** - Find similar features to model after
 
 4. **Present findings and design options (if not Autopilot):**
+
+   First, present findings as text:
    ```
    **Current State:**
    - [Key discovery about existing code]
-
-   **Design Options:**
-   1. [Option A] - [pros/cons]
-   2. [Option B] - [pros/cons]
-
-   Which approach aligns best with your vision?
    ```
+
+   Then, use **AskUserQuestion** to present design options:
+
+   | Question | Options |
+   |----------|---------|
+   | "Which approach aligns best with your vision?" | 1. [Option A] - [brief description], 2. [Option B] - [brief description] |
+
+   Include pros/cons in the option descriptions to help the user decide.
 
 ### Step 3: Plan Structure Development
 
 1. **Create initial plan outline (if not Autopilot):**
+
+   Present the outline as text:
    ```
    Here's my proposed plan structure:
 
@@ -97,9 +124,13 @@ The autonomy mode is passed by the invoking command. If not specified, default t
    ## Implementation Phases:
    1. [Phase name] - [what it accomplishes]
    2. [Phase name] - [what it accomplishes]
-
-   Does this phasing make sense?
    ```
+
+   Then, use **AskUserQuestion** to get approval:
+
+   | Question | Options |
+   |----------|---------|
+   | "Does this phasing make sense?" | 1. Yes, proceed with this structure, 2. No, let's discuss changes |
 
 2. **Get feedback on structure** before writing details
 
@@ -188,11 +219,11 @@ Key files to check:
 
 3. **Finalize the plan** - DO NOT START implementation
 
-## Review Integration (Optional)
+## Review Integration
 
-If the `file-review` plugin is available and autonomy mode is not Autopilot:
-- After creating plans, offer: "Would you like to review this plan in file-review for inline comments?"
-- If yes, invoke `/file-review:file-review <path>`
+If the `file-review` plugin is available and the user selected "Yes" during Initial Setup Questions:
+- After creating plans, invoke `/file-review:file-review <path>`
+- If user selected "No" or autonomy mode is Autopilot, skip this step
 
 ## Important Guidelines
 

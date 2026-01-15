@@ -28,7 +28,7 @@ The autonomy mode is passed by the invoking command. If not specified, default t
 
 ## Initial Setup Questions
 
-Before starting implementation (unless autonomy is Autopilot), ask the user:
+Before starting implementation (unless autonomy is Autopilot), use the **AskUserQuestion tool** to ask the user:
 
 ### 1. Branch/Worktree Setup
 
@@ -36,29 +36,25 @@ First, check the current branch: `git branch --show-current`
 
 Then check if the `wts` plugin is available (look for `wts:wts` in available skills).
 
-**If wts plugin is installed:**
-```
-You're currently on branch `<current-branch>`. Where would you like to implement?
-- Continue on current branch
-- Create a new branch: `git checkout -b <branch-name>`
-- Create a wts worktree: `wts create <alias> -n --tmux`
-```
+**If wts plugin is installed**, use **AskUserQuestion** with these options:
 
-**If wts plugin is NOT installed:**
-```
-You're currently on branch `<current-branch>`. Where would you like to implement?
-- Continue on current branch
-- Create a new branch: `git checkout -b <branch-name>`
-```
+| Question | Options |
+|----------|---------|
+| "You're currently on branch `<current-branch>`. Where would you like to implement?" | 1. Continue on current branch, 2. Create a new branch, 3. Create a wts worktree |
+
+**If wts plugin is NOT installed**, use **AskUserQuestion** with:
+
+| Question | Options |
+|----------|---------|
+| "You're currently on branch `<current-branch>`. Where would you like to implement?" | 1. Continue on current branch, 2. Create a new branch |
 
 ### 2. Commit Strategy
 
-```
-How would you like to handle commits during implementation?
-- Commit after each phase (Recommended for complex plans)
-- Commit at the end (Single commit for all changes)
-- Let me decide as I go
-```
+Use **AskUserQuestion** with these options:
+
+| Question | Options |
+|----------|---------|
+| "How would you like to handle commits during implementation?" | 1. Commit after each phase (Recommended for complex plans), 2. Commit at the end (Single commit for all changes), 3. Let me decide as I go |
 
 If "Commit after each phase" is selected:
 - After completing each phase's verification, create a commit with message: `[Phase N] <phase name>`
@@ -92,15 +88,11 @@ When things don't match the plan exactly, think about why and communicate clearl
 
 If you encounter a mismatch (and autonomy mode is not Autopilot):
 - STOP and think deeply about why the plan can't be followed
-- Present the issue clearly:
-  ```
-  Issue in Phase [N]:
-  Expected: [what the plan says]
-  Found: [actual situation]
-  Why this matters: [explanation]
+- Use **AskUserQuestion** to present the issue and get direction:
 
-  How should I proceed?
-  ```
+| Question | Options |
+|----------|---------|
+| "Issue in Phase [N]: Expected [what the plan says], Found [actual situation]. Why this matters: [explanation]. How should I proceed?" | 1. Adapt plan to match reality, 2. Proceed as originally planned, 3. Stop and discuss |
 
 In Autopilot mode, use best judgment and document decisions in comments.
 

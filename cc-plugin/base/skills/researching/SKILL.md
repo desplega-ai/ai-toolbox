@@ -26,6 +26,22 @@ At the start of research, adapt your interaction level based on the autonomy mod
 
 The autonomy mode is passed by the invoking command. If not specified, default to **Critical**.
 
+## Initial Setup Questions
+
+Before starting research (unless autonomy is Autopilot), use **AskUserQuestion** to ask:
+
+### Review Preference
+
+Check if the `file-review` plugin is available (look for `file-review:file-review` in available commands).
+
+**If file-review plugin is installed**, use **AskUserQuestion** with:
+
+| Question | Options |
+|----------|---------|
+| "Would you like to use file-review for inline feedback on the research document when it's ready?" | 1. Yes, open file-review when document is ready (Recommended), 2. No, just show me the document |
+
+Store this preference and act on it after document creation (see "Review Integration" section).
+
 ## Critical Constraints
 
 - DO NOT suggest improvements or changes unless explicitly asked
@@ -40,11 +56,11 @@ The autonomy mode is passed by the invoking command. If not specified, default t
 
 ### Before Starting
 
-Perform a quick analysis of the research query. If anything is unclear and autonomy mode is not Autopilot, ask for clarification:
+Perform a quick analysis of the research query. If anything is unclear and autonomy mode is not Autopilot, use **AskUserQuestion** to clarify:
 
-```
-Thank you for your research question: "[user's question]". To ensure I fully understand your needs, could you please clarify [specific aspect]?
-```
+| Question | Options |
+|----------|---------|
+| "Thank you for your research question: '[user's question]'. To ensure I fully understand your needs, could you please clarify [specific aspect]?" | Provide relevant options based on the specific clarification needed |
 
 ### Steps
 
@@ -150,12 +166,12 @@ Thank you for your research question: "[user's question]". To ensure I fully und
    - Update frontmatter `last_updated` fields
    - Spawn new sub-agents as needed
 
-## Review Integration (Optional)
+## Review Integration
 
-If the `file-review` plugin is available and autonomy mode is not Autopilot:
-- After creating research documents, offer: "Would you like to review this in file-review for inline comments?"
-- If yes, invoke `/file-review:file-review <path>`
+If the `file-review` plugin is available and the user selected "Yes" during Initial Setup Questions:
+- After creating research documents, invoke `/file-review:file-review <path>`
 - Process feedback with `file-review:process-review` skill
+- If user selected "No" or autonomy mode is Autopilot, skip this step
 
 ## Important Notes
 
