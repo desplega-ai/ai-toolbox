@@ -3,7 +3,7 @@
 
 This hook intercepts Write and Edit operations targeting thoughts directories
 and validates:
-1. Path structure: thoughts/{agentId|shared}/{research|plans}/YYYY-MM-DD-topic.md
+1. Path structure: thoughts/{username|agentId|shared}/{research|plans}/YYYY-MM-DD-topic.md
 2. File format: Must have YAML frontmatter (for Write operations)
 
 Exit codes:
@@ -26,7 +26,7 @@ def validate_path(file_path: str) -> tuple[bool, str]:
         Tuple of (is_valid, error_message)
     """
     # Pattern for valid thoughts paths
-    # thoughts/{agentId|shared}/{research|plans}/YYYY-MM-DD-topic-slug.md
+    # thoughts/{username|agentId|shared}/{research|plans}/YYYY-MM-DD-topic-slug.md
     research_pattern = r'thoughts/[^/]+/research/\d{4}-\d{2}-\d{2}-[\w-]+\.md$'
     plans_pattern = r'thoughts/[^/]+/plans/\d{4}-\d{2}-\d{2}-[\w-]+\.md$'
 
@@ -34,14 +34,14 @@ def validate_path(file_path: str) -> tuple[bool, str]:
         if not re.search(research_pattern, file_path):
             return False, (
                 "Invalid research path format.\n"
-                "Expected: thoughts/{agentId|shared}/research/YYYY-MM-DD-topic-slug.md\n"
+                "Expected: thoughts/{username|agentId|shared}/research/YYYY-MM-DD-topic-slug.md\n"
                 f"Got: {file_path}"
             )
     elif "/plans/" in file_path:
         if not re.search(plans_pattern, file_path):
             return False, (
                 "Invalid plan path format.\n"
-                "Expected: thoughts/{agentId|shared}/plans/YYYY-MM-DD-topic-slug.md\n"
+                "Expected: thoughts/{username|agentId|shared}/plans/YYYY-MM-DD-topic-slug.md\n"
                 f"Got: {file_path}"
             )
     else:

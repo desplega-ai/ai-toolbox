@@ -17,7 +17,7 @@
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "${PLUGIN_DIR}/hooks/validate-thoughts.py"
+                        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/validate-thoughts.py"
                     }
                 ]
             }
