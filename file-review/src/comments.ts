@@ -1,6 +1,6 @@
 import { StateField, StateEffect } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView } from "@codemirror/view";
-import { invoke } from "@tauri-apps/api/core";
+import { API } from "./api";
 
 export interface ReviewComment {
   id: string;
@@ -62,7 +62,7 @@ export const commentHighlightField = StateField.define<DecorationSet>({
 
 // Parse comments from content and return them
 export async function parseComments(content: string): Promise<ReviewComment[]> {
-  return invoke<ReviewComment[]>("parse_comments", { content });
+  return API.parseComments(content);
 }
 
 // Insert a wrapped comment around selected text
@@ -72,12 +72,7 @@ export async function insertWrappedComment(
   endPos: number,
   text: string
 ): Promise<[string, string]> {
-  return invoke<[string, string]>("insert_wrapped_comment", {
-    content,
-    startPos,
-    endPos,
-    text,
-  });
+  return API.insertWrappedComment(content, startPos, endPos, text);
 }
 
 // Insert a line comment that wraps the entire line
@@ -87,12 +82,7 @@ export async function insertLineComment(
   lineEndPos: number,
   text: string
 ): Promise<[string, string]> {
-  return invoke<[string, string]>("insert_nextline_comment", {
-    content,
-    lineStartPos,
-    lineEndPos,
-    text,
-  });
+  return API.insertLineComment(content, lineStartPos, lineEndPos, text);
 }
 
 // Remove a comment from content
@@ -100,5 +90,5 @@ export async function removeComment(
   content: string,
   commentId: string
 ): Promise<string> {
-  return invoke<string>("remove_comment", { content, commentId });
+  return API.removeComment(content, commentId);
 }

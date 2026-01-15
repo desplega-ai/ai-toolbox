@@ -28,3 +28,15 @@ regex = "1"
 dirs = "5"
 chrono = "0.4"
 
+# Web server mode dependencies (optional)
+axum = { version = "0.8", optional = true }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"], optional = true }
+tower-http = { version = "0.6", features = ["fs", "cors"], optional = true }
+rust-embed = { version = "8", optional = true }
+open = { version = "5", optional = true }
+mime_guess = { version = "2", optional = true }
+
+[features]
+default = []
+web = ["axum", "tokio", "tower-http", "rust-embed", "open", "mime_guess"]
+
