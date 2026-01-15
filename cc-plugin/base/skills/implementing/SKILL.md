@@ -7,6 +7,30 @@ description: Plan implementation skill. Executes approved technical plans phase 
 
 You are implementing an approved technical plan, executing it phase by phase with verification at each step.
 
+## Working Agreement
+
+These instructions establish a working agreement between you and the user. The key principles are:
+
+1. **AskUserQuestion is your primary communication tool** - Whenever you need to ask the user anything (clarifications, preferences, decisions, confirmations), use the **AskUserQuestion tool**. Don't output questions as plain text - always use the structured tool so the user can respond efficiently.
+
+2. **Establish preferences upfront** - Ask about user preferences at the start of the workflow, not at the end when they may want to move on.
+
+3. **Autonomy mode guides interaction level** - The user's chosen autonomy level determines how often you check in, but AskUserQuestion remains the mechanism for all questions.
+
+### User Preferences
+
+Before starting implementation (unless autonomy is Autopilot), establish these preferences:
+
+**File Review Preference** - Check if the `file-review` plugin is available (look for `file-review:file-review` in available commands).
+
+If file-review plugin is installed, use **AskUserQuestion** with:
+
+| Question | Options |
+|----------|---------|
+| "Would you like to use file-review for inline feedback on code changes during implementation?" | 1. Yes, open file-review for significant changes (Recommended), 2. No, I'll review changes directly |
+
+Store this preference and apply it throughout implementation.
+
 ## When to Use
 
 This skill activates when:
@@ -28,7 +52,7 @@ The autonomy mode is passed by the invoking command. If not specified, default t
 
 ## Initial Setup Questions
 
-Before starting implementation (unless autonomy is Autopilot), use the **AskUserQuestion tool** to ask the user:
+After establishing user preferences, use **AskUserQuestion** to gather implementation-specific details:
 
 ### 1. Branch/Worktree Setup
 

@@ -7,6 +7,30 @@ description: Implementation planning skill. Creates detailed technical plans thr
 
 You are creating detailed implementation plans through an interactive, iterative process. Be skeptical, thorough, and collaborative.
 
+## Working Agreement
+
+These instructions establish a working agreement between you and the user. The key principles are:
+
+1. **AskUserQuestion is your primary communication tool** - Whenever you need to ask the user anything (clarifications, design decisions, preferences, approvals), use the **AskUserQuestion tool**. Don't output questions as plain text - always use the structured tool so the user can respond efficiently.
+
+2. **Establish preferences upfront** - Ask about user preferences at the start of the workflow, not at the end when they may want to move on.
+
+3. **Autonomy mode guides interaction level** - The user's chosen autonomy level determines how often you check in, but AskUserQuestion remains the mechanism for all questions.
+
+### User Preferences
+
+Before starting planning (unless autonomy is Autopilot), establish these preferences:
+
+**File Review Preference** - Check if the `file-review` plugin is available (look for `file-review:file-review` in available commands).
+
+If file-review plugin is installed, use **AskUserQuestion** with:
+
+| Question | Options |
+|----------|---------|
+| "Would you like to use file-review for inline feedback on the plan when it's ready?" | 1. Yes, open file-review when plan is ready (Recommended), 2. No, just show me the plan |
+
+Store this preference and act on it after plan creation (see "Review Integration" section).
+
 ## When to Use
 
 This skill activates when:
@@ -25,22 +49,6 @@ At the start of planning, adapt your interaction level based on the autonomy mod
 | **Verbose** | Check in at each step, validate understanding, confirm before each phase |
 
 The autonomy mode is passed by the invoking command. If not specified, default to **Critical**.
-
-## Initial Setup Questions
-
-Before starting planning (unless autonomy is Autopilot), use **AskUserQuestion** to ask:
-
-### Review Preference
-
-Check if the `file-review` plugin is available (look for `file-review:file-review` in available commands).
-
-**If file-review plugin is installed**, use **AskUserQuestion** with:
-
-| Question | Options |
-|----------|---------|
-| "Would you like to use file-review for inline feedback on the plan when it's ready?" | 1. Yes, open file-review when plan is ready (Recommended), 2. No, just show me the plan |
-
-Store this preference and act on it after plan creation (see "Review Integration" section).
 
 ## Process Steps
 
@@ -221,7 +229,7 @@ Key files to check:
 
 ## Review Integration
 
-If the `file-review` plugin is available and the user selected "Yes" during Initial Setup Questions:
+If the `file-review` plugin is available and the user selected "Yes" during User Preferences setup:
 - After creating plans, invoke `/file-review:file-review <path>`
 - If user selected "No" or autonomy mode is Autopilot, skip this step
 

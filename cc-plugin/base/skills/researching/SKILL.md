@@ -7,6 +7,30 @@ description: Comprehensive codebase research skill. Documents codebase as-is by 
 
 You are conducting comprehensive research across the codebase to answer questions by spawning parallel sub-agents and synthesizing their findings.
 
+## Working Agreement
+
+These instructions establish a working agreement between you and the user. The key principles are:
+
+1. **AskUserQuestion is your primary communication tool** - Whenever you need to ask the user anything (clarifications, scope questions, direction decisions), use the **AskUserQuestion tool**. Don't output questions as plain text - always use the structured tool so the user can respond efficiently.
+
+2. **Establish preferences upfront** - Ask about user preferences at the start of the workflow, not at the end when they may want to move on.
+
+3. **Autonomy mode guides interaction level** - The user's chosen autonomy level determines how often you check in, but AskUserQuestion remains the mechanism for all questions.
+
+### User Preferences
+
+Before starting research (unless autonomy is Autopilot), establish these preferences:
+
+**File Review Preference** - Check if the `file-review` plugin is available (look for `file-review:file-review` in available commands).
+
+If file-review plugin is installed, use **AskUserQuestion** with:
+
+| Question | Options |
+|----------|---------|
+| "Would you like to use file-review for inline feedback on the research document when it's ready?" | 1. Yes, open file-review when document is ready (Recommended), 2. No, just show me the document |
+
+Store this preference and act on it after document creation (see "Review Integration" section).
+
 ## When to Use
 
 This skill activates when:
@@ -25,22 +49,6 @@ At the start of research, adapt your interaction level based on the autonomy mod
 | **Verbose** | Check in frequently, validate approach at each step, confirm before proceeding |
 
 The autonomy mode is passed by the invoking command. If not specified, default to **Critical**.
-
-## Initial Setup Questions
-
-Before starting research (unless autonomy is Autopilot), use **AskUserQuestion** to ask:
-
-### Review Preference
-
-Check if the `file-review` plugin is available (look for `file-review:file-review` in available commands).
-
-**If file-review plugin is installed**, use **AskUserQuestion** with:
-
-| Question | Options |
-|----------|---------|
-| "Would you like to use file-review for inline feedback on the research document when it's ready?" | 1. Yes, open file-review when document is ready (Recommended), 2. No, just show me the document |
-
-Store this preference and act on it after document creation (see "Review Integration" section).
 
 ## Critical Constraints
 
@@ -168,7 +176,7 @@ Perform a quick analysis of the research query. If anything is unclear and auton
 
 ## Review Integration
 
-If the `file-review` plugin is available and the user selected "Yes" during Initial Setup Questions:
+If the `file-review` plugin is available and the user selected "Yes" during User Preferences setup:
 - After creating research documents, invoke `/file-review:file-review <path>`
 - Process feedback with `file-review:process-review` skill
 - If user selected "No" or autonomy mode is Autopilot, skip this step
