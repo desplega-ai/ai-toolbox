@@ -29,6 +29,8 @@ fn main() {
     let web_mode = args.iter().any(|a| a == "--web" || a == "-w");
     #[cfg(feature = "web")]
     let tunnel_enabled = args.iter().any(|a| a == "--tunnel" || a == "-t");
+    #[cfg(feature = "web")]
+    let auto_open = args.iter().any(|a| a == "--open" || a == "-o");
 
     // Parse --port argument
     let port: u16 = args
@@ -76,7 +78,7 @@ fn main() {
     // Web server mode
     #[cfg(feature = "web")]
     if web_mode {
-        run_web_mode(file_path, silent, json_output, stdin_mode, original_content, port, tunnel_enabled);
+        run_web_mode(file_path, silent, json_output, stdin_mode, original_content, port, tunnel_enabled, auto_open);
         return;
     }
 
@@ -99,6 +101,7 @@ fn run_web_mode(
     original_content: Option<String>,
     port: u16,
     tunnel_enabled: bool,
+    auto_open: bool,
 ) {
     use file_review_lib::file_ops::AppState;
     use file_review_lib::tunnel::TunnelManager;
@@ -126,35 +129,50 @@ fn run_web_mode(
         };
 
         // Handle tunnel if enabled
-        let _tunnel: Option<TunnelManager> = if tunnel_enabled {
+        let (_tunnel, tunnel_url): (Option<TunnelManager>, Option<String>) = if tunnel_enabled {
+            // Generate deterministic subdomain from file path
+            let subdomain = file_path.as_ref().map(|p| {
+                use std::collections::hash_map::DefaultHasher;
+                use std::hash::{Hash, Hasher};
+                let mut hasher = DefaultHasher::new();
+                p.hash(&mut hasher);
+                format!("fr-{:x}", hasher.finish()).chars().take(20).collect::<String>()
+            });
+
             println!("Starting localtunnel...");
-            match TunnelManager::start(port) {
+            match TunnelManager::start(port, subdomain.as_deref()) {
                 Ok(tunnel) => {
                     // Wait for the tunnel URL (up to 10 seconds)
                     if let Some(url) = tunnel.wait_for_url(10).await {
                         println!("Tunnel URL: {}", url);
                         println!("Share this URL for remote access.");
+                        (Some(tunnel), Some(url))
                     } else {
                         eprintln!("Warning: Could not get tunnel URL. Tunnel may not be working.");
                         eprintln!("Make sure Node.js and npx are installed.");
+                        (Some(tunnel), None)
                     }
-                    Some(tunnel)
                 }
                 Err(e) => {
                     eprintln!("Failed to start tunnel: {}", e);
                     eprintln!("Continuing without tunnel. Use local URL.");
-                    None
+                    (None, None)
                 }
             }
         } else {
-            None
+            (None, None)
         };
 
-        // Open browser (local URL)
-        let url = format!("http://127.0.0.1:{}", port);
-        if let Err(e) = open::that(&url) {
-            eprintln!("Failed to open browser: {}", e);
-            eprintln!("Please manually open: {}", url);
+        // Open browser if --open flag was passed
+        let local_url = format!("http://127.0.0.1:{}", port);
+        let url = tunnel_url.as_ref().unwrap_or(&local_url);
+        if auto_open {
+            if let Err(e) = open::that(url) {
+                eprintln!("Failed to open browser: {}", e);
+                eprintln!("Please manually open: {}", url);
+            }
+        } else {
+            println!("Open in browser: {}", url);
         }
 
         // Wait for shutdown signal or Ctrl+C
@@ -225,7 +243,8 @@ fn print_help() {
     println!("    -s, --silent     Suppress output on close");
     println!("    -j, --json       Output as JSON on close\n");
     println!("WEB MODE:");
-    println!("    -w, --web        Start in web server mode (opens browser)");
+    println!("    -w, --web        Start in web server mode");
+    println!("    -o, --open       Auto-open browser (requires --web)");
     println!("    -t, --tunnel     Enable localtunnel for remote access (requires --web)");
     println!("    --port PORT      HTTP server port (default: 3456)\n");
     println!("OUTPUT:");

@@ -14,14 +14,24 @@ pub struct TunnelManager {
 }
 
 impl TunnelManager {
-    /// Start a new tunnel on the specified port
+    /// Start a new tunnel on the specified port with optional subdomain
     ///
-    /// This spawns `npx @desplega.ai/localtunnel --port PORT` as a subprocess
+    /// This spawns `npx @desplega.ai/localtunnel --port PORT [--subdomain SUBDOMAIN]` as a subprocess
     /// and parses the stdout to get the public URL.
-    pub fn start(port: u16) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+    pub fn start(port: u16, subdomain: Option<&str>) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        // Build args - need owned strings for lifetime
+        let port_str = port.to_string();
+        let mut args = vec!["@desplega.ai/localtunnel", "--port", &port_str];
+        let subdomain_owned: String;
+        if let Some(sub) = subdomain {
+            subdomain_owned = sub.to_string();
+            args.push("--subdomain");
+            args.push(&subdomain_owned);
+        }
+
         // Try to spawn the localtunnel process
         let mut child = Command::new("npx")
-            .args(["@desplega.ai/localtunnel", "--port", &port.to_string()])
+            .args(&args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()

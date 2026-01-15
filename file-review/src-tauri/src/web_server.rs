@@ -308,24 +308,32 @@ async fn quit(Extension(state): Extension<Arc<WebState>>) -> impl IntoResponse {
                     comments_count,
                 };
 
-                // Trigger shutdown
-                if let Ok(mut shutdown_tx) = state.shutdown_tx.lock() {
-                    if let Some(tx) = shutdown_tx.take() {
-                        let _ = tx.send(());
+                // Trigger shutdown after a delay to allow response to propagate through tunnel
+                let state_clone = state.clone();
+                tokio::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                    if let Ok(mut shutdown_tx) = state_clone.shutdown_tx.lock() {
+                        if let Some(tx) = shutdown_tx.take() {
+                            let _ = tx.send(());
+                        }
                     }
-                }
+                });
 
                 return Json(response);
             }
         }
     }
 
-    // No file loaded or silent mode
-    if let Ok(mut shutdown_tx) = state.shutdown_tx.lock() {
-        if let Some(tx) = shutdown_tx.take() {
-            let _ = tx.send(());
+    // No file loaded or silent mode - trigger delayed shutdown
+    let state_clone = state.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        if let Ok(mut shutdown_tx) = state_clone.shutdown_tx.lock() {
+            if let Some(tx) = shutdown_tx.take() {
+                let _ = tx.send(());
+            }
         }
-    }
+    });
 
     Json(QuitResponse {
         success: true,
