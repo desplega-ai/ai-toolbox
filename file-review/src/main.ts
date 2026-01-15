@@ -282,19 +282,17 @@ function showFinalReportModal(result: import("./api").QuitResponse) {
 
   document.body.appendChild(modal);
 
-  // Close button handler
+  // Close button handler - just remove modal, let user close tab manually
+  // (window.close() closes the entire browser window, not just the tab)
   const closeBtn = modal.querySelector("#close-final-report");
   closeBtn?.addEventListener("click", () => {
     modal.remove();
-    // Try to close the window/tab
-    window.close();
   });
 
-  // Click outside to close
+  // Click outside to close modal
   modal.addEventListener("click", (e) => {
     if (e.target === modal) {
       modal.remove();
-      window.close();
     }
   });
 }

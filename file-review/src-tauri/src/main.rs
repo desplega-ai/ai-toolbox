@@ -27,6 +27,7 @@ fn main() {
     let silent = args.iter().any(|a| a == "--silent" || a == "-s");
     let json_output = args.iter().any(|a| a == "--json" || a == "-j");
     let web_mode = args.iter().any(|a| a == "--web" || a == "-w");
+    #[cfg(feature = "web")]
     let tunnel_enabled = args.iter().any(|a| a == "--tunnel" || a == "-t");
 
     // Parse --port argument

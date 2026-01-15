@@ -7,7 +7,6 @@ use crate::comments::{
     format_comments_json, format_comments_readable, format_stdin_output_json,
     format_stdin_output_readable, parse_comments_for_output, insert_nextline_comment as insert_nextline_comment_internal,
     insert_wrapped_comment as insert_wrapped_comment_internal, remove_comment as remove_comment_internal,
-    ReviewComment,
 };
 use crate::config::{load_config as load_config_internal, save_config as save_config_internal, AppConfig};
 use crate::file_ops::AppState;
@@ -268,7 +267,7 @@ async fn quit(Extension(state): Extension<Arc<WebState>>) -> impl IntoResponse {
     let app_state = &state.app_state;
 
     // Generate output based on current file state
-    let output = if !app_state.silent {
+    if !app_state.silent {
         if let Some(file_path) = app_state.current_file.lock().ok().and_then(|f| f.clone()) {
             if let Ok(content) = std::fs::read_to_string(&file_path) {
                 let comments = parse_comments_for_output(&content);

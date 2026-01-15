@@ -4,12 +4,16 @@
   "version": "1.3.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "tauri dev --",
+    "dev:vite": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
     "check": "tsc --noEmit",
+    "dev:web": "bun run build && cargo run --features web --manifest-path src-tauri/Cargo.toml --",
+    "build:web": "bun run build && cargo build --release --features web --manifest-path src-tauri/Cargo.toml",
     "install:app": "bun run tauri build && mkdir -p ~/.local/bin && ln -sf \"$(pwd)/src-tauri/target/release/file-review\" ~/.local/bin/file-review && echo '✓ Installed to ~/.local/bin/file-review'",
+    "install:web": "bun run build:web && mkdir -p ~/.local/bin && ln -sf \"$(pwd)/src-tauri/target/release/file-review\" ~/.local/bin/file-review && echo '✓ Installed web-enabled binary to ~/.local/bin/file-review'",
     "uninstall:app": "rm -f ~/.local/bin/file-review && echo '✓ Removed ~/.local/bin/file-review'",
     "release": "bun run scripts/release.ts"
   },

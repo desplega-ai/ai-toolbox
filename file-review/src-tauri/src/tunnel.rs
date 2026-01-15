@@ -39,21 +39,20 @@ impl TunnelManager {
             let reader = BufReader::new(stdout);
             for line in reader.lines() {
                 if let Ok(line) = line {
+                    // Print tunnel output for debugging
+                    eprintln!("[tunnel] {}", line);
+
                     // Localtunnel prints "your url is: https://xxx.lt.desplega.ai"
                     if line.to_lowercase().contains("your url is:") {
                         if let Some(url) = line.split_whitespace().last() {
-                            if let Ok(mut url_guard) = url_clone.blocking_lock().as_mut() {
-                                *url_guard = Some(url.to_string());
-                            }
+                            let mut guard = url_clone.blocking_lock();
+                            *guard = Some(url.to_string());
                         }
                     } else if line.starts_with("https://") {
                         // Some versions just print the URL directly
-                        if let Ok(mut url_guard) = url_clone.blocking_lock().as_mut() {
-                            *url_guard = Some(line);
-                        }
+                        let mut guard = url_clone.blocking_lock();
+                        *guard = Some(line);
                     }
-                    // Print tunnel output for debugging
-                    eprintln!("[tunnel] {}", line);
                 }
             }
         });
