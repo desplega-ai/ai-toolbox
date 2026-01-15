@@ -1,7 +1,7 @@
 {
     "name": "desplega",
     "description": "Plugin for effective agentic development",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "author": {
         "name": "desplega.ai",
         "email": "contact@desplega.ai"
@@ -9,5 +9,18 @@
     "homepage": "https://desplega.ai",
     "repository": "https://github.com/desplega-ai/ai-toolbox",
     "keywords": ["ai", "agent", "toolbox", "plugin"],
-    "license": "MIT"
+    "license": "MIT",
+    "hooks": {
+        "PreToolUse": [
+            {
+                "matcher": "Write|Edit",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "${PLUGIN_DIR}/hooks/validate-thoughts.py"
+                    }
+                ]
+            }
+        ]
+    }
 }
