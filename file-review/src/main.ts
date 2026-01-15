@@ -1,5 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { API, isTauri } from "./api";
 import {
   initEditor,
   getEditorContent,
@@ -111,12 +110,12 @@ async function init() {
   });
 
   // Set version badge
-  const version = await invoke<string>("get_version");
+  const version = await API.getVersion();
   const versionBadge = document.getElementById("version-badge");
   if (versionBadge) versionBadge.textContent = `v${version}`;
 
   // Get file path from Rust state (set from CLI args)
-  const filePath = await invoke<string | null>("get_current_file");
+  const filePath = await API.getCurrentFile();
 
   if (filePath) {
     await loadFile(filePath);
@@ -125,10 +124,23 @@ async function init() {
     showEmptyState();
   }
 
-  // Listen for save command from menu
-  await listen("menu:save", async () => {
-    await saveFile();
-  });
+  // Listen for save command from menu (Tauri only)
+  if (isTauri()) {
+    const { listen } = await import("@tauri-apps/api/event");
+    await listen("menu:save", async () => {
+      await saveFile();
+    });
+  }
+
+  // Add keyboard shortcut for save in web mode
+  if (!isTauri()) {
+    document.addEventListener("keydown", async (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault();
+        await saveFile();
+      }
+    });
+  }
 
   // Set up empty state open button
   document
@@ -170,6 +182,128 @@ async function init() {
 
     showToast("Config reloaded", "info");
   });
+
+  // Web mode specific setup
+  if (!isTauri()) {
+    setupWebModeUI();
+  }
+}
+
+/**
+ * Set up web mode specific UI elements
+ */
+function setupWebModeUI() {
+  // Add web mode badge
+  const toolbarRight = document.getElementById("toolbar-right");
+  if (toolbarRight) {
+    const badge = document.createElement("span");
+    badge.className = "web-mode-badge";
+    badge.textContent = "WEB";
+    badge.title = "Running in web server mode";
+    toolbarRight.insertBefore(badge, toolbarRight.firstChild);
+  }
+
+  // Add quit button
+  if (toolbarRight) {
+    const quitBtn = document.createElement("button");
+    quitBtn.id = "quit-btn";
+    quitBtn.title = "Quit and show final report";
+    quitBtn.innerHTML = '<span class="icon">&#x2715;</span> Quit';
+    quitBtn.addEventListener("click", handleWebQuit);
+    toolbarRight.appendChild(quitBtn);
+  }
+
+  // Disable file picker buttons (not supported in web mode)
+  const openBtn = document.getElementById("open-file-btn") as HTMLButtonElement;
+  const emptyOpenBtn = document.getElementById("empty-open-btn") as HTMLButtonElement;
+
+  if (openBtn) {
+    openBtn.disabled = true;
+    openBtn.title = "File picker not available in web mode. Use CLI to specify file.";
+  }
+  if (emptyOpenBtn) {
+    emptyOpenBtn.disabled = true;
+    emptyOpenBtn.title = "File picker not available in web mode";
+  }
+
+  // Update empty state message for web mode
+  const emptyContent = document.querySelector(".empty-content");
+  if (emptyContent) {
+    const hint = emptyContent.querySelector(".shortcut-hint");
+    if (hint) {
+      hint.textContent = "Start with: file-review --web <file.md>";
+    }
+  }
+}
+
+/**
+ * Handle quit button click in web mode
+ */
+async function handleWebQuit() {
+  try {
+    const result = await API.quit();
+    showFinalReportModal(result);
+  } catch (error) {
+    console.error("Failed to quit:", error);
+    showToast("Failed to quit: " + error, "info");
+  }
+}
+
+/**
+ * Show final report modal before closing
+ */
+function showFinalReportModal(result: import("./api").QuitResponse) {
+  const modal = document.createElement("div");
+  modal.className = "final-report-modal";
+
+  const hasOutput = result.output && result.output.trim().length > 0;
+
+  modal.innerHTML = `
+    <div class="final-report-content">
+      <div class="final-report-header">
+        <h3>Review Complete</h3>
+        <span class="badge">${result.comments_count} comment${result.comments_count !== 1 ? 's' : ''}</span>
+      </div>
+      <div class="final-report-body">
+        ${hasOutput
+          ? `<pre>${escapeHtml(result.output)}</pre>`
+          : '<p class="no-comments-msg">No comments to report. The review is complete.</p>'
+        }
+      </div>
+      <div class="final-report-footer">
+        <span class="info-text">
+          ${hasOutput ? 'Comments have been printed to the server terminal.' : ''}
+          You can now close this window.
+        </span>
+        <button class="primary-btn" id="close-final-report">Close</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  // Close button handler - just remove modal, let user close tab manually
+  // (window.close() closes the entire browser window, not just the tab)
+  const closeBtn = modal.querySelector("#close-final-report");
+  closeBtn?.addEventListener("click", () => {
+    modal.remove();
+  });
+
+  // Click outside to close modal
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) {
+      modal.remove();
+    }
+  });
+}
+
+/**
+ * Escape HTML entities to prevent XSS
+ */
+function escapeHtml(text: string): string {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 function showEmptyState() {
@@ -302,13 +436,13 @@ async function handleCommentSubmit(text: string, _lineNumber: number) {
 
 async function loadFile(path: string) {
   try {
-    const content = await invoke<string>("read_file", { path });
+    const content = await API.readFile(path);
     currentFilePath = path;
-    await invoke("set_current_file", { path });
+    await API.setCurrentFile(path);
     setEditorContent(content);
 
     // Check if stdin mode for UI adjustments
-    const isStdin = await invoke<boolean>("is_stdin_mode");
+    const isStdin = await API.isStdinMode();
     updateFileNameDisplay(path, isStdin);
 
     // Show comment button
@@ -328,6 +462,7 @@ async function loadFile(path: string) {
 function updateFileNameDisplay(path: string, isStdin = false) {
   const fileNameEl = document.getElementById("file-name");
   const openBtn = document.getElementById("open-file-btn");
+  const inWebMode = !isTauri();
 
   if (fileNameEl) {
     const nameSpan = fileNameEl.querySelector(".name");
@@ -338,8 +473,15 @@ function updateFileNameDisplay(path: string, isStdin = false) {
       fileNameEl.style.display = "flex";
       fileNameEl.onclick = null;
       fileNameEl.style.cursor = "default";
+    } else if (inWebMode) {
+      // Web mode - no reveal in Finder support
+      if (nameSpan) nameSpan.textContent = path.split("/").pop() || path;
+      fileNameEl.title = path;
+      fileNameEl.style.display = "flex";
+      fileNameEl.onclick = null;
+      fileNameEl.style.cursor = "default";
     } else {
-      // Normal file mode
+      // Normal Tauri file mode
       if (nameSpan) nameSpan.textContent = path.split("/").pop() || path;
       fileNameEl.title = `Click to reveal in Finder: ${path}`;
       fileNameEl.style.display = "flex";
@@ -352,7 +494,7 @@ function updateFileNameDisplay(path: string, isStdin = false) {
 
 async function revealInFinder(path: string) {
   try {
-    await invoke("reveal_in_finder", { path });
+    await API.revealInFinder(path);
   } catch (error) {
     console.error("Failed to reveal in Finder:", error);
   }
@@ -363,7 +505,7 @@ async function saveFile() {
 
   try {
     const content = getEditorContent();
-    await invoke("write_file", { path: currentFilePath, content });
+    await API.writeFile(currentFilePath, content);
     showToast("File saved", "success");
   } catch (error) {
     console.error("Failed to save file:", error);

@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { API } from "./api";
 
 export interface WindowConfig {
   width: number;
@@ -13,19 +13,19 @@ export interface AppConfig {
 }
 
 export async function loadConfig(): Promise<AppConfig> {
-  return invoke<AppConfig>("load_config");
+  return API.loadConfig();
 }
 
 export async function saveConfig(config: AppConfig): Promise<void> {
-  return invoke("save_config", { config });
+  return API.saveConfig(config);
 }
 
 export async function getConfigPath(): Promise<string> {
-  return invoke<string>("get_config_path_string");
+  return API.getConfigPath();
 }
 
 export async function openConfigInEditor(): Promise<void> {
-  return invoke("open_config_in_editor");
+  return API.openConfigInEditor();
 }
 
 // Migration from localStorage (call once on first load)

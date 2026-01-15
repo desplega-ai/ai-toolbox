@@ -1,6 +1,12 @@
 pub mod comments;
 pub mod config;
-mod file_ops;
+pub mod file_ops;
+
+#[cfg(feature = "web")]
+pub mod web_server;
+
+#[cfg(feature = "web")]
+pub mod tunnel;
 
 use comments::{
     format_comments_json, format_comments_readable, format_stdin_output_json,
