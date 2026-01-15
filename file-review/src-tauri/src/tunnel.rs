@@ -25,9 +25,12 @@ impl TunnelManager {
         let subdomain_owned: String;
         if let Some(sub) = subdomain {
             subdomain_owned = sub.to_string();
-            args.push("--subdomain");
+            args.push("-s");
             args.push(&subdomain_owned);
         }
+
+        // Debug: print args
+        eprintln!("[tunnel] Running: npx {}", args.join(" "));
 
         // Try to spawn the localtunnel process
         let mut child = Command::new("npx")
@@ -40,6 +43,7 @@ impl TunnelManager {
         // Read stdout to get the URL
         let stdout = child.stdout.take()
             .ok_or("Failed to capture stdout from localtunnel")?;
+        let stderr = child.stderr.take();
 
         let public_url = Arc::new(Mutex::new(None::<String>));
         let url_clone = public_url.clone();
@@ -66,6 +70,18 @@ impl TunnelManager {
                 }
             }
         });
+
+        // Spawn a thread to read stderr (for error messages)
+        if let Some(stderr) = stderr {
+            std::thread::spawn(move || {
+                let reader = BufReader::new(stderr);
+                for line in reader.lines() {
+                    if let Ok(line) = line {
+                        eprintln!("[tunnel:err] {}", line);
+                    }
+                }
+            });
+        }
 
         Ok(Self {
             process: Arc::new(Mutex::new(Some(child))),
@@ -98,9 +114,13 @@ impl TunnelManager {
     pub async fn stop(&self) {
         let mut guard = self.process.lock().await;
         if let Some(mut child) = guard.take() {
-            // Try to kill the process gracefully
+            eprintln!("[tunnel] Stopping tunnel...");
+            // Kill and wait for the process to exit
             let _ = child.kill();
             let _ = child.wait();
+            // Give the server a moment to release the subdomain
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            eprintln!("[tunnel] Tunnel stopped.");
         }
     }
 }

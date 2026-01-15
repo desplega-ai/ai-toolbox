@@ -31,6 +31,11 @@ fn main() {
     let tunnel_enabled = args.iter().any(|a| a == "--tunnel" || a == "-t");
     #[cfg(feature = "web")]
     let auto_open = args.iter().any(|a| a == "--open" || a == "-o");
+    #[cfg(feature = "web")]
+    let subdomain: Option<String> = args
+        .windows(2)
+        .find(|w| w[0] == "--subdomain")
+        .map(|w| w[1].clone());
 
     // Parse --port argument
     let port: u16 = args
@@ -78,7 +83,7 @@ fn main() {
     // Web server mode
     #[cfg(feature = "web")]
     if web_mode {
-        run_web_mode(file_path, silent, json_output, stdin_mode, original_content, port, tunnel_enabled, auto_open);
+        run_web_mode(file_path, silent, json_output, stdin_mode, original_content, port, tunnel_enabled, auto_open, subdomain);
         return;
     }
 
@@ -102,6 +107,7 @@ fn run_web_mode(
     port: u16,
     tunnel_enabled: bool,
     auto_open: bool,
+    subdomain: Option<String>,
 ) {
     use file_review_lib::file_ops::AppState;
     use file_review_lib::tunnel::TunnelManager;
@@ -130,16 +136,11 @@ fn run_web_mode(
 
         // Handle tunnel if enabled
         let (_tunnel, tunnel_url): (Option<TunnelManager>, Option<String>) = if tunnel_enabled {
-            // Generate deterministic subdomain from file path
-            let subdomain = file_path.as_ref().map(|p| {
-                use std::collections::hash_map::DefaultHasher;
-                use std::hash::{Hash, Hasher};
-                let mut hasher = DefaultHasher::new();
-                p.hash(&mut hasher);
-                format!("fr-{:x}", hasher.finish()).chars().take(20).collect::<String>()
-            });
-
-            println!("Starting localtunnel...");
+            if let Some(ref sub) = subdomain {
+                println!("Starting localtunnel with subdomain: {}", sub);
+            } else {
+                println!("Starting localtunnel...");
+            }
             match TunnelManager::start(port, subdomain.as_deref()) {
                 Ok(tunnel) => {
                     // Wait for the tunnel URL (up to 10 seconds)
@@ -243,10 +244,11 @@ fn print_help() {
     println!("    -s, --silent     Suppress output on close");
     println!("    -j, --json       Output as JSON on close\n");
     println!("WEB MODE:");
-    println!("    -w, --web        Start in web server mode");
-    println!("    -o, --open       Auto-open browser (requires --web)");
-    println!("    -t, --tunnel     Enable localtunnel for remote access (requires --web)");
-    println!("    --port PORT      HTTP server port (default: 3456)\n");
+    println!("    -w, --web            Start in web server mode");
+    println!("    -o, --open           Auto-open browser (requires --web)");
+    println!("    -t, --tunnel         Enable localtunnel for remote access (requires --web)");
+    println!("    --subdomain NAME     Request specific tunnel subdomain (requires --tunnel)");
+    println!("    --port PORT          HTTP server port (default: 3456)\n");
     println!("OUTPUT:");
     println!("    By default, review comments are printed to stdout when");
     println!("    the application closes. Use --silent to suppress this,");
