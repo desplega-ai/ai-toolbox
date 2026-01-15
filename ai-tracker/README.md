@@ -83,7 +83,18 @@ ai-tracker stats --repo my-project  # Filter by repo
 
 Data is stored in `~/.config/ai-tracker/tracker.db` using SQLite with WAL mode for concurrent access.
 
-Query the database directly:
+### Custom Database Path
+
+For multi-agent deployments (e.g., agent-swarm workers), you can configure a custom database path:
+
+```bash
+export AI_TRACKER_DB_PATH="/path/to/custom/tracker.db"
+```
+
+This allows each agent to have its own isolated database file.
+
+### Query the Database
+
 ```bash
 # View recent edits
 sqlite3 ~/.config/ai-tracker/tracker.db "SELECT * FROM edits ORDER BY timestamp DESC LIMIT 10"

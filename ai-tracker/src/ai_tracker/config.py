@@ -1,5 +1,6 @@
 """Configuration and path management for ai-tracker."""
 
+import os
 from pathlib import Path
 
 
@@ -11,7 +12,17 @@ def get_config_dir() -> Path:
 
 
 def get_db_path() -> Path:
-    """Get the path to the SQLite database."""
+    """Get the path to the SQLite database.
+
+    Supports configurable path via AI_TRACKER_DB_PATH env var for
+    multi-agent deployments (e.g., agent-swarm workers).
+    """
+    if custom_path := os.environ.get("AI_TRACKER_DB_PATH"):
+        path = Path(custom_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+
+    # Default: ~/.config/ai-tracker/tracker.db
     return get_config_dir() / "tracker.db"
 
 
