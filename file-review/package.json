@@ -11,7 +11,7 @@
     "tauri": "tauri",
     "check": "tsc --noEmit",
     "dev:web": "bun run build && cargo run --features web --manifest-path src-tauri/Cargo.toml --",
-    "build:web": "bun run build && cargo build --release --features web --manifest-path src-tauri/Cargo.toml",
+    "build:web": "tauri build --features web",
     "install:app": "bun run tauri build && mkdir -p ~/.local/bin && ln -sf \"$(pwd)/src-tauri/target/release/file-review\" ~/.local/bin/file-review && echo '✓ Installed to ~/.local/bin/file-review'",
     "install:web": "bun run build:web && mkdir -p ~/.local/bin && ln -sf \"$(pwd)/src-tauri/target/release/file-review\" ~/.local/bin/file-review && echo '✓ Installed web-enabled binary to ~/.local/bin/file-review'",
     "uninstall:app": "rm -f ~/.local/bin/file-review && echo '✓ Removed ~/.local/bin/file-review'",
