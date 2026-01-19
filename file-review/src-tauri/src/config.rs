@@ -14,6 +14,8 @@ pub struct AppConfig {
     pub vim_mode: bool,
     #[serde(default = "default_font_size")]
     pub font_size: u32,
+    #[serde(default)]
+    pub markdown_raw: bool,
     pub window: WindowConfig,
 }
 
@@ -27,6 +29,7 @@ impl Default for AppConfig {
             theme: "dark".to_string(),
             vim_mode: false,
             font_size: 14,
+            markdown_raw: false,
             window: WindowConfig {
                 width: 1200,
                 height: 800,

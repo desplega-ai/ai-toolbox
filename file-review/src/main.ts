@@ -39,12 +39,28 @@ import {
   migrateFromLocalStorage,
   type AppConfig,
 } from "./config";
+import {
+  initPreview,
+  updatePreview,
+  scrollPreviewToComment,
+  initInteractiveCommenting,
+  flashElement,
+} from "./markdown-preview";
 
 let currentFilePath: string | null = null;
 let comments: ReviewComment[] = [];
 let currentTheme: Theme = "dark";
 let vimEnabled = false;
 let appConfig: AppConfig;
+let isMarkdownFile = false;
+let isRawMode = false; // false = pretty/rendered, true = raw CodeMirror
+
+// For preview mode commenting
+let pendingPreviewComment: {
+  sourceStart: number;
+  sourceEnd: number;
+  element: HTMLElement;
+} | null = null;
 
 // Toast notifications
 export function showToast(message: string, type: "success" | "info" = "info") {
@@ -97,11 +113,20 @@ async function init() {
   initSidebar(handleDeleteComment, handleCommentClick, handleCommentSubmit);
   setupCommentInput();
 
+  // Initialize markdown preview
+  initPreview(document.getElementById("preview-container")!);
+
+  // Set up interactive preview commenting
+  initInteractiveCommenting((sourceStart, sourceEnd, element) => {
+    handlePreviewAddComment(sourceStart, sourceEnd, element);
+  });
+
   // Initialize keyboard shortcuts
   initShortcuts({
     addComment: handleAddCommentShortcut,
     toggleTheme,
     toggleVim,
+    toggleMarkdownView,
     openFile: showFilePickerAndLoad,
     zoomIn,
     zoomOut,
@@ -156,6 +181,9 @@ async function init() {
     ?.addEventListener("click", toggleTheme);
   document.getElementById("vim-toggle")?.addEventListener("click", toggleVim);
   document
+    .getElementById("markdown-toggle")
+    ?.addEventListener("click", toggleMarkdownView);
+  document
     .getElementById("help-btn")
     ?.addEventListener("click", showShortcutsHelp);
 
@@ -166,6 +194,34 @@ async function init() {
 
   // Update comment button on selection change
   onSelectionChange(updateCommentButton);
+
+  // Listen for preview comment clicks (when clicking on highlighted text)
+  window.addEventListener("preview-comment-click", ((e: CustomEvent<{ commentId: string }>) => {
+    const comment = comments.find(c => c.id === e.detail.commentId);
+    if (comment) {
+      // Highlight the comment card in sidebar
+      const card = document.querySelector(`[data-comment-id="${comment.id}"]`);
+      if (card) {
+        card.scrollIntoView({ behavior: "smooth", block: "center" });
+        card.classList.add("highlight-flash");
+        setTimeout(() => card.classList.remove("highlight-flash"), 1000);
+      }
+    }
+  }) as EventListener);
+
+  // Listen for preview element clicks (when clicking on commentable element with a comment)
+  window.addEventListener("preview-element-click", ((e: CustomEvent<{ commentId: string; element: HTMLElement }>) => {
+    const comment = comments.find(c => c.id === e.detail.commentId);
+    if (comment) {
+      // Scroll and highlight the comment card in sidebar
+      const card = document.querySelector(`[data-comment-id="${comment.id}"]`);
+      if (card) {
+        card.scrollIntoView({ behavior: "smooth", block: "center" });
+        card.classList.add("highlight-flash");
+        setTimeout(() => card.classList.remove("highlight-flash"), 1000);
+      }
+    }
+  }) as EventListener);
 
   // Listen for config reload requests
   window.addEventListener("reload-config", async () => {
@@ -372,6 +428,33 @@ async function zoomOut() {
   await saveConfig(appConfig);
 }
 
+async function toggleMarkdownView() {
+  if (!isMarkdownFile) return;
+
+  isRawMode = !isRawMode;
+  appConfig.markdown_raw = isRawMode;
+  await saveConfig(appConfig);
+
+  updateViewMode();
+}
+
+function updateViewMode() {
+  const editorContainer = document.getElementById("editor-container")!;
+  const previewContainer = document.getElementById("preview-container")!;
+  const toggleBtn = document.getElementById("markdown-toggle");
+
+  if (isRawMode) {
+    editorContainer.style.display = "block";
+    previewContainer.style.display = "none";
+    toggleBtn?.classList.remove("active");
+  } else {
+    editorContainer.style.display = "none";
+    previewContainer.style.display = "block";
+    toggleBtn?.classList.add("active");
+    updatePreview(getEditorContent(), comments);
+  }
+}
+
 function handleAddCommentShortcut() {
   const selection = getSelection();
   const view = getEditorView();
@@ -392,14 +475,56 @@ function handleAddCommentShortcut() {
   showCommentInput(line.number);
 }
 
+/**
+ * Handle adding comment from preview mode
+ */
+function handlePreviewAddComment(
+  sourceStart: number,
+  sourceEnd: number,
+  element: HTMLElement
+) {
+  // Store pending preview comment info
+  pendingPreviewComment = { sourceStart, sourceEnd, element };
+
+  // Show comment input in sidebar with element type label
+  const tagName = element.tagName.toLowerCase();
+  const label = tagName === 'p' ? 'Paragraph' :
+    tagName.match(/^h[1-6]$/) ? 'Heading' :
+    tagName === 'li' ? 'List item' :
+    tagName === 'tr' ? 'Table row' :
+    tagName === 'blockquote' ? 'Blockquote' :
+    tagName === 'pre' ? 'Code block' : 'Element';
+
+  showCommentInput(0, label);
+}
+
 async function handleCommentSubmit(text: string, _lineNumber: number) {
+  const content = getEditorContent();
+
+  // Handle preview mode comment
+  if (pendingPreviewComment) {
+    const { sourceStart, sourceEnd, element } = pendingPreviewComment;
+    pendingPreviewComment = null;
+
+    // Use insertLineComment with the source positions
+    const [newContent] = await insertLineComment(content, sourceStart, sourceEnd, text);
+    setEditorContent(newContent);
+    await refreshComments();
+
+    // Flash the element for visual feedback
+    flashElement(element);
+    showToast("Comment added", "success");
+    hideCommentInput();
+    return;
+  }
+
+  // Handle raw mode comment (with selection)
   const selection = getSelection();
   if (!selection || selection.from === selection.to) {
     hideCommentInput();
     return;
   }
 
-  const content = getEditorContent();
   const view = getEditorView();
 
   // Check if selection spans multiple lines or is a full line selection
@@ -445,6 +570,13 @@ async function loadFile(path: string) {
     const isStdin = await API.isStdinMode();
     updateFileNameDisplay(path, isStdin);
 
+    // Check if this is a markdown file
+    isMarkdownFile = path.endsWith(".md") || path.endsWith(".markdown");
+    const toggleBtn = document.getElementById("markdown-toggle");
+    if (toggleBtn) {
+      toggleBtn.style.display = isMarkdownFile ? "flex" : "none";
+    }
+
     // Show comment button
     const commentBtn = document.getElementById("add-comment-btn");
     if (commentBtn) commentBtn.style.display = "flex";
@@ -452,8 +584,22 @@ async function loadFile(path: string) {
     // Parse and display existing comments
     await refreshComments();
 
-    // Focus editor
-    focusEditor();
+    // Set up view mode for markdown files
+    if (isMarkdownFile) {
+      isRawMode = appConfig.markdown_raw ?? false;
+      updateViewMode();
+    } else {
+      // For non-markdown files, ensure editor is visible
+      const editorContainer = document.getElementById("editor-container")!;
+      const previewContainer = document.getElementById("preview-container")!;
+      editorContainer.style.display = "block";
+      previewContainer.style.display = "none";
+    }
+
+    // Focus editor (only if in raw mode or not a markdown file)
+    if (isRawMode || !isMarkdownFile) {
+      focusEditor();
+    }
   } catch (error) {
     console.error("Failed to load file:", error);
   }
@@ -517,7 +663,12 @@ async function refreshComments() {
   comments = await parseComments(content);
   renderComments(comments);
 
-  // Clear and re-add highlights
+  // Update preview if in rendered mode
+  if (isMarkdownFile && !isRawMode) {
+    updatePreview(content, comments);
+  }
+
+  // Clear and re-add highlights in editor
   const view = getEditorView();
   view.dispatch({ effects: clearHighlights.of() });
 
@@ -543,7 +694,11 @@ function handleDeleteComment(commentId: string) {
 }
 
 function handleCommentClick(comment: ReviewComment) {
-  scrollToPosition(comment.highlight_start);
+  if (isMarkdownFile && !isRawMode) {
+    scrollPreviewToComment(comment.id);
+  } else {
+    scrollToPosition(comment.highlight_start);
+  }
 }
 
 // Initialize the app

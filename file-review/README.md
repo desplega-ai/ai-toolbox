@@ -36,16 +36,20 @@ bun run tauri build
 To create a new release:
 
 1. Bump the version in `package.json`
+<!-- review-line-start(3a6195b5) -->
 2. Run:
 ```bash
 bun run release
 ```
 
-This reads the version from `package.json`, validates it's newer than the last release, then tags and pushes to trigger the GitHub Actions workflow.
+This 
+<!-- review-line-end(3a6195b5): adsf -->reads the version from `package.json`, validates it's newer than the last release, then tags and pushes to trigger the Gi<!-- review-line-start(1b96cf6e) -->
+tHub Actions workflow.
 
 ---
 
-## Homebrew Formula Template
+## Hom
+<!-- review-line-end(1b96cf6e): lol -->ebrew Formula Template
 
 For `desplega-ai/homebrew-tap`, create `Formula/file-review.rb`:
 

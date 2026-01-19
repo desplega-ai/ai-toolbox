@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "identifier": "com.desplega.file-review",
   "build": {
-    "beforeDevCommand": "bun run dev",
+    "beforeDevCommand": "bun run dev:vite",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "bun run build",
     "frontendDist": "../dist"

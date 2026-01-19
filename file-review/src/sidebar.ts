@@ -20,7 +20,7 @@ export function initSidebar(
   submitHandler = onSubmit;
 }
 
-export function showCommentInput(lineNumber: number) {
+export function showCommentInput(lineNumber: number, label?: string) {
   pendingLineNumber = lineNumber;
   const inputArea = document.getElementById("comment-input-area")!;
   const lineLabel = document.getElementById("comment-line-label")!;
@@ -28,7 +28,8 @@ export function showCommentInput(lineNumber: number) {
     "comment-textarea"
   ) as HTMLTextAreaElement;
 
-  lineLabel.textContent = `Line ${lineNumber}`;
+  // Use custom label if provided (for preview mode), otherwise show line number
+  lineLabel.textContent = label ?? `Line ${lineNumber}`;
   inputArea.style.display = "block";
   textarea.value = "";
   textarea.focus();

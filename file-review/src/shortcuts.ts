@@ -13,6 +13,7 @@ export const shortcuts: Shortcut[] = [
   { keys: "⌘Q", description: "Quit application" },
   { keys: "⌘/", description: "Toggle shortcuts help" },
   { keys: "⌘T", description: "Toggle theme (light/dark)" },
+  { keys: "⌘M", description: "Toggle markdown view (raw/pretty)" },
   { keys: "⌘⇧V", description: "Toggle vim mode" },
   { keys: "⌘O", description: "Open file" },
   { keys: "⌘+", description: "Zoom in" },
@@ -123,6 +124,9 @@ export function initShortcuts(handlers: Record<string, () => void>) {
     } else if (isMeta && e.key === "t") {
       e.preventDefault();
       handlers.toggleTheme?.();
+    } else if (isMeta && e.key === "m") {
+      e.preventDefault();
+      handlers.toggleMarkdownView?.();
     } else if (isMeta && e.key.toLowerCase() === "v" && e.shiftKey) {
       e.preventDefault();
       handlers.toggleVim?.();
