@@ -203,20 +203,14 @@ export const API = {
     if (isTauri()) {
       return tauriInvoke<[string, string]>("insert_wrapped_comment", {
         content,
-        startPos,
-        endPos,
-        text,
-      });
-    }
-    // Web mode returns an object, convert to tuple
-    const result = await httpInvoke<InsertCommentResponse>(
-      "insert_wrapped_comment",
-      {
-        content,
         start_pos: startPos,
         end_pos: endPos,
         text,
-      }
+      });
+    }
+    const result = await httpInvoke<InsertCommentResponse>(
+      "insert_wrapped_comment",
+      { content, start_pos: startPos, end_pos: endPos, text }
     );
     return [result.content, result.id];
   },
@@ -230,20 +224,14 @@ export const API = {
     if (isTauri()) {
       return tauriInvoke<[string, string]>("insert_nextline_comment", {
         content,
-        lineStartPos,
-        lineEndPos,
-        text,
-      });
-    }
-    // Web mode returns an object, convert to tuple
-    const result = await httpInvoke<InsertCommentResponse>(
-      "insert_nextline_comment",
-      {
-        content,
         line_start_pos: lineStartPos,
         line_end_pos: lineEndPos,
         text,
-      }
+      });
+    }
+    const result = await httpInvoke<InsertCommentResponse>(
+      "insert_nextline_comment",
+      { content, line_start_pos: lineStartPos, line_end_pos: lineEndPos, text }
     );
     return [result.content, result.id];
   },

@@ -349,7 +349,7 @@ pub fn parse_comments(content: String) -> Vec<ReviewComment> {
     parse_comments_internal(&content)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn insert_wrapped_comment(
     content: String,
     start_pos: usize,  // Character offset from frontend
@@ -376,7 +376,7 @@ pub fn insert_wrapped_comment(
     (result, id)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn insert_nextline_comment(
     content: String,
     line_start_pos: usize,  // Character offset from frontend
@@ -403,7 +403,7 @@ pub fn insert_nextline_comment(
     (result, id)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn remove_comment(content: String, comment_id: String) -> String {
     let escaped_id = regex::escape(&comment_id);
 
