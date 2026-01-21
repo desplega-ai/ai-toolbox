@@ -21,6 +21,14 @@ These instructions establish a working agreement between you and the user. The k
 
 Before starting planning (unless autonomy is Autopilot), establish these preferences:
 
+**Commit After Each Phase** - Use **AskUserQuestion** with:
+
+| Question | Options |
+|----------|---------|
+| "Would you like me to create a commit after each phase once manual verification passes?" | 1. Yes, commit after each phase passes (Recommended), 2. No, I'll handle commits myself |
+
+Store this preference and act on it during implementation (see "Commit Integration" section).
+
 **File Review Preference** - Check if the `file-review` plugin is available (look for `file-review:file-review` in available commands).
 
 If file-review plugin is installed, use **AskUserQuestion** with:
@@ -146,79 +154,25 @@ The autonomy mode is passed by the invoking command. If not specified, default t
 
 Before proceeding, exit plan mode to write the plan file.
 
-Write the plan to `thoughts/shared/plans/YYYY-MM-DD-description.md`:
+Write the plan to `thoughts/<username|shared>/plans/YYYY-MM-DD-description.md`.
 
-```markdown
-# [Feature/Task Name] Implementation Plan
+**Path selection:** Use the user's name (e.g., `thoughts/taras/plans/`) if known from context. Fall back to `thoughts/shared/plans/` when unclear.
 
-## Overview
-[Brief description of what we're implementing and why]
+**CRITICAL**: Every phase MUST include a `### Success Criteria:` section with both `#### Automated Verification:` and `#### Manual Verification:` subsections. See "Success Criteria Requirements" section at the end of this document for the exact format.
 
-## Current State Analysis
-[What exists now, what's missing, key constraints]
+**Template:** Read and follow the template at `cc-plugin/base/skills/planning/template.md`
 
-## Desired End State
-[Specification of the desired end state and how to verify it]
-
-### Key Discoveries:
-- [Important finding with file:line reference]
-
-## Quick Verification Reference
-
-Common commands to verify the implementation:
-- [Primary test command, e.g., `make test` or `npm test`]
-- [Linting command, e.g., `make lint` or `npm run lint`]
-- [Build command if applicable]
-
-Key files to check:
-- [Primary implementation file with path]
-- [Test file(s) covering this feature]
-- [Config files that may need updates]
-
-## What We're NOT Doing
-[Explicitly list out-of-scope items]
-
-## Implementation Approach
-[High-level strategy and reasoning]
-
-## Phase 1: [Descriptive Name]
-
-### Overview
-[What this phase accomplishes]
-
-### Changes Required:
-
-#### 1. [Component/File Group]
-**File**: `path/to/file.ext`
-**Changes**: [Summary of changes]
-
-### Success Criteria:
-
-#### Automated Verification:
-- [ ] Tests pass: `make test`
-- [ ] Linting passes: `make lint`
-
-#### Manual Verification:
-- [ ] Feature works as expected
-- [ ] No regressions
-
-**Implementation Note**: After completing this phase, pause for manual confirmation.
-
----
-
-## Testing Strategy
-[Unit tests, integration tests, manual testing steps]
-
-## References
-- Related research: `thoughts/shared/research/[relevant].md`
-```
+The template includes:
+- Standard plan sections (Overview, Current State, Desired End State, etc.)
+- Multiple phase examples with proper Success Criteria structure
+- Correct heading hierarchy throughout
 
 ### Step 5: Review and Iterate
 
 1. **Present draft plan location:**
    ```
    I've created the implementation plan at:
-   `thoughts/shared/plans/YYYY-MM-DD-description.md`
+   `thoughts/<username|shared>/plans/YYYY-MM-DD-description.md`
 
    Please review it.
    ```
@@ -233,6 +187,14 @@ If the `file-review` plugin is available and the user selected "Yes" during User
 - After creating plans, invoke `/file-review:file-review <path>`
 - If user selected "No" or autonomy mode is Autopilot, skip this step
 
+## Commit Integration
+
+If the user selected "Yes" to commits during User Preferences setup:
+- After each phase's manual verification passes, create a commit with a descriptive message
+- Commit message format: `[phase N] <brief description of what the phase accomplished>`
+- Only commit after explicit confirmation that manual verification passed
+- If user selected "No", skip commits entirely - the user will handle them
+
 ## Important Guidelines
 
 1. **Be Skeptical**: Question vague requirements, verify with code
@@ -241,8 +203,47 @@ If the `file-review` plugin is available and the user selected "Yes" during User
 4. **Be Practical**: Focus on incremental, testable changes
 5. **No Open Questions**: Research or clarify immediately, don't leave questions in plan
 
-## Success Criteria Guidelines
+## Success Criteria Requirements (MANDATORY)
 
-Always separate into:
-- **Automated Verification**: Commands that can be run (`make test`, `npm run lint`)
-- **Manual Verification**: Human testing required (UI/UX, performance)
+**Every phase MUST have a Success Criteria section.** Plans without proper success criteria are incomplete.
+
+### Required Structure
+
+Each phase must end with this exact structure:
+
+```markdown
+### Success Criteria:
+
+#### Automated Verification:
+- [ ] [Command that can be run]: `command here`
+- [ ] [Another automated check]: `command here`
+
+#### Manual Verification:
+- [ ] [Human testing step]
+- [ ] [Another manual check]
+
+**Implementation Note**: [When to pause for confirmation]
+```
+
+### Heading Hierarchy
+
+Use these exact heading levels (this is critical for consistency):
+- `### Success Criteria:` (h3) - section header
+- `#### Automated Verification:` (h4) - subsection
+- `#### Manual Verification:` (h4) - subsection
+
+### What Goes Where
+
+| Type | Examples |
+|------|----------|
+| **Automated** | `make test`, `npm run lint`, `tsc --noEmit`, `ls path/to/file`, `grep pattern file` |
+| **Manual** | UI interactions, visual checks, performance testing, edge case validation |
+
+### Validation Checklist
+
+Before finalizing any plan, verify:
+- [ ] Every phase has `### Success Criteria:` section
+- [ ] Each has `#### Automated Verification:` with runnable commands
+- [ ] Each has `#### Manual Verification:` with human testing steps
+- [ ] All items use checkbox format `- [ ]`
+- [ ] Automated checks are actual commands (not descriptions)

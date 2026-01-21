@@ -108,58 +108,15 @@ Perform a quick analysis of the research query. If anything is unclear and auton
 
 5. **Generate research document:**
    - If in plan mode, exit plan mode first
-   - Structure document with YAML frontmatter followed by content:
+   - Write to `thoughts/<username|shared>/research/YYYY-MM-DD-topic.md`
+   - **Path selection:** Use the user's name (e.g., `thoughts/taras/research/`) if known from context. Fall back to `thoughts/shared/research/` when unclear.
 
-   ```markdown
-   ---
-   date: [Current date and time with timezone in ISO format]
-   researcher: [Researcher name]
-   git_commit: [Current commit hash]
-   branch: [Current branch name]
-   repository: [Repository name]
-   topic: "[User's Question/Topic]"
-   tags: [research, codebase, relevant-component-names]
-   status: complete
-   autonomy: [autopilot|critical|verbose]
-   last_updated: [Current date in YYYY-MM-DD format]
-   last_updated_by: [Researcher name]
-   ---
+   **Template:** Read and follow the template at `cc-plugin/base/skills/researching/template.md`
 
-   # Research: [User's Question/Topic]
-
-   **Date**: [Current date and time]
-   **Researcher**: [Researcher name]
-   **Git Commit**: [Current commit hash]
-   **Branch**: [Current branch name]
-
-   ## Research Question
-   [Original user query]
-
-   ## Summary
-   [High-level documentation answering the user's question]
-
-   ## Detailed Findings
-
-   ### [Component/Area 1]
-   - Description of what exists ([file.ext:line](link))
-   - How it connects to other components
-   - Current implementation details
-
-   ## Code References
-   - `path/to/file.py:123` - Description
-
-   ## Architecture Documentation
-   [Current patterns, conventions found]
-
-   ## Historical Context (from thoughts/)
-   [Relevant insights from thoughts/ directory]
-
-   ## Related Research
-   [Links to other research documents]
-
-   ## Open Questions
-   [Any areas needing further investigation]
-   ```
+   The template includes:
+   - YAML frontmatter with metadata (date, researcher, git info, tags, status)
+   - Standard sections (Research Question, Summary, Detailed Findings, Code References, etc.)
+   - Proper formatting for file:line references
 
 6. **Add GitHub permalinks (if applicable):**
    - Check if on main branch or commit is pushed

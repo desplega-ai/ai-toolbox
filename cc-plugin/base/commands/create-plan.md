@@ -22,7 +22,7 @@ A thin wrapper that invokes the `desplega:planning` skill with autonomy controls
    - Verbose: Check in at each step, validate approach throughout
    ```
 
-2. **Invoke the `desplega:planning` skill:**
+2. **ALWAYS invoke the `desplega:planning` skill:**
    - Pass any file paths or task descriptions
    - Pass the autonomy mode determined above
    - Let the skill handle all planning logic
@@ -39,7 +39,7 @@ A thin wrapper that invokes the `desplega:planning` skill with autonomy controls
 ## Example Usage
 
 ```
-/create-plan @thoughts/shared/research/my-feature.md
+/create-plan @thoughts/<username|shared>/research/my-feature.md
 /create-plan --autonomy=autopilot implement user authentication
 /create-plan --autonomy=verbose add caching layer
 ```

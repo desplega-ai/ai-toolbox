@@ -15,7 +15,7 @@ A thin wrapper that invokes the `desplega:implementing` skill with autonomy cont
    - If plan file has `autonomy:` in frontmatter, use that as default
    - Otherwise, default to **Critical** (don't prompt - implementation is more straightforward)
 
-2. **Invoke the `desplega:implementing` skill:**
+2. **ALWAYS invoke the `desplega:implementing` skill:**
    - Pass the plan file path
    - Pass the autonomy mode determined above
    - Let the skill handle all implementation logic
@@ -26,7 +26,7 @@ A thin wrapper that invokes the `desplega:implementing` skill with autonomy cont
 ## Example Usage
 
 ```
-/implement-plan thoughts/shared/plans/2026-01-14-my-feature.md
+/implement-plan thoughts/<username|shared>/plans/2026-01-14-my-feature.md
 /implement-plan --autonomy=autopilot @plans/feature.md
 /implement-plan --autonomy=verbose @current-plan.md
 ```

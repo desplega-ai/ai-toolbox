@@ -23,7 +23,7 @@ A thin wrapper that invokes the `desplega:researching` skill with autonomy contr
    - Verbose: Check in frequently, validate approach at each step
    ```
 
-2. **Invoke the `desplega:researching` skill:**
+2. **ALWAYS invoke the `desplega:researching` skill:**
    - Pass the research query (everything after the flag)
    - Pass the autonomy mode determined above
    - Let the skill handle all research logic

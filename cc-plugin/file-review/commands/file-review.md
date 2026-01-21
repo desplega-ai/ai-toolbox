@@ -22,15 +22,15 @@ When the user invokes `/file-review [path]`:
 ### If no path provided
 
 Check for recently created or modified files in the current session that would benefit from review:
-- Plan files in `thoughts/shared/plans/`
-- Research documents in `thoughts/shared/research/`
+- Plan files in `thoughts/<username|shared>/plans/`
+- Research documents in `thoughts/<username|shared>/research/`
 - Any markdown files created or significantly updated during the conversation
 
 Propose these files to the user:
 ```
 I found these files from our session that might benefit from review:
-1. thoughts/shared/plans/2026-01-13-feature-plan.md (created today)
-2. thoughts/shared/research/2026-01-13-analysis.md (updated recently)
+1. thoughts/<username|shared>/plans/2026-01-13-feature-plan.md (created today)
+2. thoughts/<username|shared>/research/2026-01-13-analysis.md (updated recently)
 
 Which would you like to review? Or provide a different path.
 ```
