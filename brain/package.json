@@ -1,0 +1,53 @@
+{
+  "name": "@desplega.ai/brain",
+  "version": "0.1.0",
+  "description": "Personal knowledge management CLI with semantic search",
+  "type": "module",
+  "bin": {
+    "brain": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "bun src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target node --format esm",
+    "prepublishOnly": "bun run build",
+    "release": "bun run build && bun publish",
+    "lint": "biome check src",
+    "lint:fix": "biome check --write src",
+    "format": "biome format --write src",
+    "test": "bun test",
+    "tsc": "bun tsc --noEmit"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.14.0",
+    "chalk": "^5.4.1",
+    "commander": "^12.1.0",
+    "openai": "^4.77.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.9",
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anthropics/ai-toolbox.git",
+    "directory": "brain"
+  },
+  "keywords": [
+    "knowledge-management",
+    "semantic-search",
+    "embeddings",
+    "markdown",
+    "cli"
+  ],
+  "license": "MIT",
+  "author": "Desplega AI"
+}
