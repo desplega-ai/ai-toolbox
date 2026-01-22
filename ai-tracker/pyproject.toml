@@ -23,6 +23,7 @@ dependencies = [
     "rich>=13.0.0",
     "plotext>=5.0.0",
     "click>=8.0.0",
+    "cairosvg>=2.7.0",
 ]
 
 [project.scripts]

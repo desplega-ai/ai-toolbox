@@ -6,10 +6,16 @@ from rich.table import Table
 
 from .query import get_global_stats, get_per_repo_stats, get_stats, get_time_series
 
-console = Console()
+_console = Console()
 
 
-def display_stats(days: int = 30, repo: str | None = None, show_chart: bool = False, plain: bool = False) -> None:
+def display_stats(
+    days: int = 30,
+    repo: str | None = None,
+    show_chart: bool = False,
+    plain: bool = False,
+    console: Console | None = None,
+) -> None:
     """Display AI vs human code statistics.
 
     Args:
@@ -17,21 +23,23 @@ def display_stats(days: int = 30, repo: str | None = None, show_chart: bool = Fa
         repo: Optional repository name to filter by
         show_chart: Whether to show ASCII chart
         plain: Whether to use plain output without borders
+        console: Optional Console instance for recording output
     """
+    c = console or _console
     # Use all-time stats for summary, time-windowed for chart/repos
     global_stats = get_global_stats()
 
     # Check if we have any data
     if global_stats["total_commits"] == 0:
         if plain:
-            console.print("No commits tracked yet.")
-            console.print()
-            console.print("Make sure:")
-            console.print("1. Claude Code hooks are installed: ai-tracker setup")
-            console.print("2. Git hooks are installed: ai-tracker git-install")
-            console.print("3. You've made commits after installing the hooks")
+            c.print("No commits tracked yet.")
+            c.print()
+            c.print("Make sure:")
+            c.print("1. Claude Code hooks are installed: ai-tracker setup")
+            c.print("2. Git hooks are installed: ai-tracker git-install")
+            c.print("3. You've made commits after installing the hooks")
         else:
-            console.print(
+            c.print(
                 Panel(
                     "[yellow]No commits tracked yet.[/yellow]\n\n"
                     "Make sure:\n"
@@ -68,48 +76,57 @@ def display_stats(days: int = 30, repo: str | None = None, show_chart: bool = Fa
     total_removed = stats["ai_lines_removed"] + stats["human_lines_removed"]
 
     if plain:
-        _display_stats_plain(title, stats, total_added, total_removed, days, repo)
+        _display_stats_plain(title, stats, total_added, total_removed, days, repo, console=c)
     else:
-        _display_stats_rich(title, stats, total_added, total_removed, days, repo)
+        _display_stats_rich(title, stats, total_added, total_removed, days, repo, console=c)
 
     # ASCII chart
     if show_chart:
-        _display_chart(days=days)
+        _display_chart(days=days, console=c)
 
 
-def _display_stats_plain(title: str, stats: dict, total_added: int, total_removed: int, days: int, repo: str | None) -> None:
+def _display_stats_plain(
+    title: str,
+    stats: dict,
+    total_added: int,
+    total_removed: int,
+    days: int,
+    repo: str | None,
+    console: Console | None = None,
+) -> None:
     """Display stats in plain text format."""
-    console.print(title)
-    console.print("=" * len(title))
-    console.print()
-    console.print(f"{'Metric':<16} {'AI':>24} {'Human':>24} {'Total':>12}")
-    console.print("-" * 80)
-    console.print(
+    c = console or _console
+    c.print(title)
+    c.print("=" * len(title))
+    c.print()
+    c.print(f"{'Metric':<16} {'AI':>24} {'Human':>24} {'Total':>12}")
+    c.print("-" * 80)
+    c.print(
         f"{'Lines Added':<16} "
         f"{stats['ai_lines_added']:>14,} ({stats['ai_percent_added']:>4.1f}%) "
         f"{stats['human_lines_added']:>14,} ({stats['human_percent_added']:>4.1f}%) "
         f"{total_added:>12,}"
     )
-    console.print(
+    c.print(
         f"{'Lines Removed':<16} "
         f"{stats['ai_lines_removed']:>14,} ({stats['ai_percent_removed']:>4.1f}%) "
         f"{stats['human_lines_removed']:>14,} ({stats['human_percent_removed']:>4.1f}%) "
         f"{total_removed:>12,}"
     )
-    console.print()
-    console.print(f"Total Commits: {stats['total_commits']:,}")
+    c.print()
+    c.print(f"Total Commits: {stats['total_commits']:,}")
 
     # Per-repo breakdown (only if not filtering by repo)
     if not repo:
         repo_stats = get_per_repo_stats(days=days)
         if repo_stats:
-            console.print()
-            console.print("By Repository")
-            console.print("-" * 70)
-            console.print(f"{'Repository':<30} {'Commits':>8} {'AI Lines':>12} {'Human Lines':>12} {'AI %':>8}")
-            console.print("-" * 70)
+            c.print()
+            c.print("By Repository")
+            c.print("-" * 70)
+            c.print(f"{'Repository':<30} {'Commits':>8} {'AI Lines':>12} {'Human Lines':>12} {'AI %':>8}")
+            c.print("-" * 70)
             for r in repo_stats[:10]:
-                console.print(
+                c.print(
                     f"{r['repo_name']:<30} "
                     f"{r['total_commits']:>8} "
                     f"{r['ai_lines_added']:>12,} "
@@ -118,8 +135,17 @@ def _display_stats_plain(title: str, stats: dict, total_added: int, total_remove
                 )
 
 
-def _display_stats_rich(title: str, stats: dict, total_added: int, total_removed: int, days: int, repo: str | None) -> None:
+def _display_stats_rich(
+    title: str,
+    stats: dict,
+    total_added: int,
+    total_removed: int,
+    days: int,
+    repo: str | None,
+    console: Console | None = None,
+) -> None:
     """Display stats with Rich formatting."""
+    c = console or _console
     # Create summary table
     summary = Table(show_header=True, header_style="bold", box=None)
     summary.add_column("Metric", style="dim")
@@ -142,7 +168,7 @@ def _display_stats_rich(title: str, stats: dict, total_added: int, total_removed
     summary.add_row("", "", "", "")
     summary.add_row("Total Commits", "", "", f"{stats['total_commits']:,}")
 
-    console.print(Panel(summary, title=title, border_style="blue"))
+    c.print(Panel(summary, title=title, border_style="blue"))
 
     # Per-repo breakdown (only if not filtering by repo)
     if not repo:
@@ -165,8 +191,8 @@ def _display_stats_rich(title: str, stats: dict, total_added: int, total_removed
                     f"{ai_bar} {r['ai_percent']:3.0f}%",
                 )
 
-            console.print()
-            console.print(Panel(repo_table, title="By Repository", border_style="dim"))
+            c.print()
+            c.print(Panel(repo_table, title="By Repository", border_style="dim"))
 
 
 def _make_bar(percent: float, width: int = 10) -> str:
@@ -175,15 +201,16 @@ def _make_bar(percent: float, width: int = 10) -> str:
     return "[cyan]" + "█" * filled + "[/cyan][dim]" + "░" * (width - filled) + "[/dim]"
 
 
-def _display_chart(days: int = 30) -> None:
+def _display_chart(days: int = 30, console: Console | None = None) -> None:
     """Display simple vertical ASCII bar chart."""
+    c = console or _console
     time_data = get_time_series(days=days)
     if not time_data:
         return
 
-    console.print()
-    console.print("[bold]Lines Added Over Time[/bold]")
-    console.print()
+    c.print()
+    c.print("[bold]Lines Added Over Time[/bold]")
+    c.print()
 
     # Chart dimensions
     height = 10
@@ -239,42 +266,44 @@ def _display_chart(days: int = 30) -> None:
                 line += "[green]░░░░░[/green]  "
             else:
                 line += "       "
-        console.print(line)
+        c.print(line)
 
     # X-axis line
-    console.print(" " * y_label_width + " └─" + "─" * (len(columns) * col_width))
+    c.print(" " * y_label_width + " └─" + "─" * (len(columns) * col_width))
 
     # Date labels
     date_line = " " * y_label_width + "   "
     for col in columns:
         date_line += f"{col['date']}  "
-    console.print(date_line)
+    c.print(date_line)
 
     # Legend
-    console.print()
-    console.print(" " * y_label_width + "   [cyan]█[/cyan] AI  [green]░[/green] Human")
+    c.print()
+    c.print(" " * y_label_width + "   [cyan]█[/cyan] AI  [green]░[/green] Human")
 
 
-def display_global_stats(db_path=None, plain: bool = False) -> None:
+def display_global_stats(db_path=None, plain: bool = False, console: Console | None = None) -> None:
     """Display all-time global statistics.
 
     Args:
         db_path: Optional path to database (for testing)
         plain: Whether to use plain output without borders
+        console: Optional Console instance for recording output
     """
+    c = console or _console
     stats = get_global_stats(db_path=db_path)
 
     # Check if we have any data
     if stats["total_commits"] == 0:
         if plain:
-            console.print("No commits tracked yet.")
-            console.print()
-            console.print("Make sure:")
-            console.print("1. Claude Code hooks are installed: ai-tracker setup")
-            console.print("2. Git hooks are installed: ai-tracker git-install")
-            console.print("3. You've made commits after installing the hooks")
+            c.print("No commits tracked yet.")
+            c.print()
+            c.print("Make sure:")
+            c.print("1. Claude Code hooks are installed: ai-tracker setup")
+            c.print("2. Git hooks are installed: ai-tracker git-install")
+            c.print("3. You've made commits after installing the hooks")
         else:
-            console.print(
+            c.print(
                 Panel(
                     "[yellow]No commits tracked yet.[/yellow]\n\n"
                     "Make sure:\n"
@@ -295,35 +324,37 @@ def display_global_stats(db_path=None, plain: bool = False) -> None:
         earliest_date = "N/A"
 
     if plain:
-        _display_global_stats_plain(stats, earliest_date)
+        _display_global_stats_plain(stats, earliest_date, console=c)
     else:
-        _display_global_stats_rich(stats, earliest_date)
+        _display_global_stats_rich(stats, earliest_date, console=c)
 
 
-def _display_global_stats_plain(stats: dict, earliest_date: str) -> None:
+def _display_global_stats_plain(stats: dict, earliest_date: str, console: Console | None = None) -> None:
     """Display global stats in plain text format."""
-    console.print("Global Stats (All Time)")
-    console.print("=" * 40)
-    console.print()
-    console.print(f"Total Commits:    {stats['total_commits']:,}")
-    console.print(f"Tracking Since:   {earliest_date}")
-    console.print()
-    console.print(f"Lines Added (AI):       {stats['total_ai_lines_added']:>10,} ({stats['ai_percent_added']:.1f}%)")
-    console.print(f"Lines Added (Human):    {stats['total_human_lines_added']:>10,} ({stats['human_percent_added']:.1f}%)")
-    console.print(f"Lines Removed (AI):     {stats['total_ai_lines_removed']:>10,} ({stats['ai_percent_removed']:.1f}%)")
-    console.print(f"Lines Removed (Human):  {stats['total_human_lines_removed']:>10,} ({stats['human_percent_removed']:.1f}%)")
-    console.print()
-    console.print("Commit Breakdown")
-    console.print(f"  100% AI:        {stats['ai_only_commits']:>6,} ({stats['percent_ai_only']:.1f}%)")
-    console.print(f"  100% Human:     {stats['human_only_commits']:>6,} ({stats['percent_human_only']:.1f}%)")
-    console.print(f"  Mixed:          {stats['mixed_commits']:>6,} ({stats['percent_mixed']:.1f}%)")
-    console.print()
-    console.print(f"Commits with AI:        {stats['ai_only_commits'] + stats['mixed_commits']:,} ({stats['percent_commits_with_ai']:.1f}%)")
-    console.print(f"Avg AI % per commit:    {stats['avg_ai_percent_per_commit']:.1f}%")
+    c = console or _console
+    c.print("Global Stats (All Time)")
+    c.print("=" * 40)
+    c.print()
+    c.print(f"Total Commits:    {stats['total_commits']:,}")
+    c.print(f"Tracking Since:   {earliest_date}")
+    c.print()
+    c.print(f"Lines Added (AI):       {stats['total_ai_lines_added']:>10,} ({stats['ai_percent_added']:.1f}%)")
+    c.print(f"Lines Added (Human):    {stats['total_human_lines_added']:>10,} ({stats['human_percent_added']:.1f}%)")
+    c.print(f"Lines Removed (AI):     {stats['total_ai_lines_removed']:>10,} ({stats['ai_percent_removed']:.1f}%)")
+    c.print(f"Lines Removed (Human):  {stats['total_human_lines_removed']:>10,} ({stats['human_percent_removed']:.1f}%)")
+    c.print()
+    c.print("Commit Breakdown")
+    c.print(f"  100% AI:        {stats['ai_only_commits']:>6,} ({stats['percent_ai_only']:.1f}%)")
+    c.print(f"  100% Human:     {stats['human_only_commits']:>6,} ({stats['percent_human_only']:.1f}%)")
+    c.print(f"  Mixed:          {stats['mixed_commits']:>6,} ({stats['percent_mixed']:.1f}%)")
+    c.print()
+    c.print(f"Commits with AI:        {stats['ai_only_commits'] + stats['mixed_commits']:,} ({stats['percent_commits_with_ai']:.1f}%)")
+    c.print(f"Avg AI % per commit:    {stats['avg_ai_percent_per_commit']:.1f}%")
 
 
-def _display_global_stats_rich(stats: dict, earliest_date: str) -> None:
+def _display_global_stats_rich(stats: dict, earliest_date: str, console: Console | None = None) -> None:
     """Display global stats with Rich formatting."""
+    c = console or _console
     # Create the stats table
     table = Table(show_header=False, box=None, padding=(0, 2))
     table.add_column("Metric", style="dim")
@@ -379,4 +410,4 @@ def _display_global_stats_rich(stats: dict, earliest_date: str) -> None:
         f"[bold]{stats['avg_ai_percent_per_commit']:.1f}%[/bold]",
     )
 
-    console.print(Panel(table, title="Global Stats (All Time)", border_style="blue"))
+    c.print(Panel(table, title="Global Stats (All Time)", border_style="blue"))

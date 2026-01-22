@@ -19,18 +19,68 @@ def main() -> None:
 @click.option("--graph", is_flag=True, help="Show ASCII chart for last 7 days (shortcut for --chart --days 7)")
 @click.option("--global", "show_global", is_flag=True, help="Show all-time global statistics")
 @click.option("--plain", is_flag=True, help="Plain output without borders (easier to read in pipes)")
-def stats(days: int, repo: str | None, chart: bool, graph: bool, show_global: bool, plain: bool) -> None:
+@click.option("--screenshot", is_flag=True, help="Copy output as PNG to clipboard (macOS only)")
+@click.option("--path", "output_path", type=click.Path(), help="Save output as PNG to specified path")
+def stats(
+    days: int,
+    repo: str | None,
+    chart: bool,
+    graph: bool,
+    show_global: bool,
+    plain: bool,
+    screenshot: bool,
+    output_path: str | None,
+) -> None:
     """Show AI vs human code statistics."""
+    from pathlib import Path
+
+    from rich.console import Console
+
     from .stats.display import display_global_stats, display_stats
+
+    # Validate options
+    needs_export = screenshot or output_path
+    if needs_export and plain:
+        click.echo("Error: Cannot use --screenshot or --path with --plain. Screenshots require Rich formatting.", err=True)
+        raise SystemExit(1)
+
+    # Check platform support for clipboard
+    if screenshot:
+        from .screenshot import check_platform_support
+
+        error = check_platform_support(clipboard=True)
+        if error:
+            click.echo(f"Error: {error}", err=True)
+            raise SystemExit(1)
 
     if graph:
         days = 7
         chart = True
 
-    if show_global:
-        display_global_stats(plain=plain)
+    # Create console - with recording if we need to export
+    if needs_export:
+        from io import StringIO
+        # Record to memory, don't output to terminal
+        console = Console(record=True, width=100, file=StringIO(), force_terminal=True)
     else:
-        display_stats(days=days, repo=repo, show_chart=chart, plain=plain)
+        console = None
+
+    if show_global:
+        display_global_stats(plain=plain, console=console)
+    else:
+        display_stats(days=days, repo=repo, show_chart=chart, plain=plain, console=console)
+
+    # Handle export
+    if needs_export:
+        from .screenshot import export_to_png
+
+        path = Path(output_path) if output_path else None
+        export_to_png(console, output_path=path, clipboard=screenshot)
+
+        if screenshot:
+            click.echo("Screenshot copied to clipboard")
+        if output_path:
+            click.echo(f"Saved to {output_path}")
 
 
 @main.command()
