@@ -12,6 +12,8 @@
   "scripts": {
     "dev": "bun src/index.ts",
     "build": "bun build src/index.ts --outdir dist --target node --format esm",
+    "install": "bun run build && bun link",
+    "uninstall": "bun unlink",
     "prepublishOnly": "bun run build",
     "release": "bun run build && bun publish",
     "lint": "biome check src",

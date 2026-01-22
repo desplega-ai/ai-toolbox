@@ -3,11 +3,32 @@ date: 2026-01-22T15:00:00-08:00
 planner: Claude
 topic: "Brain CLI MVP Implementation"
 tags: [plan, cli, typescript, bun, sqlite, embeddings, brain]
-status: ready
+status: completed
+completed_at: 2026-01-22T23:52:00-08:00
 research: thoughts/taras/research/2026-01-22-journal-cli-research.md
 ---
 
 # Brain CLI MVP Implementation Plan
+
+## Completion Summary
+
+**Status: COMPLETED** - 2026-01-22
+
+Both phases implemented successfully:
+- Phase 1: Core commands (init, add, new, list, show, edit, config)
+- Phase 2: Database & search (sync, search with FTS5 + OpenAI embeddings)
+
+All verification checks pass. Ready for use via `bun link` in `brain/` directory.
+
+### Post-MVP Updates
+
+**2026-01-23**: `--ref` path resolution fix
+- `brain add --ref ./path/to/file "note"` now resolves relative paths to absolute paths
+- This ensures references remain valid regardless of where the command was run
+- Added warning when referenced file does not exist
+- `-f`/`--file` remains relative to brain root (intentional - targets files within brain)
+
+---
 
 ## Overview
 

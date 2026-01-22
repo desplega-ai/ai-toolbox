@@ -1,5 +1,5 @@
 import { readdir } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { join, relative, resolve } from "node:path";
 import chalk from "chalk";
 import { Command } from "commander";
 import { getBrainPath } from "../config/index.ts";
@@ -85,8 +85,18 @@ export const addCommand = new Command("add")
     const timestamp = getTimestamp();
     let content = `[${timestamp}]`;
 
+    let resolvedRef: string | undefined;
     if (options.ref) {
-      content += ` ref:${options.ref}`;
+      // Resolve to absolute path
+      resolvedRef = resolve(options.ref);
+
+      // Check if file exists and warn if not
+      const refFile = Bun.file(resolvedRef);
+      if (!(await refFile.exists())) {
+        console.log(chalk.yellow(`Warning: Referenced file does not exist: ${resolvedRef}`));
+      }
+
+      content += ` ref:${resolvedRef}`;
     }
 
     content += `\n${text}\n\n`;
@@ -101,7 +111,7 @@ export const addCommand = new Command("add")
 
     console.log(chalk.green(`✓ Added to ${targetPath}`));
     console.log(chalk.dim(`[${timestamp}]`));
-    if (options.ref) {
-      console.log(chalk.dim(`ref:${options.ref}`));
+    if (resolvedRef) {
+      console.log(chalk.dim(`ref:${resolvedRef}`));
     }
   });

@@ -10,6 +10,25 @@ interface FileInfo {
 }
 
 /**
+ * Format date as yyyy/mm/dd
+ */
+function formatDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}/${month}/${day}`;
+}
+
+/**
+ * Format time as hh:mm
+ */
+function formatTime(date: Date): string {
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
+/**
  * Recursively get all .md files with their modification times
  */
 async function getMdFilesWithMtime(dir: string, base: string = dir): Promise<FileInfo[]> {
@@ -67,7 +86,7 @@ function printTree(tree: Map<string, FileInfo[]>): void {
     console.log(chalk.bold.cyan(dir === "." ? "root" : dir));
     for (const file of files) {
       const fileName = file.path.split("/").pop() ?? file.path;
-      const date = file.mtime.toLocaleDateString();
+      const date = formatDate(file.mtime);
       console.log(`  ${chalk.dim(date)} ${fileName}`);
     }
   }
@@ -116,11 +135,8 @@ export const listCommand = new Command("list")
       const displayFiles = files.slice(0, limit);
 
       for (const file of displayFiles) {
-        const date = file.mtime.toLocaleDateString();
-        const time = file.mtime.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
+        const date = formatDate(file.mtime);
+        const time = formatTime(file.mtime);
         console.log(`${chalk.dim(`${date} ${time}`)} ${file.path}`);
       }
 
