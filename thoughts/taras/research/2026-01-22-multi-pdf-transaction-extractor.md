@@ -692,6 +692,183 @@ Based on user complaints and market analysis, our differentiation:
 5. **Duplicate detection** - When processing overlapping statements (future)
 6. **Multi-currency handling** - Automatic detection and conversion (future)
 
+## Implementation Plan
+
+### High-Level Roadmap
+
+```
+Week 1-2: Core Pipeline (can demo end-to-end)
+    ↓
+Week 3: Auth + Usage Tracking
+    ↓
+Week 4: Polish + Deploy MVP
+    ↓
+Week 5+: Production hardening, Phase 2 features
+```
+
+### Step-by-Step Implementation Order
+
+#### Step 1: Project Setup (Day 1)
+```
+□ Initialize Next.js 14+ with App Router
+□ Set up Tailwind CSS
+□ Configure TypeScript
+□ Set up monorepo structure (if separating frontend/backend)
+□ Create GitHub repo, CI basics
+```
+**Key points:**
+- Use `create-next-app` with TypeScript template
+- App Router for streaming support later
+- Don't overcomplicate - single Next.js app is fine for MVP
+
+#### Step 2: Landing Page + Upload UI (Days 2-3)
+```
+□ Build full-page drop zone component
+□ Integrate Uppy for file handling
+□ File list with thumbnails/names
+□ Basic responsive layout
+□ "No account needed" messaging
+```
+**Key points:**
+- Uppy handles drag-drop, progress, file validation
+- Max file size: 10MB per PDF initially
+- Accept only `.pdf` files
+- Mobile: ensure touch targets are 44px+
+
+#### Step 3: PDF → LLM Extraction Pipeline (Days 4-7)
+```
+□ Set up Python FastAPI backend
+□ Integrate pymupdf4llm for PDF text extraction
+□ Define JSON Schema for extraction
+□ Claude/GPT-4o API integration
+□ Return structured transaction data
+□ Basic error handling
+```
+**Key points:**
+- Start with synchronous processing (no queue yet)
+- JSON Schema with confidence scores from day 1
+- Test with 3-4 different bank statement formats
+- Handle both single-column and multi-column PDFs
+
+#### Step 4: Results Preview + Column Selection (Days 8-10)
+```
+□ Display extracted transactions in table
+□ Checkbox column selection UI
+□ Highlight low-confidence rows (orange)
+□ Show extraction metadata (confidence, doc type)
+□ Smart defaults: Date, Description, Amount pre-checked
+```
+**Key points:**
+- Use streaming to show results as they extract
+- Skeleton rows while processing
+- Column state managed in React (no persistence yet)
+
+#### Step 5: Excel Export (Days 11-12)
+```
+□ Integrate SheetJS for Excel generation
+□ Big green download button
+□ Generate filename with date
+□ Client-side generation (no server needed)
+```
+**Key points:**
+- Client-side export = no server load
+- Include metadata sheet (source files, extraction date)
+- Format dates consistently (ISO or locale)
+
+#### Step 6: Authentication with Clerk (Days 13-15)
+```
+□ Install @clerk/nextjs
+□ Configure Clerk application
+□ Add <SignIn /> modal trigger points
+□ Add <UserButton /> to header
+□ Protect billing routes only (main tool stays public)
+```
+**Key points:**
+- Enable Google + GitHub social login
+- Magic link as fallback
+- Don't block the main flow - auth is optional for free tier
+
+#### Step 7: Usage Tracking + Free Tier Limits (Days 16-17)
+```
+□ Track extractions per user (DB or Clerk metadata)
+□ Anonymous users: IP-based rate limit (5/month)
+□ Show usage counter in UI
+□ Soft paywall after limit reached
+```
+**Key points:**
+- Use Clerk's `publicMetadata` for simple usage tracking
+- Or SQLite/Postgres for more flexibility
+- Soft paywall = can still see results, just can't download new ones
+
+#### Step 8: Two-Phase Extraction (Days 18-19)
+```
+□ Phase 1: Raw table extraction
+□ Phase 2: LLM type inference (date/text/money/number)
+□ Currency detection for money columns
+□ Present "magical" schema proposal UI
+```
+**Key points:**
+- This is what makes the tool feel smart
+- Small/fast model for phase 2 (cheaper)
+- Cache schema inference for similar documents
+
+#### Step 9: Deploy MVP (Day 20)
+```
+□ Docker Compose setup
+□ Deploy to Hetzner VPS
+□ Configure domain + SSL (Caddy or nginx)
+□ Set up Cloudflare R2 for file storage
+□ Environment variables, secrets management
+□ Basic monitoring (uptime, errors)
+```
+**Key points:**
+- Single VPS is fine for MVP (~$15/month)
+- Use presigned URLs for R2 uploads
+- Auto-cleanup temp files after 24h
+
+#### Step 10: Polish + Launch (Days 21-25)
+```
+□ Error states and edge cases
+□ Loading states polish
+□ Mobile responsiveness check
+□ Basic analytics (Plausible or similar)
+□ Landing page copy refinement
+□ Soft launch to test users
+```
+**Key points:**
+- Test with real bank statements from different banks
+- Get 5-10 beta users for feedback
+- Fix critical bugs before wider launch
+
+### MVP Deliverable Checklist
+
+At the end of MVP, users can:
+- [ ] Drop 1-20 PDFs on the page
+- [ ] See transactions extracted with confidence scores
+- [ ] Select which columns to include
+- [ ] Download Excel file
+- [ ] Sign up to save templates and get more extractions
+- [ ] Use on mobile (basic support)
+
+### Risk Mitigation
+
+| Risk | Mitigation |
+|------|------------|
+| LLM hallucination on numbers | Validation + confidence scores + sum checks |
+| Varied PDF formats | Test with 10+ real statements before launch |
+| Slow extraction (>30s) | Streaming results, skeleton UI |
+| Cost overrun on LLM | Rate limits, caching, batch API |
+| Scanned PDFs fail | Clear messaging, Tesseract fallback |
+
+### Post-MVP Priorities
+
+1. **Background processing** - BullMQ for large batches
+2. **Template persistence** - Save/load column configs
+3. **Billing integration** - Stripe for pay-as-you-go
+4. **Scanned PDF support** - Tesseract OCR
+
+---
+
 ## Implementation Recommendations
 
 ### MVP Scope (Phase 1)
