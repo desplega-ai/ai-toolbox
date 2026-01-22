@@ -28,6 +28,12 @@ All verification checks pass. Ready for use via `bun link` in `brain/` directory
 - Added warning when referenced file does not exist
 - `-f`/`--file` remains relative to brain root (intentional - targets files within brain)
 
+**2026-01-23**: Test suite implementation
+- Unit tests: `test/utils/paths.test.ts`, `test/sync/chunker.test.ts`, `test/sync/hash.test.ts`
+- Integration tests: `test/db/entries.test.ts`, `test/db/chunks.test.ts`, `test/sync/index.test.ts`
+- 71 tests total, all passing
+- Fixed bug in chunker: content without timestamps/headers now correctly returns `whole-file` type
+
 ---
 
 ## Overview

@@ -25,11 +25,13 @@ export function chunkDailyFile(content: string): Chunk[] {
   let currentChunk: string[] = [];
   let currentStartLine = 0;
   let chunkIndex = 0;
+  let foundTimestamp = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i] ?? "";
 
     if (TIMESTAMP_PATTERN.test(line)) {
+      foundTimestamp = true;
       // Save previous chunk if exists
       if (currentChunk.length > 0) {
         const chunkContent = currentChunk.join("\n").trim();
@@ -56,14 +58,14 @@ export function chunkDailyFile(content: string): Chunk[] {
     if (chunkContent.length > 0) {
       chunks.push({
         index: chunkIndex,
-        type: "timestamp-block",
+        type: foundTimestamp ? "timestamp-block" : "whole-file",
         content: chunkContent,
         startLine: currentStartLine,
       });
     }
   }
 
-  // If no timestamp blocks found, treat as whole file
+  // If no content at all
   if (chunks.length === 0 && content.trim().length > 0) {
     return [
       {
@@ -100,11 +102,13 @@ export function chunkNamedFile(content: string): Chunk[] {
   let currentChunk: string[] = [];
   let currentStartLine = 0;
   let chunkIndex = 0;
+  let foundHeader = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i] ?? "";
 
     if (HEADER_PATTERN.test(line) && currentChunk.length > 0) {
+      foundHeader = true;
       // Save previous chunk
       const chunkContent = currentChunk.join("\n").trim();
       if (chunkContent.length > 0) {
@@ -129,14 +133,14 @@ export function chunkNamedFile(content: string): Chunk[] {
     if (chunkContent.length > 0) {
       chunks.push({
         index: chunkIndex,
-        type: "header-section",
+        type: foundHeader ? "header-section" : "whole-file",
         content: chunkContent,
         startLine: currentStartLine,
       });
     }
   }
 
-  // If no headers found, treat as whole file
+  // If no content at all
   if (chunks.length === 0 && content.trim().length > 0) {
     return [
       {
