@@ -1,6 +1,6 @@
 ---
 description: Create TDD implementation plans with strict Red-Green-Commit/Rollback cycles
-model: opus
+model: inherit
 argument-hint: [--autonomy=MODE] [file_or_task]
 ---
 

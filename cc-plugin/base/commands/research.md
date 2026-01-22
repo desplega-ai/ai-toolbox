@@ -1,6 +1,6 @@
 ---
 description: Document codebase as-is with thoughts directory for historical context
-model: opus
+model: inherit
 argument-hint: [--autonomy=MODE] [query]
 allowed-tools: Read, Grep, Glob
 ---

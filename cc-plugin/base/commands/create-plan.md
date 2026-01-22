@@ -1,6 +1,6 @@
 ---
 description: Create detailed implementation plans through interactive research and iteration
-model: opus
+model: inherit
 argument-hint: [--autonomy=MODE] [file_or_task]
 ---
 
