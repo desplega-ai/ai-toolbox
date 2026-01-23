@@ -7,6 +7,7 @@ Monorepo of AI and developer tools by desplega.ai. Each subdirectory is a standa
 | Tool | Description | Stack |
 |------|-------------|-------|
 | `ai-tracker/` | Track AI vs human code contributions | Python, uv, SQLite |
+| `brain/` | Personal knowledge management with semantic search | TypeScript, Bun, SQLite |
 | `cc-hooks/` | macOS notifications for Claude Code | Bash |
 | `cc-notch/` | Menu bar cost tracker (SwiftBar) | Shell |
 | `cc-plugin/` | Claude Code plugins (base, swarm, wts) | YAML/Markdown |
@@ -37,6 +38,12 @@ Plugin structure: `cc-plugin/{base,swarm,wts}/` with hooks, skills, and agents.
 ```bash
 uvx cc-ai-tracker install   # Install hooks
 uvx cc-ai-tracker stats     # View AI/human contribution stats
+```
+
+**brain** (TypeScript/Bun):
+```bash
+npm install -g @desplega.ai/brain
+brain init && brain add "My first note"
 ```
 
 **wts** (TypeScript/Bun):
