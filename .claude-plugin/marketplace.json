@@ -27,6 +27,11 @@
             "name": "file-review",
             "source": "./cc-plugin/file-review",
             "description": "Plugin for reviewing markdown files with inline comments using file-review GUI"
+        },
+        {
+            "name": "brain",
+            "source": "./cc-plugin/brain",
+            "description": "Plugin for the `brain` tool to manage and retrieve information from your personal local brain"
         }
     ]
 }
