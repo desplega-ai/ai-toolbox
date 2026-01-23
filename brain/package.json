@@ -20,7 +20,7 @@
     "lint:fix": "biome check --write src",
     "format": "biome format --write src",
     "test": "bun test",
-    "tsc": "bun tsc --noEmit"
+    "tsc": "bunx tsc --noEmit"
   },
   "dependencies": {
     "@libsql/client": "^0.14.0",
