@@ -1,13 +1,13 @@
 {
   "name": "brain",
-  "description": "Personal knowledge management with brain CLI - capture notes, manage todos, and search your second brain",
-  "version": "1.0.0",
+  "description": "Personal knowledge management with brain CLI - capture notes, manage todos, auto-sync, and search your second brain",
+  "version": "1.1.0",
   "author": {
     "name": "desplega.ai",
     "email": "hello@desplega.ai"
   },
   "homepage": "https://github.com/desplega-ai/ai-toolbox/tree/main/brain",
   "repository": "https://github.com/desplega-ai/ai-toolbox",
-  "keywords": ["brain", "notes", "knowledge", "todos", "pkm"],
+  "keywords": ["brain", "notes", "knowledge", "todos", "sync", "cron", "pkm"],
   "license": "MIT"
 }

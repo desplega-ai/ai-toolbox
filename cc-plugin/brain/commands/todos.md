@@ -1,62 +1,84 @@
 ---
-description: Manage todos across your brain entries
-argument-hint: [list|add|done] [args...]
-allowed-tools: Bash, Grep, Read
+description: Manage todos with the brain CLI
+argument-hint: [list|add|done|cancel|edit|rm] [args...]
+allowed-tools: Bash
 ---
 
 # Brain Todos Management
 
-Manage `- [ ]` style todos across your brain entries.
-
-## Important
-
-The brain CLI doesn't have a dedicated todo command yet. This skill uses grep/search to find and manage todos manually.
+Manage todos using the `brain todo` command.
 
 ## Commands
 
 ### List todos
 
-Find all open todos in your brain:
-
 ```bash
-brain search --exact "- [ ]"
-```
+# List open todos
+brain todo list
 
-Or with grep for more context:
+# Include completed/cancelled
+brain todo list --all
 
-```bash
-grep -rn "\- \[ \]" "$(brain config show | grep path | cut -d: -f2 | tr -d ' ')" --include="*.md"
+# Filter by project
+brain todo list -p myproject
+
+# Combine filters
+brain todo ls -a -p work
 ```
 
 ### Add todo
 
-Add a todo to today's file:
-
 ```bash
-brain add "- [ ] <task description>"
-```
+# Simple todo
+brain todo add "Review PR #123"
 
-Or to a specific file:
+# With project scope
+brain todo add -p myproject "Ship the feature"
 
-```bash
-brain add --file projects/tasks.md "- [ ] <task description>"
+# With due date
+brain todo add -d tomorrow "Deploy to prod"
+brain todo add --due "2024-12-31" "Year-end review"
+brain todo add -d "next week" "Plan sprint"
+
+# Combine options
+brain todo add -p work -d tomorrow "Finish report"
 ```
 
 ### Mark done
 
-1. First find the file containing the todo using search
-2. Use `brain edit <path>` to open in editor
-3. Change `- [ ]` to `- [x]`
+```bash
+# Single todo
+brain todo done 1
 
-Or provide the exact file if known and use sed:
+# Multiple todos
+brain todo done 1 2 3
+```
+
+### Cancel todo
 
 ```bash
-# Example - mark first matching todo as done in a file
-sed -i '' 's/- \[ \] <exact task text>/- [x] <exact task text>/' "<brain-path>/<file>.md"
+brain todo cancel 1
+```
+
+### Edit todo
+
+Opens the todo text in your editor:
+
+```bash
+brain todo edit 1
+```
+
+### Delete todo
+
+Permanently remove a todo:
+
+```bash
+brain todo rm 1
 ```
 
 ## Workflow
 
-1. When user says "list todos" or "what are my todos" → search for `- [ ]`
-2. When user says "add todo: X" → use `brain add "- [ ] X"`
-3. When user says "done: X" → find file, then edit to mark complete
+1. When user says "list todos" or "what are my todos" → `brain todo list`
+2. When user says "add todo: X" → `brain todo add "X"`
+3. When user says "done: X" → find the ID with `brain todo list`, then `brain todo done <id>`
+4. When user says "cancel: X" → find the ID, then `brain todo cancel <id>`

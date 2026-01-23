@@ -17,7 +17,8 @@ cd ai-toolbox/brain && bun install && bun link
 | Command | Description |
 |---------|-------------|
 | `/brain:note` | Quickly capture a note to your brain |
-| `/brain:todos` | Manage todos across your brain entries |
+| `/brain:todos` | Manage todos with projects and due dates |
+| `/brain:cron` | Manage automatic background sync |
 
 ## Skill
 

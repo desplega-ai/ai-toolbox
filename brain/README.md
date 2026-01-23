@@ -82,6 +82,28 @@ brain todo list -p myproject       # Filter by project
 brain todo ls -a -p work           # Combine filters
 ```
 
+### Automatic Sync (Cron)
+
+| Command | Description |
+|---------|-------------|
+| `brain cron install` | Install cron job for automatic sync |
+| `brain cron status` | Check if automatic sync is active |
+| `brain cron remove` | Remove automatic sync cron job |
+
+```bash
+# Install auto-sync (default: every 5 minutes)
+brain cron install
+
+# Custom interval (1-60 minutes)
+brain cron install --interval 15
+
+# Check status
+brain cron status                  # "Active (every 15 minutes)"
+
+# Remove cron job
+brain cron remove
+```
+
 ## Features
 
 - **Timestamped entries**: Quick capture with automatic timestamps
@@ -89,6 +111,7 @@ brain todo ls -a -p work           # Combine filters
 - **Semantic search**: Find conceptually related content using embeddings
 - **Git integration**: Auto-commits changes to your brain repository
 - **Todo management**: CLI-native task tracking with projects and due dates
+- **Automatic sync**: Background cron job keeps your database up-to-date
 - **Editor integration**: Opens files in your preferred `$EDITOR`
 
 ## Configuration

@@ -25,6 +25,15 @@ You are an expert on the `brain` CLI - a personal knowledge management tool with
 | `brain search "query"` | Semantic search (default) |
 | `brain search --exact "term"` | Full-text search (FTS5) |
 | `brain config show` | Display configuration |
+| `brain todo add "text"` | Create a new todo |
+| `brain todo list` | List open todos |
+| `brain todo done <id>` | Mark todo as complete |
+| `brain todo cancel <id>` | Cancel a todo |
+| `brain todo edit <id>` | Edit todo in editor |
+| `brain todo rm <id>` | Delete todo permanently |
+| `brain cron install` | Install auto-sync cron job |
+| `brain cron status` | Check auto-sync status |
+| `brain cron remove` | Remove auto-sync cron job |
 
 ## File Structure
 
@@ -146,6 +155,39 @@ brain search "authentication patterns"
 ```bash
 brain new "projects/new-feature"
 # Opens editor with # New Feature header
+```
+
+### Todo Management
+
+```bash
+# Add todos with options
+brain todo add "Review PR"
+brain todo add -p myproject "Ship feature"
+brain todo add -d tomorrow "Deploy to prod"
+brain todo add -p work -d "next week" "Plan sprint"
+
+# List and filter
+brain todo list                    # Open todos
+brain todo list --all              # Include done/cancelled
+brain todo list -p myproject       # Filter by project
+
+# Complete and manage
+brain todo done 1 2 3              # Mark multiple as done
+brain todo cancel 1                # Cancel a todo
+brain todo edit 1                  # Edit in $EDITOR
+brain todo rm 1                    # Delete permanently
+```
+
+### Automatic Sync
+
+```bash
+# Set up background sync (runs every N minutes)
+brain cron install                 # Default: 5 minutes
+brain cron install --interval 15   # Custom interval
+
+# Check and manage
+brain cron status                  # "Active (every 5 minutes)"
+brain cron remove                  # Stop auto-sync
 ```
 
 ## Environment
