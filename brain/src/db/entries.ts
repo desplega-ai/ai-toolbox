@@ -151,14 +151,18 @@ export async function listEntries(limit = 100): Promise<Entry[]> {
 
 /**
  * Delete an entry by path
+ * @returns true if deleted, false if not found
  */
-export async function deleteEntry(path: string): Promise<void> {
+export async function deleteEntry(path: string): Promise<boolean> {
   const db = await getDb();
+  const existing = await getEntry(path);
+  if (!existing) return false;
 
   await db.execute({
     sql: "DELETE FROM entries WHERE path = ?",
     args: [path],
   });
+  return true;
 }
 
 /**

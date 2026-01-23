@@ -4,6 +4,7 @@ import pkg from "../package.json";
 import { addCommand } from "./commands/add.ts";
 import { configCommand } from "./commands/config.ts";
 import { cronCommand } from "./commands/cron.ts";
+import { deleteCommand } from "./commands/delete.ts";
 import { editCommand } from "./commands/edit.ts";
 import { initCommand } from "./commands/init.ts";
 import { listCommand } from "./commands/list.ts";
@@ -24,6 +25,7 @@ program.addCommand(newCommand);
 program.addCommand(listCommand);
 program.addCommand(showCommand);
 program.addCommand(editCommand);
+program.addCommand(deleteCommand);
 program.addCommand(configCommand);
 
 // Search and sync
