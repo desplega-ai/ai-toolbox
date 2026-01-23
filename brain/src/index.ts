@@ -3,6 +3,7 @@ import { Command } from "commander";
 import pkg from "../package.json";
 import { addCommand } from "./commands/add.ts";
 import { configCommand } from "./commands/config.ts";
+import { cronCommand } from "./commands/cron.ts";
 import { editCommand } from "./commands/edit.ts";
 import { initCommand } from "./commands/init.ts";
 import { listCommand } from "./commands/list.ts";
@@ -31,5 +32,8 @@ program.addCommand(searchCommand);
 
 // Todo management
 program.addCommand(todoCommand);
+
+// Cron management
+program.addCommand(cronCommand);
 
 program.parse();

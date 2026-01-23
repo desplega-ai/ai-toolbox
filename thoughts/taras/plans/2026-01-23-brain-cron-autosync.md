@@ -3,7 +3,7 @@ date: 2026-01-23T10:00:00-08:00
 planner: Claude
 topic: "Brain CLI Cron Auto-Sync"
 tags: [plan, cli, typescript, bun, cron, brain]
-status: draft
+status: complete
 research: thoughts/taras/research/2026-01-22-journal-cli-research.md
 parent_plan: thoughts/taras/plans/2026-01-22-brain-cli-mvp.md
 ---
