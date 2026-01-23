@@ -1,11 +1,11 @@
-import { Command } from "commander";
-import chalk from "chalk";
 import { existsSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
+import chalk from "chalk";
+import { Command } from "commander";
 import { loadConfig } from "../config/index.ts";
 import { deleteEntry, getEntry } from "../db/entries.ts";
-import { normalizeEntryPath } from "../utils/paths.ts";
 import { autoCommit } from "../utils/git.ts";
+import { normalizeEntryPath } from "../utils/paths.ts";
 import { confirm } from "../utils/prompts.ts";
 
 export const deleteCommand = new Command("delete")
@@ -63,11 +63,7 @@ export const deleteCommand = new Command("delete")
 
     // Auto-commit if file was deleted
     if (fileDeleted) {
-      await autoCommit(
-        [normalizedPath],
-        `brain: delete ${normalizedPath}`,
-        brainPath
-      );
+      await autoCommit([normalizedPath], `brain: delete ${normalizedPath}`, brainPath);
     }
 
     // Output result

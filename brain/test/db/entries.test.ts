@@ -127,7 +127,7 @@ describe("listEntries", () => {
 });
 
 describe("deleteEntry", () => {
-  test("deletes entry by path", async () => {
+  test("deletes entry and returns true", async () => {
     await upsertEntry({ path: "test/to-delete.md", title: "Delete Me" });
 
     // Verify it exists
@@ -135,16 +135,17 @@ describe("deleteEntry", () => {
     expect(entry).not.toBeNull();
 
     // Delete it
-    await deleteEntry("test/to-delete.md");
+    const deleted = await deleteEntry("test/to-delete.md");
+    expect(deleted).toBe(true);
 
     // Verify it's gone
     entry = await getEntry("test/to-delete.md");
     expect(entry).toBeNull();
   });
 
-  test("silently handles non-existent path", async () => {
-    // Should not throw
-    await deleteEntry("non/existent/delete.md");
+  test("returns false for non-existent path", async () => {
+    const deleted = await deleteEntry("non/existent/delete.md");
+    expect(deleted).toBe(false);
   });
 });
 
