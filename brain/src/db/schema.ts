@@ -3,7 +3,7 @@
  * Uses SQLite with FTS5 for full-text search and libSQL vector extensions for semantic search.
  */
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /**
  * SQL statements to create the database schema
@@ -66,6 +66,20 @@ END;
 
 -- Vector similarity index (created after table if supported)
 -- Note: This may fail on SQLite without libSQL extensions, which is fine
+
+-- Todos table (CLI-managed, not extracted from markdown)
+CREATE TABLE IF NOT EXISTS todos (
+  id INTEGER PRIMARY KEY,
+  project TEXT,                    -- NULL = global, else project name
+  text TEXT NOT NULL,
+  status TEXT DEFAULT 'open',      -- open, done, cancelled
+  due_date TEXT,                   -- ISO date (YYYY-MM-DD) or NULL
+  created_at TEXT NOT NULL,
+  completed_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS todos_status_idx ON todos(status);
+CREATE INDEX IF NOT EXISTS todos_project_idx ON todos(project);
 `;
 
 /**
@@ -115,4 +129,17 @@ export interface SearchResult {
   entry: Entry;
   chunk: Chunk;
   score: number;
+}
+
+/**
+ * Todo record type
+ */
+export interface Todo {
+  id: number;
+  project: string | null;
+  text: string;
+  status: "open" | "done" | "cancelled";
+  due_date: string | null;
+  created_at: string;
+  completed_at: string | null;
 }

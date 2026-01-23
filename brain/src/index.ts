@@ -10,6 +10,7 @@ import { newCommand } from "./commands/new.ts";
 import { searchCommand } from "./commands/search.ts";
 import { showCommand } from "./commands/show.ts";
 import { syncCommand } from "./commands/sync.ts";
+import { todoCommand } from "./commands/todo.ts";
 
 const program = new Command();
 
@@ -27,5 +28,8 @@ program.addCommand(configCommand);
 // Search and sync
 program.addCommand(syncCommand);
 program.addCommand(searchCommand);
+
+// Todo management
+program.addCommand(todoCommand);
 
 program.parse();
