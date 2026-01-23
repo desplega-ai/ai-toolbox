@@ -20,6 +20,8 @@ You are an expert on the `brain` CLI - a personal knowledge management tool with
 | `brain list --tree` | Show directory structure |
 | `brain show <path>` | Display entry content |
 | `brain edit <path>` | Open entry in editor |
+| `brain delete <path>` | Delete entry (file + database) |
+| `brain rm <path>` | Alias for delete |
 | `brain sync` | Sync files to database |
 | `brain sync --force` | Re-embed everything |
 | `brain search "query"` | Semantic search (default) |
@@ -155,6 +157,15 @@ brain search "authentication patterns"
 ```bash
 brain new "projects/new-feature"
 # Opens editor with # New Feature header
+```
+
+### Delete Entries
+
+```bash
+brain delete 2026/01/22           # Delete with confirmation
+brain rm notes/old-project        # Alias, same behavior
+brain rm --force notes/temp       # Skip confirmation
+brain rm --db-only notes/draft    # Keep file, remove from database
 ```
 
 ### Todo Management

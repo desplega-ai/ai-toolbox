@@ -1,7 +1,7 @@
 {
   "name": "brain",
   "description": "Personal knowledge management with brain CLI - capture notes, manage todos, auto-sync, and search your second brain",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": {
     "name": "desplega.ai",
     "email": "hello@desplega.ai"

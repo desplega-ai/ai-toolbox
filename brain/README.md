@@ -48,6 +48,7 @@ brain todo done 1
 | `brain list` | `ls` | List recent entries |
 | `brain show <path>` | | Show an entry's content |
 | `brain edit <path>` | | Open an entry in your editor |
+| `brain delete <path>` | `rm` | Delete an entry (file + database) |
 | `brain search <query>` | `s` | Search entries (full-text + semantic) |
 | `brain sync` | | Sync files to database and generate embeddings |
 | `brain config` | | View or update configuration |
