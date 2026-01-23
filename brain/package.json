@@ -14,7 +14,7 @@
     "build": "bun build src/index.ts --outdir dist --target node --format esm",
     "install": "bun run build && bun link",
     "uninstall": "bun unlink",
-    "prepublishOnly": "bun run build",
+    "prepublishOnly": "bun run lint && bun run tsc && bun test && bun run build",
     "release": "bun run build && bun publish",
     "lint": "biome check src",
     "lint:fix": "biome check --write src",
