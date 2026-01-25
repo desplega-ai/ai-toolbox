@@ -22,7 +22,8 @@ src/
 │   ├── messages.ts       # Direct message access
 │   ├── costs.ts          # Cost calculations
 │   ├── projects.ts       # Project listings
-│   └── tools.ts          # Tool/skill usage & line changes
+│   ├── tools.ts          # Tool/skill usage & line changes
+│   └── prompts.ts        # User prompt analysis & slash commands
 └── utils/
     ├── dates.ts          # Date helpers
     └── paths.ts          # Path encoding/decoding
@@ -89,6 +90,25 @@ const fileDetails = await tools.fileChanges()       // Per-file breakdown
 // With date filters
 const janTools = await tools.usage('2026-01-01', '2026-01-31')
 const janLines = await tools.lineChanges('2026-01-01', '2026-01-31')
+
+// User prompts & slash commands (from history.jsonl)
+const topCmds = await prompts.topCommands(10)       // Most used slash commands
+const allCmds = await prompts.commands()            // All commands with counts
+const res = await prompts.researches()              // { total, byVariant, byMonth }
+const plans = await prompts.plans()                 // Plan command usage
+const commits = await prompts.commits()             // Commit command usage
+
+// Custom command pattern
+const custom = await prompts.commandsMatching(/\/my-cmd/i)
+
+// Prompt stats
+const pstats = await prompts.stats()                // { total, byMonth, byProject, avgLength }
+const byProj = await prompts.byProject()            // Prompts per project
+const byMo = await prompts.byMonth()                // Prompts per month
+const range = await prompts.dateRange()             // { from, to, days }
+
+// Search prompts
+const found = await prompts.search('some text')
 ```
 
 Or run the CLI directly:
@@ -201,6 +221,38 @@ Today's Changes
   Removed:      -156 lines
   Net:        +1,078 lines
 ───────────────────────────────────────────
+```
+
+### Slash Commands (User Prompts)
+```
+Top Commands (All Time)
+─────────────────────────────────────────────────
+ 1. /clear                     █████████████ 351
+ 2. /desplega:implement-plan   ███            64
+ 3. /base:implement-plan       ██             61
+ 4. /base:create-plan          ██             53
+ 5. /base:research             ██             53
+ 6. /desplega:research         ██             49
+─────────────────────────────────────────────────
+```
+
+### Research Commands
+```
+Research Commands (All Time)
+═══════════════════════════════════════════
+  Total: 253
+
+By variant:
+  /research             ███████████████ 151
+  /base:research        ██████           53
+  /desplega:research    █████            49
+
+By month:
+  2025-10  █████████                      35
+  2025-11  █                               2
+  2025-12  ██████████████████████         89
+  2026-01  ██████████████████████████████ 127
+═══════════════════════════════════════════
 ```
 
 ### Guidelines for ASCII Graphs

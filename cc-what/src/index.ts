@@ -78,6 +78,8 @@ export { costs } from './queries/costs'
 export { projects } from './queries/projects'
 export { tools } from './queries/tools'
 export type { ToolUsage, LineChanges, FileChange } from './queries/tools'
+export { prompts } from './queries/prompts'
+export type { CommandUsage, PromptStats } from './queries/prompts'
 
 // Pricing
 export { pricing } from './pricing'
