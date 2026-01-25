@@ -21,7 +21,8 @@ src/
 │   ├── sessions.ts       # Session queries with builder
 │   ├── messages.ts       # Direct message access
 │   ├── costs.ts          # Cost calculations
-│   └── projects.ts       # Project listings
+│   ├── projects.ts       # Project listings
+│   └── tools.ts          # Tool/skill usage & line changes
 └── utils/
     ├── dates.ts          # Date helpers
     └── paths.ts          # Path encoding/decoding
@@ -52,7 +53,7 @@ bun run lint:fix             # Auto-fix
 When Taras asks questions about his Claude Code usage, **use the SDK directly** by importing from the built dist:
 
 ```typescript
-import { stats, sessions, costs, projects } from '/Users/taras/Documents/code/ai-toolbox/cc-what/dist/index.js'
+import { stats, sessions, costs, projects, tools } from '/Users/taras/Documents/code/ai-toolbox/cc-what/dist/index.js'
 
 // Quick stats
 const totals = await stats.totals()
@@ -74,6 +75,20 @@ const summary = await costs.summary()  // { total, byModel }
 
 // Projects
 const topProjects = await projects.byMessageCount(5)
+
+// Tool usage & line changes
+const topTools = await tools.topTools(10)           // Most used tools
+const allToolUsage = await tools.usage()            // All tools with counts
+const todayTools = await tools.todayUsage()         // Today's tool usage
+const skillStats = await tools.skillUsage()         // Skill/Task agent usage
+
+const lines = await tools.lineChanges()             // { added, removed, modified, filesChanged }
+const todayLines = await tools.todayLineChanges()   // Today's line changes
+const fileDetails = await tools.fileChanges()       // Per-file breakdown
+
+// With date filters
+const janTools = await tools.usage('2026-01-01', '2026-01-31')
+const janLines = await tools.lineChanges('2026-01-01', '2026-01-31')
 ```
 
 Or run the CLI directly:
@@ -143,6 +158,49 @@ Today's Sessions
 ├─────────────────────┼──────────┼──────────┼──────────┤
 │ TOTAL               │ $46.90   │ $87.45   │ $134.35  │
 └─────────────────────┴──────────┴──────────┴──────────┘
+```
+
+### Tool Usage
+```
+Top Tools (all time)
+─────────────────────────────────────────
+Edit              ████████████████ 4,940
+Read              ███████████████  4,697
+Bash              █████████████    4,159
+TodoWrite         ██████           1,872
+Grep              █████            1,571
+Write             ███                940
+Task              ██                 686
+─────────────────────────────────────────
+```
+
+### Skill/Agent Usage
+```
+Most Used Skills & Agents
+─────────────────────────────────────────
+Task:Explore                  ████████ 288
+Task:codebase-analyzer        ███       69
+Task:Plan                     ██        42
+/file-review:file-review      ██        32
+/desplega:planning            █         23
+─────────────────────────────────────────
+```
+
+### Line Changes
+```
+Line Changes (All Time)
+═══════════════════════════════════════════
+  Added:    +273,228 lines  ████████████████
+  Removed:    -5,673 lines  █
+  Files:         959 unique files modified
+═══════════════════════════════════════════
+
+Today's Changes
+───────────────────────────────────────────
+  Added:      +1,234 lines
+  Removed:      -156 lines
+  Net:        +1,078 lines
+───────────────────────────────────────────
 ```
 
 ### Guidelines for ASCII Graphs

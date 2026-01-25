@@ -76,6 +76,8 @@ export { sessions } from './queries/sessions'
 export { messages } from './queries/messages'
 export { costs } from './queries/costs'
 export { projects } from './queries/projects'
+export { tools } from './queries/tools'
+export type { ToolUsage, LineChanges, FileChange } from './queries/tools'
 
 // Pricing
 export { pricing } from './pricing'
