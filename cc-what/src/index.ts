@@ -73,6 +73,11 @@ export {
 // Query APIs
 export { stats } from './queries/stats'
 export { sessions } from './queries/sessions'
+export type {
+	MessageRatio,
+	ContentBreakdown,
+	ContextMetrics,
+} from './queries/sessions'
 export { messages } from './queries/messages'
 export { costs } from './queries/costs'
 export { projects } from './queries/projects'

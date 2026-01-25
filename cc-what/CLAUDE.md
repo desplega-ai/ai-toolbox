@@ -70,6 +70,11 @@ const filtered = await sessions.query()
   .minMessages(5)
   .get()
 
+// Session analytics
+const ratio = await sessions.messageRatio(500)      // { user, assistant, ratio }
+const content = await sessions.contentBreakdown(500) // { userPrompts, toolResults, assistantText, assistantToolCalls }
+const ctx = await sessions.contextMetrics(500, 200000) // { avgInputTokens, avgUtilization, sessionsNearLimit, ... }
+
 // Costs
 const total = await costs.computedTotal()
 const summary = await costs.summary()  // { total, byModel }
