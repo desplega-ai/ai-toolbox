@@ -1,0 +1,44 @@
+{
+	"name": "@desplega.ai/cc-what",
+	"version": "0.1.0",
+	"description": "TypeScript SDK for analyzing Claude Code usage data",
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"import": "./dist/index.js",
+			"types": "./dist/index.d.ts"
+		}
+	},
+	"bin": {
+		"cc-what": "./dist/cli.js"
+	},
+	"files": ["dist"],
+	"scripts": {
+		"build": "bun build ./src/index.ts --outdir ./dist --target bun && bun run build:cli && bun run build:types",
+		"build:cli": "bun build ./src/cli.ts --outdir ./dist --target bun",
+		"build:types": "tsc --emitDeclarationOnly",
+		"dev": "bun run --watch src/index.ts",
+		"lint": "biome check .",
+		"lint:fix": "biome check --write .",
+		"test": "bun test",
+		"prepublishOnly": "bun run build"
+	},
+	"dependencies": {
+		"commander": "^13.1.0"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.4",
+		"@types/bun": "^1.2.4",
+		"typescript": "^5.7.3"
+	},
+	"keywords": ["claude-code", "analytics", "sdk", "anthropic"],
+	"author": "desplega.ai",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/desplega-ai/ai-toolbox.git",
+		"directory": "cc-what"
+	}
+}
