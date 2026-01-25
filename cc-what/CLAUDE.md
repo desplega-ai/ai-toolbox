@@ -51,10 +51,11 @@ bun run lint:fix             # Auto-fix
 
 ## Using cc-what to Answer Questions
 
-When Taras asks questions about his Claude Code usage, **use the SDK directly** by importing from the built dist:
+When Taras asks questions about his Claude Code usage, **use native TS imports** with bun:
 
 ```typescript
-import { stats, sessions, costs, projects, tools } from '/Users/taras/Documents/code/ai-toolbox/cc-what/dist/index.js'
+// Run with: bun -e "..."
+import { stats, sessions, costs, projects, tools } from './src'
 
 // Quick stats
 const totals = await stats.totals()
@@ -69,6 +70,10 @@ const filtered = await sessions.query()
   .after('2026-01-01')
   .minMessages(5)
   .get()
+
+// Message breakdown by role
+const yesterday = await sessions.yesterdayMessageBreakdown()  // { user, assistant, ratio, sessionsAnalyzed }
+const specific = await sessions.messageBreakdownForDate('2026-01-24')  // same structure
 
 // Session analytics
 const ratio = await sessions.messageRatio(500)      // { user, assistant, ratio }

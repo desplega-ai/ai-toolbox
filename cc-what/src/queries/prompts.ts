@@ -43,15 +43,54 @@ function extractCommands(text: string): string[] {
 function isLikelyCommand(text: string): boolean {
 	// Common path segments to exclude
 	const pathSegments = [
-		'/users', '/lib', '/bin', '/var', '/tmp', '/etc', '/opt',
-		'/home', '/root', '/usr', '/dev', '/proc', '/sys',
-		'/documents', '/desktop', '/downloads', '/applications',
-		'/library', '/volumes', '/private', '/cores',
-		'/node_modules', '/dist', '/build', '/src', '/test', '/tests',
-		'/venv', '/env', '/python', '/python3', '/site-packages',
-		'/starlette', '/middleware', '/api', '/app', '/pkg',
-		'/taras', '/code', '/shared', '/cope', '/be', '/fe',
-		'/.', '/package', '/index', '/main', '/config',
+		'/users',
+		'/lib',
+		'/bin',
+		'/var',
+		'/tmp',
+		'/etc',
+		'/opt',
+		'/home',
+		'/root',
+		'/usr',
+		'/dev',
+		'/proc',
+		'/sys',
+		'/documents',
+		'/desktop',
+		'/downloads',
+		'/applications',
+		'/library',
+		'/volumes',
+		'/private',
+		'/cores',
+		'/node_modules',
+		'/dist',
+		'/build',
+		'/src',
+		'/test',
+		'/tests',
+		'/venv',
+		'/env',
+		'/python',
+		'/python3',
+		'/site-packages',
+		'/starlette',
+		'/middleware',
+		'/api',
+		'/app',
+		'/pkg',
+		'/taras',
+		'/code',
+		'/shared',
+		'/cope',
+		'/be',
+		'/fe',
+		'/.',
+		'/package',
+		'/index',
+		'/main',
+		'/config',
 	]
 
 	const lower = text.toLowerCase()
@@ -68,11 +107,31 @@ function isLikelyCommand(text: string): boolean {
 
 	// Known commands without namespace
 	const knownCommands = [
-		'/research', '/plan', '/commit', '/clear', '/help',
-		'/init', '/config', '/status', '/review', '/test',
-		'/build', '/deploy', '/run', '/start', '/stop',
-		'/add', '/remove', '/update', '/delete', '/create',
-		'/memory', '/forget', '/remember', '/note', '/todo',
+		'/research',
+		'/plan',
+		'/commit',
+		'/clear',
+		'/help',
+		'/init',
+		'/config',
+		'/status',
+		'/review',
+		'/test',
+		'/build',
+		'/deploy',
+		'/run',
+		'/start',
+		'/stop',
+		'/add',
+		'/remove',
+		'/update',
+		'/delete',
+		'/create',
+		'/memory',
+		'/forget',
+		'/remember',
+		'/note',
+		'/todo',
 	]
 
 	return knownCommands.some((c) => lower === c || lower.startsWith(c + ' '))
@@ -111,7 +170,11 @@ export async function commandsMatching(
 	pattern: RegExp,
 	after?: string,
 	before?: string,
-): Promise<{ total: number; byVariant: CommandUsage[]; byMonth: Record<string, number> }> {
+): Promise<{
+	total: number
+	byVariant: CommandUsage[]
+	byMonth: Record<string, number>
+}> {
 	const history = await readHistory()
 	const byVariant: Record<string, number> = {}
 	const byMonth: Record<string, number> = {}
@@ -150,7 +213,11 @@ export async function commandsMatching(
 export async function researches(
 	after?: string,
 	before?: string,
-): Promise<{ total: number; byVariant: CommandUsage[]; byMonth: Record<string, number> }> {
+): Promise<{
+	total: number
+	byVariant: CommandUsage[]
+	byMonth: Record<string, number>
+}> {
 	return commandsMatching(/\/(\w+:)?research/i, after, before)
 }
 
@@ -160,7 +227,11 @@ export async function researches(
 export async function plans(
 	after?: string,
 	before?: string,
-): Promise<{ total: number; byVariant: CommandUsage[]; byMonth: Record<string, number> }> {
+): Promise<{
+	total: number
+	byVariant: CommandUsage[]
+	byMonth: Record<string, number>
+}> {
 	return commandsMatching(/\/(\w+:)?(create-)?plan/i, after, before)
 }
 
@@ -170,7 +241,11 @@ export async function plans(
 export async function commits(
 	after?: string,
 	before?: string,
-): Promise<{ total: number; byVariant: CommandUsage[]; byMonth: Record<string, number> }> {
+): Promise<{
+	total: number
+	byVariant: CommandUsage[]
+	byMonth: Record<string, number>
+}> {
 	return commandsMatching(/\/(\w+:)?commit/i, after, before)
 }
 
@@ -268,7 +343,11 @@ export async function search(
 /**
  * Get date range of history
  */
-export async function dateRange(): Promise<{ from: string; to: string; days: number }> {
+export async function dateRange(): Promise<{
+	from: string
+	to: string
+	days: number
+}> {
 	const history = await readHistory()
 	if (history.length === 0) {
 		return { from: '', to: '', days: 0 }

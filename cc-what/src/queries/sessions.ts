@@ -261,6 +261,65 @@ export interface ContextMetrics {
 /**
  * Calculate message ratio between user and assistant
  */
+/**
+ * Get message breakdown for a specific date (YYYY-MM-DD)
+ */
+export async function messageBreakdownForDate(
+	date: string,
+): Promise<MessageRatio> {
+	// Get sessions created on this specific date by filtering manually
+	const entries = await getAllSessionEntries()
+	const targetSessions = entries.filter((e) => e.created.startsWith(date))
+
+	let totalUser = 0
+	let totalAssistant = 0
+	let sessionCount = 0
+
+	for (const entry of targetSessions) {
+		const result = await findSessionEntry(entry.sessionId)
+		if (result) {
+			const msgs = await readSessionMessages(
+				result.encodedPath,
+				entry.sessionId,
+			)
+			const user = msgs.filter((m) => m.type === 'user').length
+			const assistant = msgs.filter((m) => m.type === 'assistant').length
+
+			if (user > 0 || assistant > 0) {
+				totalUser += user
+				totalAssistant += assistant
+				sessionCount++
+			}
+		}
+	}
+
+	return {
+		sessionsAnalyzed: sessionCount,
+		user: {
+			total: totalUser,
+			avgPerSession: sessionCount > 0 ? totalUser / sessionCount : 0,
+		},
+		assistant: {
+			total: totalAssistant,
+			avgPerSession: sessionCount > 0 ? totalAssistant / sessionCount : 0,
+		},
+		ratio: totalUser > 0 ? totalAssistant / totalUser : 0,
+	}
+}
+
+/**
+ * Get message breakdown for yesterday
+ */
+export async function yesterdayMessageBreakdown(): Promise<MessageRatio> {
+	const yesterday = new Date()
+	yesterday.setDate(yesterday.getDate() - 1)
+	const yesterdayStr = yesterday.toISOString().split('T')[0]
+	return messageBreakdownForDate(yesterdayStr)
+}
+
+/**
+ * Calculate message ratio between user and assistant
+ */
 export async function messageRatio(
 	limit = 500,
 	after?: string,
@@ -334,7 +393,11 @@ export async function contentBreakdown(
 					userPromptsChars += content.length
 					userPromptsCount++
 				} else if (Array.isArray(content)) {
-					for (const c of content as Array<{ type: string; text?: string; content?: unknown }>) {
+					for (const c of content as Array<{
+						type: string
+						text?: string
+						content?: unknown
+					}>) {
 						if (c.type === 'text') {
 							userPromptsChars += c.text?.length || 0
 							userPromptsCount++
@@ -342,7 +405,9 @@ export async function contentBreakdown(
 						if (c.type === 'tool_result') {
 							const cont = c.content
 							const len =
-								typeof cont === 'string' ? cont.length : JSON.stringify(cont || '').length
+								typeof cont === 'string'
+									? cont.length
+									: JSON.stringify(cont || '').length
 							toolResultsChars += len
 							toolResultsCount++
 						}
@@ -370,29 +435,44 @@ export async function contentBreakdown(
 	}
 
 	const totalChars =
-		userPromptsChars + toolResultsChars + assistantTextChars + assistantToolChars
+		userPromptsChars +
+		toolResultsChars +
+		assistantTextChars +
+		assistantToolChars
 
 	return {
 		sessionsAnalyzed: sessionsWithMsgs.length,
 		userPrompts: {
 			count: userPromptsCount,
 			chars: userPromptsChars,
-			avgChars: userPromptsCount > 0 ? Math.round(userPromptsChars / userPromptsCount) : 0,
+			avgChars:
+				userPromptsCount > 0
+					? Math.round(userPromptsChars / userPromptsCount)
+					: 0,
 		},
 		toolResults: {
 			count: toolResultsCount,
 			chars: toolResultsChars,
-			avgChars: toolResultsCount > 0 ? Math.round(toolResultsChars / toolResultsCount) : 0,
+			avgChars:
+				toolResultsCount > 0
+					? Math.round(toolResultsChars / toolResultsCount)
+					: 0,
 		},
 		assistantText: {
 			count: assistantTextCount,
 			chars: assistantTextChars,
-			avgChars: assistantTextCount > 0 ? Math.round(assistantTextChars / assistantTextCount) : 0,
+			avgChars:
+				assistantTextCount > 0
+					? Math.round(assistantTextChars / assistantTextCount)
+					: 0,
 		},
 		assistantToolCalls: {
 			count: assistantToolCount,
 			chars: assistantToolChars,
-			avgChars: assistantToolCount > 0 ? Math.round(assistantToolChars / assistantToolCount) : 0,
+			avgChars:
+				assistantToolCount > 0
+					? Math.round(assistantToolChars / assistantToolCount)
+					: 0,
 		},
 		totalChars,
 	}
@@ -488,6 +568,8 @@ export const sessions = {
 	recent,
 	query,
 	messageRatio,
+	messageBreakdownForDate,
+	yesterdayMessageBreakdown,
 	contentBreakdown,
 	contextMetrics,
 }
