@@ -10,7 +10,8 @@ Monorepo of AI and developer tools by [desplega.ai](https://desplega.ai). Each s
 | [brain](./brain) | Personal knowledge management with semantic search | TypeScript, Bun, SQLite |
 | [cc-hooks](./cc-hooks) | macOS notifications for Claude Code | Bash |
 | [cc-notch](./cc-notch) | Menu bar cost tracker (SwiftBar) | Shell |
-| [cc-plugin](./cc-plugin) | Claude Code plugins (base, swarm, wts) | YAML/Markdown |
+| [cc-plugin](./cc-plugin) | Claude Code plugins | YAML/Markdown |
+| [cc-what](./cc-what) | SDK & CLI for analyzing Claude Code usage data | TypeScript, Bun |
 | [dns](./dns) | DNS TXT record query utility | - |
 | [file-review](./file-review) | File review tool | - |
 | [hive](./hive) | macOS app for Claude Code sessions | TypeScript, Electron, Vite |
@@ -46,19 +47,22 @@ claude plugin marketplace add desplega-ai/ai-toolbox
 
 ### Available Plugins
 
-**Base desplega.ai agentic coding patterns:**
+| Plugin | Description |
+|--------|-------------|
+| `desplega` | Base agentic coding patterns (research, planning, implementation) |
+| `agent-swarm` | Multi-agent coordination |
+| `wts` | Git worktree manager |
+| `brain` | Personal knowledge management integration |
+| `file-review` | File review with inline comments |
+| `remarkable` | reMarkable tablet integration (get, put, ls) |
+
 ```bash
 /plugin install desplega@desplega-ai-toolbox
-```
-
-**Agent Swarm plugin:**
-```bash
 /plugin install agent-swarm@desplega-ai-toolbox
-```
-
-**`wts` worktree manager plugin:**
-```bash
 /plugin install wts@desplega-ai-toolbox
+/plugin install brain@desplega-ai-toolbox
+/plugin install file-review@desplega-ai-toolbox
+/plugin install remarkable@desplega-ai-toolbox
 ```
 
 ### Bash Install
@@ -69,9 +73,12 @@ You can also install from the terminal:
 claude plugin install desplega@desplega-ai-toolbox --scope user
 claude plugin install agent-swarm@desplega-ai-toolbox --scope user
 claude plugin install wts@desplega-ai-toolbox --scope user
+claude plugin install brain@desplega-ai-toolbox --scope user
+claude plugin install file-review@desplega-ai-toolbox --scope user
+claude plugin install remarkable@desplega-ai-toolbox --scope user
 ```
 
-Plugin structure: `cc-plugin/{base,swarm,wts}/` with hooks, skills, and agents.
+Plugin structure: `cc-plugin/{base,swarm,wts,brain,file-review,remarkable}/` with hooks, skills, and agents.
 
 ## Key Tools
 
@@ -86,6 +93,14 @@ uvx cc-ai-tracker stats     # View AI/human contribution stats
 npm install -g @desplega.ai/brain
 brain init && brain add "My first note"
 brain search "ideas"        # Semantic search
+```
+
+**cc-what** (TypeScript/Bun):
+```bash
+npm install -g @desplega.ai/cc-what
+cc-what                     # Summary of Claude Code usage
+cc-what stats --daily       # Daily activity stats
+cc-what costs --models      # Cost breakdown by model
 ```
 
 **wts** (TypeScript/Bun):
