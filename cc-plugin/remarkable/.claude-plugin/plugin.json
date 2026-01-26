@@ -1,0 +1,8 @@
+{
+  "name": "remarkable",
+  "description": "Push and pull files from reMarkable tablet via rmapi",
+  "version": "1.0.0",
+  "author": {
+    "name": "desplega.ai"
+  }
+}
