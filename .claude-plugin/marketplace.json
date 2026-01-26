@@ -32,6 +32,11 @@
             "name": "brain",
             "source": "./cc-plugin/brain",
             "description": "Plugin for the `brain` tool to manage and retrieve information from your personal local brain"
+        },
+        {
+            "name": "remarkable",
+            "source": "./cc-plugin/remarkable",
+            "description": "Plugin to interact with your reMarkable tablet"
         }
     ]
 }
