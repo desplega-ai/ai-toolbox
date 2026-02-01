@@ -58,7 +58,7 @@ export function TrendChart({ data, faded = false }: TrendChartProps) {
       style={{ opacity: faded ? 0.15 : 1 }}
     >
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={formattedData} margin={{ top: 20, right: 30, bottom: 20, left: 70 }}>
+        <LineChart data={formattedData} margin={{ top: 10, right: 10, bottom: 20, left: 45 }}>
           <XAxis
             dataKey="displayDate"
             stroke="white"

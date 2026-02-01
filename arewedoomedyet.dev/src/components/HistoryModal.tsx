@@ -23,7 +23,7 @@ export function HistoryModal({ isOpen, onClose }: HistoryModalProps) {
         className="bg-zinc-900 rounded-xl w-full max-w-5xl max-h-[90vh] mx-4 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-between items-center p-6 border-b border-white/10">
+        <div className="flex justify-between items-center p-4 sm:p-6 border-b border-white/10">
           <div>
             <h2 className="text-xl font-bold text-white">Doom History</h2>
             {allData && allData.length > 0 && (
@@ -40,7 +40,7 @@ export function HistoryModal({ isOpen, onClose }: HistoryModalProps) {
           </button>
         </div>
 
-        <div className="h-[500px] p-6">
+        <div className="h-[400px] sm:h-[500px] py-2 sm:p-6">
           {allData ? (
             allData.length > 0 ? (
               <TrendChart data={allData} faded={false} />
