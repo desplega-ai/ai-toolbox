@@ -34,19 +34,29 @@ export default function App() {
       </div>
 
       {/* Footer with subtle links */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 p-4 flex justify-center gap-6">
-        <button
-          onClick={() => setShowVoting(true)}
-          className="text-white/30 hover:text-white/60 text-sm transition-colors"
+      <div className="fixed bottom-0 left-0 right-0 z-20 p-4 flex flex-col items-center gap-2">
+        <div className="flex justify-center gap-6">
+          <button
+            onClick={() => setShowVoting(true)}
+            className="text-white/30 hover:text-white/60 text-sm transition-colors"
+          >
+            Vote
+          </button>
+          <button
+            onClick={() => setShowHistory(true)}
+            className="text-white/30 hover:text-white/60 text-sm transition-colors"
+          >
+            History
+          </button>
+        </div>
+        <a
+          href="https://desplega.ai"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-white/20 hover:text-white/40 text-xs transition-colors"
         >
-          Vote
-        </button>
-        <button
-          onClick={() => setShowHistory(true)}
-          className="text-white/30 hover:text-white/60 text-sm transition-colors"
-        >
-          History
-        </button>
+          made w 💀 by desplega.ai
+        </a>
       </div>
 
       {/* Modals */}
