@@ -9,6 +9,71 @@ const CACHE_PATH = join(CACHE_DIR, 'cc-what-pricing.json')
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
 
 /**
+ * Official Anthropic pricing (as of 2026-02)
+ * Source: https://www.anthropic.com/pricing
+ *
+ * Format: [input $/MTok, output $/MTok, cache_write $/MTok (5min), cache_read $/MTok]
+ *
+ * Model ID patterns:
+ *   claude-opus-4-5-*    → Opus 4.5
+ *   claude-opus-4-1-*    → Opus 4.1
+ *   claude-opus-4-*      → Opus 4 (not 4.1 or 4.5)
+ *   claude-sonnet-4-5-*  → Sonnet 4.5
+ *   claude-sonnet-4-*    → Sonnet 4 (not 4.5)
+ *   claude-sonnet-3-7-*  → Sonnet 3.7 (deprecated)
+ *   claude-haiku-4-5-*   → Haiku 4.5
+ *   claude-haiku-3-5-*   → Haiku 3.5
+ *   claude-opus-3-*      → Opus 3 (deprecated)
+ *   claude-haiku-3-*     → Haiku 3 (not 3.5)
+ */
+const ANTHROPIC_PRICING: Record<
+	string,
+	{ input: number; output: number; cacheWrite: number; cacheRead: number }
+> = {
+	// Opus family
+	'opus-4.5': { input: 5, output: 25, cacheWrite: 6.25, cacheRead: 0.5 },
+	'opus-4.1': { input: 15, output: 75, cacheWrite: 18.75, cacheRead: 1.5 },
+	'opus-4': { input: 15, output: 75, cacheWrite: 18.75, cacheRead: 1.5 },
+	'opus-3': { input: 15, output: 75, cacheWrite: 18.75, cacheRead: 1.5 },
+	// Sonnet family
+	'sonnet-4.5': { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 },
+	'sonnet-4': { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 },
+	'sonnet-3.7': { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 },
+	// Haiku family
+	'haiku-4.5': { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 },
+	'haiku-3.5': { input: 0.8, output: 4, cacheWrite: 1, cacheRead: 0.08 },
+	'haiku-3': { input: 0.25, output: 1.25, cacheWrite: 0.3, cacheRead: 0.03 },
+}
+
+/**
+ * Extract model family and version from full model ID
+ * e.g., "claude-opus-4-5-20251101" → "opus-4.5"
+ */
+function parseModelFamily(modelId: string): string | null {
+	// Pattern: claude-{family}-{major}-{minor?}-{date}
+	const match = modelId.match(/^claude-(\w+)-(\d+)(?:-(\d+))?-\d+$/)
+	if (!match) return null
+
+	const [, family, major, minor] = match
+	if (minor) {
+		return `${family}-${major}.${minor}`
+	}
+	return `${family}-${major}`
+}
+
+/**
+ * Get official Anthropic pricing for a model ID
+ * Returns pricing in $/MTok format, or null if unknown
+ */
+export function getAnthropicPricing(
+	modelId: string,
+): (typeof ANTHROPIC_PRICING)[string] | null {
+	const family = parseModelFamily(modelId)
+	if (!family) return null
+	return ANTHROPIC_PRICING[family] ?? null
+}
+
+/**
  * Pricing data for a single model
  */
 export interface ModelPricing {
@@ -63,6 +128,20 @@ export function getDefaultPricing(): ModelPricing {
 		output_cost_per_token: 0.000015,
 		cache_creation_input_token_cost: 0.00000375,
 		cache_read_input_token_cost: 0.0000003,
+	}
+}
+
+/**
+ * Convert Anthropic pricing ($/MTok) to ModelPricing (per token)
+ */
+function anthropicToModelPricing(
+	pricing: (typeof ANTHROPIC_PRICING)[string],
+): ModelPricing {
+	return {
+		input_cost_per_token: pricing.input / 1_000_000,
+		output_cost_per_token: pricing.output / 1_000_000,
+		cache_creation_input_token_cost: pricing.cacheWrite / 1_000_000,
+		cache_read_input_token_cost: pricing.cacheRead / 1_000_000,
 	}
 }
 
@@ -157,8 +236,16 @@ export async function fetchPricing(
 
 /**
  * Get pricing for a specific model
+ * Prefers official Anthropic pricing, falls back to LiteLLM
  */
 export async function getPricing(model: string): Promise<ModelPricing | null> {
+	// First try official Anthropic pricing (most reliable)
+	const anthropic = getAnthropicPricing(model)
+	if (anthropic) {
+		return anthropicToModelPricing(anthropic)
+	}
+
+	// Fall back to LiteLLM for other models
 	const db = await fetchPricing()
 	return db[model] ?? null
 }
@@ -235,5 +322,6 @@ export const pricing = {
 	computeAll: computeAllCosts,
 	listModels,
 	getDefault: getDefaultPricing,
+	getAnthropic: getAnthropicPricing,
 	clearCache,
 }

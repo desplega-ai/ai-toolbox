@@ -9,7 +9,7 @@ src/
 ├── index.ts              # Main exports
 ├── cli.ts                # CLI entry (commander)
 ├── config.ts             # Config & paths
-├── pricing.ts            # LiteLLM pricing data
+├── pricing.ts            # Anthropic pricing (official + LiteLLM fallback)
 ├── types.ts              # All TypeScript interfaces
 ├── sources/              # Data readers (raw file access)
 │   ├── stats-cache.ts    # stats-cache.json reader
@@ -38,6 +38,32 @@ src/
 | `projects/{encoded-path}/sessions-index.json` | Session metadata per project |
 | `projects/{encoded-path}/{sessionId}.jsonl` | Full session messages |
 | `projects/{path}/{sessionId}/subagents/` | Sub-agent conversation histories |
+
+## Pricing Reference
+
+Official Anthropic pricing (as of 2026-02). Source: https://www.anthropic.com/pricing
+
+| Model | Input | Output | Cache Write (5m) | Cache Read |
+|-------|-------|--------|------------------|------------|
+| Opus 4.5 | $5/MTok | $25/MTok | $6.25/MTok | $0.50/MTok |
+| Opus 4.1 | $15/MTok | $75/MTok | $18.75/MTok | $1.50/MTok |
+| Opus 4 | $15/MTok | $75/MTok | $18.75/MTok | $1.50/MTok |
+| Sonnet 4.5 | $3/MTok | $15/MTok | $3.75/MTok | $0.30/MTok |
+| Sonnet 4 | $3/MTok | $15/MTok | $3.75/MTok | $0.30/MTok |
+| Sonnet 3.7 | $3/MTok | $15/MTok | $3.75/MTok | $0.30/MTok |
+| Haiku 4.5 | $1/MTok | $5/MTok | $1.25/MTok | $0.10/MTok |
+| Haiku 3.5 | $0.80/MTok | $4/MTok | $1/MTok | $0.08/MTok |
+| Haiku 3 | $0.25/MTok | $1.25/MTok | $0.30/MTok | $0.03/MTok |
+| Opus 3 | $15/MTok | $75/MTok | $18.75/MTok | $1.50/MTok |
+
+Model ID patterns in stats-cache:
+- `claude-opus-4-5-*` → Opus 4.5
+- `claude-opus-4-1-*` → Opus 4.1
+- `claude-opus-4-*` → Opus 4
+- `claude-sonnet-4-5-*` → Sonnet 4.5
+- `claude-sonnet-4-*` → Sonnet 4
+- `claude-haiku-4-5-*` → Haiku 4.5
+- `claude-haiku-3-5-*` → Haiku 3.5
 
 ## Development
 
