@@ -1,6 +1,16 @@
 ---
 name: implementing
 description: Plan implementation skill. Executes approved technical plans phase by phase with verification checkpoints.
+hooks:
+  PostToolUse:
+    - matcher: "Edit|Write"
+      hooks:
+        - type: command
+          command: "${CLAUDE_PLUGIN_ROOT}/hooks/plan_checkbox_reminder.py"
+  Stop:
+    - hooks:
+        - type: command
+          command: "${CLAUDE_PLUGIN_ROOT}/hooks/plan_checkbox_stop.py"
 ---
 
 # Implementing
@@ -91,10 +101,11 @@ Store these preferences and apply them throughout the implementation.
 When given a plan path:
 1. Read the plan completely
 2. Check for existing checkmarks (`- [x]`)
-3. **Read files fully** - never use limit/offset parameters
-4. Think deeply about how the pieces fit together
-5. Create a todo list to track progress
-6. Start implementing if you understand what needs to be done
+3. Set plan status to `status: in-progress` by editing the frontmatter `status` field. This signals to progress-tracking hooks which plan is active.
+4. **Read files fully** - never use limit/offset parameters
+5. Think deeply about how the pieces fit together
+6. Create a todo list to track progress
+7. Start implementing if you understand what needs to be done
 
 If no plan path provided, ask for one.
 
@@ -160,5 +171,12 @@ If the plan has existing checkmarks:
 - Trust that completed work is done
 - Pick up from the first unchecked item
 - Verify previous work only if something seems off
+
+## Completing Implementation
+
+When all phases are complete and verified:
+1. Set the plan frontmatter `status` field to `completed`.
+2. Ensure automated verification checkboxes are updated.
+3. Leave manual verification checkboxes unchecked until the user confirms completion.
 
 Remember: You're implementing a solution, not just checking boxes. Keep the end goal in mind.
