@@ -35,6 +35,19 @@ export interface RenderPreviewResult {
   ranges: CommentableRange[];
 }
 
+interface FrontmatterEntry {
+  key: string;
+  label: string;
+  value: string | string[];
+  isArray: boolean;
+}
+
+interface FrontmatterParseResult {
+  entries: FrontmatterEntry[];
+  bodyMarkdown: string;
+  consumedChars: number;
+}
+
 export function initPreview(container: HTMLElement) {
   previewContainer = container;
 }
@@ -170,6 +183,168 @@ function injectHighlightSpans(content: string, comments: ReviewComment[]): strin
   }
 
   return result;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function toFrontmatterLabel(key: string): string {
+  return key
+    .split(/[_-]+/)
+    .filter((part) => part.length > 0)
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function parseArrayValue(rawValue: string): string[] {
+  const inner = rawValue.slice(1, -1).trim();
+  if (!inner) {
+    return [];
+  }
+
+  return inner
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+    .map((part) => {
+      const quote = part[0];
+      if (
+        (quote === '"' || quote === "'") &&
+        part.length >= 2 &&
+        part[part.length - 1] === quote
+      ) {
+        return part.slice(1, -1);
+      }
+      return part;
+    });
+}
+
+function parseLeadingFrontmatter(content: string): FrontmatterParseResult {
+  const bomOffset = content.startsWith('\uFEFF') ? 1 : 0;
+  const working = content.slice(bomOffset);
+
+  if (!(working.startsWith('---\n') || working.startsWith('---\r\n'))) {
+    return { entries: [], bodyMarkdown: content, consumedChars: 0 };
+  }
+
+  const afterOpening = working.startsWith('---\r\n') ? 5 : 4;
+  let cursor = afterOpening;
+  let closingLineEnd = -1;
+
+  while (cursor < working.length) {
+    const nextNewline = working.indexOf('\n', cursor);
+    const lineEnd = nextNewline === -1 ? working.length : nextNewline + 1;
+    const line = working
+      .slice(cursor, nextNewline === -1 ? working.length : nextNewline)
+      .replace(/\r$/, '');
+
+    if (/^---[ \t]*$/.test(line)) {
+      closingLineEnd = lineEnd;
+      break;
+    }
+
+    cursor = lineEnd;
+  }
+
+  if (closingLineEnd < 0) {
+    return { entries: [], bodyMarkdown: content, consumedChars: 0 };
+  }
+
+  const rawFrontmatter = working.slice(afterOpening, cursor);
+  const entries: FrontmatterEntry[] = [];
+
+  for (const rawLine of rawFrontmatter.split(/\r?\n/)) {
+    if (!rawLine.trim() || rawLine.trim().startsWith('#')) {
+      continue;
+    }
+
+    const separatorIndex = rawLine.indexOf(':');
+    if (separatorIndex <= 0) {
+      continue;
+    }
+
+    const key = rawLine.slice(0, separatorIndex).trim();
+    if (!key) {
+      continue;
+    }
+
+    const rawValue = rawLine.slice(separatorIndex + 1).trim();
+    const isArray = rawValue.startsWith('[') && rawValue.endsWith(']');
+
+    entries.push({
+      key,
+      label: toFrontmatterLabel(key),
+      value: isArray ? parseArrayValue(rawValue) : rawValue,
+      isArray,
+    });
+  }
+
+  const consumedChars = bomOffset + closingLineEnd;
+  const bodyMarkdown = content.slice(consumedChars);
+
+  return { entries, bodyMarkdown, consumedChars };
+}
+
+function renderFrontmatterHtml(entries: FrontmatterEntry[]): string {
+  if (entries.length === 0) {
+    return '';
+  }
+
+  const rows = entries
+    .map((entry) => {
+      const renderedValue = entry.isArray
+        ? (() => {
+            const items = entry.value as string[];
+            if (items.length === 0) {
+              return '<span class="frontmatter-empty">-</span>';
+            }
+
+            const chips = items
+              .map((item) => `<span class="frontmatter-chip">${escapeHtml(item)}</span>`)
+              .join('');
+            return `<span class="frontmatter-chip-list">${chips}</span>`;
+          })()
+        : (() => {
+            const value = entry.value as string;
+            if (!value) {
+              return '<span class="frontmatter-empty">-</span>';
+            }
+            return `<span class="frontmatter-text">${escapeHtml(value)}</span>`;
+          })();
+
+      return [
+        '<div class="frontmatter-row">',
+        `<span class="frontmatter-label">${escapeHtml(entry.label)}</span>`,
+        `<span class="frontmatter-value">${renderedValue}</span>`,
+        '</div>',
+      ].join('');
+    })
+    .join('');
+
+  return [
+    '<div class="frontmatter-card" data-frontmatter="true">',
+    '<div class="frontmatter-title">Metadata</div>',
+    `<div class="frontmatter-grid">${rows}</div>`,
+    '</div>',
+  ].join('');
+}
+
+function offsetRanges(ranges: CommentableRange[], offset: number): CommentableRange[] {
+  if (offset === 0) {
+    return ranges;
+  }
+
+  return ranges.map((range) => ({
+    ...range,
+    start: range.start + offset,
+    end: range.end + offset,
+  }));
 }
 
 function trimTrailingLineBreaks(raw: string): number {
@@ -421,18 +596,25 @@ function applyCommentHighlights(root: ParentNode, comments: ReviewComment[]) {
  * Render markdown with highlights
  */
 export function renderMarkdown(content: string, comments: ReviewComment[]): RenderPreviewResult {
-  // Step 1: Replace comment markers with HTML spans BEFORE markdown parsing
-  const contentWithSpans = injectHighlightSpans(content, comments);
+  const frontmatter = parseLeadingFrontmatter(content);
 
-  // Step 2: Compute exact source ranges from the original markdown content.
-  const ranges = collectCommentableRanges(content);
+  // Step 1: Replace comment markers with HTML spans BEFORE markdown parsing.
+  const contentWithSpans = injectHighlightSpans(frontmatter.bodyMarkdown, comments);
+
+  // Step 2: Compute exact source ranges from markdown body, then remap to original source offsets.
+  const ranges = offsetRanges(
+    collectCommentableRanges(frontmatter.bodyMarkdown),
+    frontmatter.consumedChars
+  );
 
   // Step 3: Parse markdown - marked preserves inline HTML by default.
-  const html = marked.parse(contentWithSpans, {
+  const markdownHtml = marked.parse(contentWithSpans, {
     async: false,
     gfm: true,
     breaks: true,
   }) as string;
+
+  const html = renderFrontmatterHtml(frontmatter.entries) + markdownHtml;
 
   return { html, ranges };
 }
