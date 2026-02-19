@@ -33,7 +33,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
     return true;
   }
 
-  return el.isContentEditable;
+  return false;
 }
 
 export async function showShortcutsHelp() {
