@@ -5,7 +5,7 @@ import {
   keymap,
   drawSelection,
 } from "@codemirror/view";
-import { EditorState, Compartment, Prec } from "@codemirror/state";
+import { EditorState, Compartment, Prec, type ChangeDesc } from "@codemirror/state";
 import { markdown } from "@codemirror/lang-markdown";
 import { defaultKeymap, history, historyKeymap, undo, redo } from "@codemirror/commands";
 import { vim, Vim } from "@replit/codemirror-vim";
@@ -17,6 +17,7 @@ const themeCompartment = new Compartment();
 const vimCompartment = new Compartment();
 const fontSizeCompartment = new Compartment();
 const keymapCompartment = new Compartment();
+const docChangeCallbacks: Array<(changes: ChangeDesc) => void> = [];
 
 // Filter out Ctrl+D from defaultKeymap (conflicts with vim half-page scroll)
 const filteredKeymap = defaultKeymap.filter(
@@ -43,6 +44,10 @@ export function initEditor(container: HTMLElement, fontSize: number = 14) {
       highlightActiveLine(),
       markdown(),
       commentHighlightField,
+      EditorView.updateListener.of((update) => {
+        if (!update.docChanged) return;
+        docChangeCallbacks.forEach((callback) => callback(update.changes));
+      }),
       keymapCompartment.of(keymap.of([...filteredKeymap, ...historyKeymap])),
       themeCompartment.of(getThemeExtension("dark")),
       fontSizeCompartment.of(createFontSizeTheme(fontSize)),
@@ -140,4 +145,8 @@ export function onSelectionChange(callback: (hasSelection: boolean) => void) {
   editorView.dom.addEventListener("keyup", () => {
     callback(hasSelection());
   });
+}
+
+export function onDocumentChange(callback: (changes: ChangeDesc) => void) {
+  docChangeCallbacks.push(callback);
 }

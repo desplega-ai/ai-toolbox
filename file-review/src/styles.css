@@ -239,29 +239,20 @@ body {
 }
 
 /* Comment highlights in preview */
-.review-comment-highlight {
+#preview-container [data-commentable="true"].review-comment-highlight {
   background: var(--highlight-bg);
-  border-left: 3px solid var(--highlight-border);
-  padding-left: 8px;
+  outline: 1px solid var(--highlight-border);
+  border-radius: 4px;
   cursor: pointer;
-  display: inline;
 }
 
-.review-comment-highlight:hover {
+#preview-container [data-commentable="true"].review-comment-highlight:hover {
   background: rgba(255, 213, 0, 0.35);
 }
 
-/* Comment highlights in table cells */
-#preview-container td .review-comment-highlight,
-#preview-container th .review-comment-highlight {
-  display: inline;
-  padding: 2px 0;
-}
-
-/* Ensure highlight doesn't break table layout */
-#preview-container table .review-comment-highlight {
-  border-left: none;
-  padding-left: 0;
+/* Highlight table rows by coloring cells to preserve row layout */
+#preview-container tr.review-comment-highlight > td,
+#preview-container tr.review-comment-highlight > th {
   background: var(--highlight-bg);
 }
 

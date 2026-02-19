@@ -25,6 +25,17 @@ export const shortcuts: Shortcut[] = [
 
 let helpModalVisible = false;
 
+function isEditableTarget(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el) return false;
+
+  if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) {
+    return true;
+  }
+
+  return el.isContentEditable;
+}
+
 export async function showShortcutsHelp() {
   if (helpModalVisible) {
     hideShortcutsHelp();
@@ -114,35 +125,56 @@ export function hideShortcutsHelp() {
 export function initShortcuts(handlers: Record<string, () => void>) {
   document.addEventListener("keydown", (e) => {
     const isMeta = e.metaKey || e.ctrlKey;
+    if (!isMeta) return;
 
-    if (isMeta && e.key === "k") {
+    const key = e.key.toLowerCase();
+    const editingText = isEditableTarget(e.target);
+
+    // Keep native clipboard/select-all behavior untouched.
+    if (key === "a" || key === "c" || key === "v" || key === "x") {
+      return;
+    }
+
+    // Save should always work regardless of focus.
+    if (key === "s") {
+      e.preventDefault();
+      handlers.save?.();
+      return;
+    }
+
+    // In input/textarea/contenteditable, keep native text-editing shortcuts.
+    if (editingText) {
+      return;
+    }
+
+    if (key === "k") {
       e.preventDefault();
       handlers.addComment?.();
-    } else if (isMeta && e.key === "/") {
+    } else if (e.key === "/") {
       e.preventDefault();
       showShortcutsHelp();
-    } else if (isMeta && e.key === "t") {
+    } else if (key === "t") {
       e.preventDefault();
       handlers.toggleTheme?.();
-    } else if (isMeta && e.key === "m") {
+    } else if (key === "m") {
       e.preventDefault();
       handlers.toggleMarkdownView?.();
-    } else if (isMeta && e.key.toLowerCase() === "v" && e.shiftKey) {
+    } else if (key === "v" && e.shiftKey) {
       e.preventDefault();
       handlers.toggleVim?.();
-    } else if (isMeta && e.key === "o") {
+    } else if (key === "o") {
       e.preventDefault();
       handlers.openFile?.();
-    } else if (isMeta && (e.key === "=" || e.key === "+")) {
+    } else if (e.key === "=" || e.key === "+") {
       e.preventDefault();
       handlers.zoomIn?.();
-    } else if (isMeta && e.key === "-") {
+    } else if (e.key === "-") {
       e.preventDefault();
       handlers.zoomOut?.();
-    } else if (isMeta && e.key === "z" && e.shiftKey) {
+    } else if (key === "z" && e.shiftKey) {
       e.preventDefault();
       handlers.redo?.();
-    } else if (isMeta && e.key === "z") {
+    } else if (key === "z") {
       e.preventDefault();
       handlers.undo?.();
     }

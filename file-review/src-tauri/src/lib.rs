@@ -15,7 +15,7 @@ use comments::{
 use file_ops::AppState;
 use std::sync::Mutex;
 use tauri::{
-    menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder},
+    menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder},
     Emitter, Manager,
 };
 
@@ -55,7 +55,27 @@ pub fn run(
                 .item(&quit_item)
                 .build()?;
 
-            let menu = MenuBuilder::new(app).item(&file_menu).build()?;
+            let undo_item = PredefinedMenuItem::undo(app, None)?;
+            let redo_item = PredefinedMenuItem::redo(app, None)?;
+            let cut_item = PredefinedMenuItem::cut(app, None)?;
+            let copy_item = PredefinedMenuItem::copy(app, None)?;
+            let paste_item = PredefinedMenuItem::paste(app, None)?;
+            let select_all_item = PredefinedMenuItem::select_all(app, None)?;
+
+            let edit_menu = SubmenuBuilder::new(app, "Edit")
+                .item(&undo_item)
+                .item(&redo_item)
+                .separator()
+                .item(&cut_item)
+                .item(&copy_item)
+                .item(&paste_item)
+                .item(&select_all_item)
+                .build()?;
+
+            let menu = MenuBuilder::new(app)
+                .item(&file_menu)
+                .item(&edit_menu)
+                .build()?;
             app.set_menu(menu)?;
 
             // Handle menu events

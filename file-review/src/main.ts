@@ -13,12 +13,14 @@ import {
   editorRedo,
   focusEditor,
   onSelectionChange,
+  onDocumentChange,
 } from "./editor";
 import {
-  parseComments,
-  insertWrappedComment,
-  insertLineComment,
-  removeComment,
+  parseAndStripComments,
+  serializeComments,
+  createComment,
+  addComment,
+  mapCommentsThroughChanges,
   addHighlight,
   clearHighlights,
   type ReviewComment,
@@ -54,6 +56,9 @@ let vimEnabled = false;
 let appConfig: AppConfig;
 let isMarkdownFile = false;
 let isRawMode = false; // false = pretty/rendered, true = raw CodeMirror
+let suppressCommentSync = false;
+let hasUnsavedChanges = false;
+let lastSavedSnapshot = "";
 
 // For preview mode commenting
 let pendingPreviewComment: {
@@ -85,6 +90,63 @@ function updateCommentButton(hasSelection: boolean) {
       label.textContent = hasSelection ? "Comment Selection" : "Comment Line";
     }
   }
+}
+
+function withSuppressedCommentSync<T>(fn: () => T): T {
+  suppressCommentSync = true;
+  try {
+    return fn();
+  } finally {
+    suppressCommentSync = false;
+  }
+}
+
+function getSerializedContentForPersistence(content = getEditorContent()): string {
+  return serializeComments(content, comments);
+}
+
+function markSnapshotAsSaved(snapshot: string) {
+  lastSavedSnapshot = snapshot;
+  hasUnsavedChanges = false;
+}
+
+function syncUnsavedChangesState() {
+  if (!currentFilePath) {
+    hasUnsavedChanges = false;
+    return;
+  }
+  hasUnsavedChanges = getSerializedContentForPersistence() !== lastSavedSnapshot;
+}
+
+function confirmDiscardUnsavedChanges(action: string): boolean {
+  if (!hasUnsavedChanges) {
+    return true;
+  }
+  return window.confirm(`You have unsaved changes. ${action}`);
+}
+
+function renderCommentState() {
+  renderComments(comments);
+
+  const content = getEditorContent();
+  if (isMarkdownFile && !isRawMode) {
+    updatePreview(content, comments);
+  }
+
+  const view = getEditorView();
+  view.dispatch({ effects: clearHighlights.of() });
+
+  for (const comment of comments) {
+    view.dispatch({
+      effects: addHighlight.of({
+        from: comment.highlight_start,
+        to: comment.highlight_end,
+        commentId: comment.id,
+      }),
+    });
+  }
+
+  syncUnsavedChangesState();
 }
 
 async function init() {
@@ -124,6 +186,7 @@ async function init() {
   // Initialize keyboard shortcuts
   initShortcuts({
     addComment: handleAddCommentShortcut,
+    save: saveFile,
     toggleTheme,
     toggleVim,
     toggleMarkdownView,
@@ -157,16 +220,6 @@ async function init() {
     });
   }
 
-  // Add keyboard shortcut for save in web mode
-  if (!isTauri()) {
-    document.addEventListener("keydown", async (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
-        e.preventDefault();
-        await saveFile();
-      }
-    });
-  }
-
   // Set up empty state open button
   document
     .getElementById("empty-open-btn")
@@ -194,6 +247,29 @@ async function init() {
 
   // Update comment button on selection change
   onSelectionChange(updateCommentButton);
+  onDocumentChange((changes) => {
+    if (suppressCommentSync) {
+      return;
+    }
+
+    if (comments.length === 0) {
+      syncUnsavedChangesState();
+      return;
+    }
+
+    comments = mapCommentsThroughChanges(comments, (pos, assoc) =>
+      changes.mapPos(pos, assoc)
+    );
+    renderCommentState();
+  });
+
+  window.addEventListener("beforeunload", (event) => {
+    if (!hasUnsavedChanges) {
+      return;
+    }
+    event.preventDefault();
+    event.returnValue = "";
+  });
 
   // Listen for preview comment clicks (when clicking on highlighted text)
   window.addEventListener("preview-comment-click", ((e: CustomEvent<{ commentId: string }>) => {
@@ -296,6 +372,10 @@ function setupWebModeUI() {
  * Handle quit button click in web mode
  */
 async function handleWebQuit() {
+  if (!confirmDiscardUnsavedChanges("Quit without saving?")) {
+    return;
+  }
+
   try {
     const result = await API.quit();
     showFinalReportModal(result);
@@ -377,6 +457,10 @@ function hideEmptyState() {
 }
 
 async function showFilePickerAndLoad() {
+  if (!confirmDiscardUnsavedChanges("Open another file and discard them?")) {
+    return;
+  }
+
   const filePath = await showFilePicker();
   if (filePath) {
     await loadFile(filePath);
@@ -499,17 +583,13 @@ function handlePreviewAddComment(
 }
 
 async function handleCommentSubmit(text: string, _lineNumber: number) {
-  const content = getEditorContent();
-
   // Handle preview mode comment
   if (pendingPreviewComment) {
     const { sourceStart, sourceEnd, element } = pendingPreviewComment;
     pendingPreviewComment = null;
 
-    // Use insertLineComment with the source positions
-    const [newContent] = await insertLineComment(content, sourceStart, sourceEnd, text);
-    setEditorContent(newContent);
-    await refreshComments();
+    comments = addComment(comments, createComment("line", sourceStart, sourceEnd, text));
+    renderCommentState();
 
     // Flash the element for visual feedback
     flashElement(element);
@@ -534,37 +614,35 @@ async function handleCommentSubmit(text: string, _lineNumber: number) {
   const isFullLineSelection =
     selection.from === startLine.from && selection.to === startLine.to;
 
-  let newContent: string;
-
   if (isMultiLine || isFullLineSelection) {
-    // For multi-line or full-line selections, use line-based comments
-    // Expand selection to include full lines
+    // For multi-line or full-line selections, use line-based comments.
     const lineStart = startLine.from;
     const lineEnd = endLine.to;
-
-    [newContent] = await insertLineComment(content, lineStart, lineEnd, text);
+    comments = addComment(comments, createComment("line", lineStart, lineEnd, text));
   } else {
-    // For partial single-line selections, use wrapped inline comments
-    [newContent] = await insertWrappedComment(
-      content,
-      selection.from,
-      selection.to,
-      text
+    comments = addComment(
+      comments,
+      createComment("inline", selection.from, selection.to, text)
     );
   }
 
-  setEditorContent(newContent);
-  await refreshComments();
+  renderCommentState();
   showToast("Comment added", "success");
   focusEditor();
 }
 
 async function loadFile(path: string) {
   try {
-    const content = await API.readFile(path);
+    const fileContent = await API.readFile(path);
+    const parsed = parseAndStripComments(fileContent);
     currentFilePath = path;
     await API.setCurrentFile(path);
-    setEditorContent(content);
+    comments = parsed.comments;
+    markSnapshotAsSaved(serializeComments(parsed.cleanContent, parsed.comments));
+
+    withSuppressedCommentSync(() => {
+      setEditorContent(parsed.cleanContent);
+    });
 
     // Check if stdin mode for UI adjustments
     const isStdin = await API.isStdinMode();
@@ -581,8 +659,8 @@ async function loadFile(path: string) {
     const commentBtn = document.getElementById("add-comment-btn");
     if (commentBtn) commentBtn.style.display = "flex";
 
-    // Parse and display existing comments
-    await refreshComments();
+    // Render existing comments/highlights from in-memory state
+    renderCommentState();
 
     // Set up view mode for markdown files
     if (isMarkdownFile) {
@@ -650,47 +728,19 @@ async function saveFile() {
   if (!currentFilePath) return;
 
   try {
-    const content = getEditorContent();
-    await API.writeFile(currentFilePath, content);
+    const contentWithComments = getSerializedContentForPersistence();
+    await API.writeFile(currentFilePath, contentWithComments);
+    markSnapshotAsSaved(contentWithComments);
     showToast("File saved", "success");
   } catch (error) {
     console.error("Failed to save file:", error);
   }
 }
 
-async function refreshComments() {
-  const content = getEditorContent();
-  comments = await parseComments(content);
-  renderComments(comments);
-
-  // Update preview if in rendered mode
-  if (isMarkdownFile && !isRawMode) {
-    updatePreview(content, comments);
-  }
-
-  // Clear and re-add highlights in editor
-  const view = getEditorView();
-  view.dispatch({ effects: clearHighlights.of() });
-
-  // Add highlights for each comment using absolute positions
-  for (const comment of comments) {
-    view.dispatch({
-      effects: addHighlight.of({
-        from: comment.highlight_start,
-        to: comment.highlight_end,
-        commentId: comment.id,
-      }),
-    });
-  }
-}
-
 function handleDeleteComment(commentId: string) {
-  const content = getEditorContent();
-  removeComment(content, commentId).then((newContent) => {
-    setEditorContent(newContent);
-    refreshComments();
-    showToast("Comment removed", "info");
-  });
+  comments = comments.filter((comment) => comment.id !== commentId);
+  renderCommentState();
+  showToast("Comment removed", "info");
 }
 
 function handleCommentClick(comment: ReviewComment) {
