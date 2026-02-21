@@ -15,7 +15,6 @@ program.name("dokcli").description(pkg.description).version(pkg.version);
 // Global options
 program.option("--json", "Output raw JSON");
 program.option("--server <url>", "Override server URL");
-program.option("--api-key <key>", "Override API key");
 
 // Static commands
 program.addCommand(loginCommand);
@@ -27,8 +26,8 @@ try {
   const spec = await getSpec();
   const commands = parseSpec(spec);
   registerDynamicCommands(program, commands, executeApiCall);
-} catch {
-  // No spec available — only static commands work
+} catch (error) {
+  console.error("Warning: Failed to load dynamic commands:", (error as Error).message);
 }
 
 program.parse();

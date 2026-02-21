@@ -5,7 +5,7 @@ import type { CommandDef } from "../spec/parser.ts";
 type ExecuteCall = (
   def: CommandDef,
   args: Record<string, unknown>,
-  globalOpts?: { server?: string; apiKey?: string; json?: boolean },
+  globalOpts?: { server?: string; json?: boolean },
 ) => Promise<void>;
 
 export function registerDynamicCommands(
@@ -45,7 +45,6 @@ export function registerDynamicCommands(
 
         const root = program.opts() as {
           server?: string;
-          apiKey?: string;
           json?: boolean;
         };
         await executeCall(def, options, root);

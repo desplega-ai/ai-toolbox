@@ -30,10 +30,19 @@ export function loadConfig(): DokcliConfig {
 }
 
 export function saveConfig(updates: Partial<DokcliConfig>): void {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
   const existing = readConfigFile();
   const merged = { ...existing, ...updates };
-  fs.writeFileSync(CONFIG_PATH, `${JSON.stringify(merged, null, 2)}\n`);
+  fs.writeFileSync(CONFIG_PATH, `${JSON.stringify(merged, null, 2)}\n`, { mode: 0o600 });
+}
+
+export function deleteConfigKeys(keys: string[]): void {
+  fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
+  const existing = readConfigFile();
+  for (const key of keys) {
+    delete (existing as Record<string, unknown>)[key];
+  }
+  fs.writeFileSync(CONFIG_PATH, `${JSON.stringify(existing, null, 2)}\n`, { mode: 0o600 });
 }
 
 export function getApiKey(): string | null {
