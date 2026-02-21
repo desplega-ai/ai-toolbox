@@ -4,6 +4,7 @@ import pkg from "../package.json";
 import { executeApiCall } from "./client/index.ts";
 import { configCommand } from "./commands/config.ts";
 import { loginCommand } from "./commands/login.ts";
+import { logsCommand } from "./commands/logs.ts";
 import { specCommand } from "./commands/spec.ts";
 import { registerDynamicCommands } from "./dynamic/index.ts";
 import { getSpec } from "./spec/index.ts";
@@ -20,6 +21,7 @@ program.option("--server <url>", "Override server URL");
 program.addCommand(loginCommand);
 program.addCommand(configCommand);
 program.addCommand(specCommand);
+program.addCommand(logsCommand);
 
 // Dynamic commands from spec
 try {
