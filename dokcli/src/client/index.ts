@@ -19,11 +19,11 @@ export class ApiError extends Error {
 export async function executeApiCall(
   def: CommandDef,
   args: Record<string, unknown>,
-  globalOpts?: { server?: string; apiKey?: string; json?: boolean },
+  globalOpts?: { server?: string; json?: boolean },
 ): Promise<void> {
   const auth = ensureAuth();
   const serverUrl = globalOpts?.server || auth.serverUrl;
-  const apiKey = globalOpts?.apiKey || auth.apiKey;
+  const apiKey = auth.apiKey;
 
   // Ensure the path has /api prefix for the actual request
   const apiPath = def.path.startsWith("/api/") ? def.path : `/api${def.path}`;

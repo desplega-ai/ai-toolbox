@@ -23,15 +23,35 @@ export async function fetchSpec(serverUrl: string, apiKey: string): Promise<Open
   return spec;
 }
 
+interface SpecCache {
+  cachedAt: string;
+  spec: OpenAPIV3.Document;
+}
+
+const STALE_DAYS = 7;
+
 export function saveSpecCache(spec: OpenAPIV3.Document): void {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true });
-  fs.writeFileSync(SPEC_CACHE_PATH, JSON.stringify(spec));
+  fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
+  const cache: SpecCache = { cachedAt: new Date().toISOString(), spec };
+  fs.writeFileSync(SPEC_CACHE_PATH, JSON.stringify(cache), { mode: 0o600 });
 }
 
 export function loadSpecCache(): OpenAPIV3.Document | null {
   try {
     const raw = fs.readFileSync(SPEC_CACHE_PATH, "utf-8");
-    return JSON.parse(raw) as OpenAPIV3.Document;
+    const parsed = JSON.parse(raw);
+
+    // Support both wrapped (new) and unwrapped (old) cache formats
+    if (parsed.cachedAt && parsed.spec) {
+      const ageMs = Date.now() - new Date(parsed.cachedAt).getTime();
+      const ageDays = Math.floor(ageMs / (1000 * 60 * 60 * 24));
+      if (ageDays > STALE_DAYS) {
+        console.warn(`Cached spec is ${ageDays} days old. Run 'dokcli spec refresh' to update.`);
+      }
+      return parsed.spec as OpenAPIV3.Document;
+    }
+
+    return parsed as OpenAPIV3.Document;
   } catch {
     return null;
   }

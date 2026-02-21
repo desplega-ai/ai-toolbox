@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import { Command } from "commander";
-import { loadConfig, saveConfig } from "../config/index.ts";
+import { deleteConfigKeys, loadConfig, saveConfig } from "../config/index.ts";
 
 export const configCommand = new Command("config").description("View or update CLI configuration");
 
@@ -12,7 +12,7 @@ configCommand
     console.log(chalk.bold("Current configuration:"));
     console.log(`  Server URL: ${config.serverUrl}`);
     console.log(
-      `  API Key:    ${config.apiKey ? `${config.apiKey.slice(0, 8)}...` : chalk.dim("(not set)")}`,
+      `  API Key:    ${config.apiKey ? `${config.apiKey.slice(0, 4)}***` : chalk.dim("(not set)")}`,
     );
   });
 
@@ -34,7 +34,7 @@ configCommand
     }
     saveConfig({ [mapped]: value });
     console.log(
-      chalk.green(`Set ${key} = ${mapped === "apiKey" ? `${value.slice(0, 8)}...` : value}`),
+      chalk.green(`Set ${key} = ${mapped === "apiKey" ? `${value.slice(0, 4)}***` : value}`),
     );
   });
 
@@ -53,6 +53,6 @@ configCommand
       console.error(chalk.red(`Unknown config key: ${key}. Use "server" or "key".`));
       process.exit(1);
     }
-    saveConfig({ [mapped]: "" });
+    deleteConfigKeys([mapped]);
     console.log(chalk.green(`Unset ${key}`));
   });

@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import { Command } from "commander";
-import { getServerUrl, saveConfig } from "../config/index.ts";
+import { getApiKey, getServerUrl, saveConfig } from "../config/index.ts";
 
 export const loginCommand = new Command("login")
   .description("Configure server URL and API key")
@@ -21,12 +21,12 @@ export const loginCommand = new Command("login")
     const serverUrl = options.server || getServerUrl();
     console.log(chalk.green("Configuration saved."));
     console.log(`  Server: ${serverUrl}`);
-    if (options.key) console.log(`  API Key: ${options.key.slice(0, 8)}...`);
+    if (options.key) console.log(`  API Key: ${options.key.slice(0, 4)}***`);
 
     // Verify connection
     try {
       const res = await fetch(`${serverUrl}/api/settings.getDokployVersion`, {
-        headers: { "x-api-key": options.key || "" },
+        headers: { "x-api-key": options.key || getApiKey() || "" },
       });
       if (res.ok) {
         const version = await res.json();
