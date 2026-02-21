@@ -73,7 +73,7 @@ const containerCommand = new Command("container")
   .option("--search <text>", "Filter log text")
   .option("--swarm", "Use Docker Swarm service logs")
   .option("--server-id <id>", "Remote server ID")
-  .action(async (containerId: string, opts) => {
+  .action((containerId: string, opts) => {
     try {
       const { apiKey, serverUrl } = ensureAuth();
       const program = containerCommand.parent?.parent;
@@ -84,9 +84,12 @@ const containerCommand = new Command("container")
         containerId,
         tail: opts.tail,
         since: opts.since,
-        search: opts.search || "",
         runType: opts.swarm ? "swarm" : "docker",
       });
+
+      if (opts.search) {
+        params.set("search", opts.search);
+      }
 
       if (opts.serverId) {
         params.set("serverId", opts.serverId);
@@ -104,7 +107,7 @@ const deploymentCommand = new Command("deployment")
   .description("Stream deployment build logs")
   .argument("<logPath>", "Server-side log file path")
   .option("--server-id <id>", "Remote server ID")
-  .action(async (logPath: string, opts) => {
+  .action((logPath: string, opts) => {
     try {
       const { apiKey, serverUrl } = ensureAuth();
       const program = deploymentCommand.parent?.parent;
