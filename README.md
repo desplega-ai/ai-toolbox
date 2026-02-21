@@ -12,6 +12,7 @@ Monorepo of AI and developer tools by [desplega.ai](https://desplega.ai). Each s
 | [cc-notch](./cc-notch) | Menu bar cost tracker (SwiftBar) | Shell |
 | [cc-plugin](./cc-plugin) | Claude Code plugins | YAML/Markdown |
 | [cc-what](./cc-what) | SDK & CLI for analyzing Claude Code usage data | TypeScript, Bun |
+| [dokcli](./dokcli) | CLI tool for Dokploy (auto-generated from OpenAPI) | TypeScript, Bun |
 | [dns](./dns) | DNS TXT record query utility | - |
 | [file-review](./file-review) | File review tool | - |
 | [hive](./hive) | macOS app for Claude Code sessions | TypeScript, Electron, Vite |
