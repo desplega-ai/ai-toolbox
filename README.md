@@ -18,6 +18,7 @@ Monorepo of AI and developer tools by [desplega.ai](https://desplega.ai). Each s
 | [hive](./hive) | macOS app for Claude Code sessions | TypeScript, Electron, Vite |
 | [hn-sql](./hn-sql) | HN data with Parquet + SQL | - |
 | [invoice-cli](./invoice-cli) | Invoice email fetcher | - |
+| [meme-gen](./meme-gen) | Meme generator using Imgflip API | TypeScript, Bun |
 | [thoughts](./thoughts) | Research notes & plans (via /desplega:\*) | Markdown |
 | [willitfront.page](./willitfront.page) | HN analysis with natural language | - |
 | [wts](./wts) | Git worktree manager | TypeScript, Bun |
