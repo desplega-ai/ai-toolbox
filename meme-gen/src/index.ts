@@ -18,8 +18,9 @@ import {
   getTemplates,
   searchTemplates,
   findTemplateId,
-  POPULAR_TEMPLATES,
+  TEMPLATE_ALIASES,
 } from "./imgflip.js";
+import { clearCache } from "./cache.js";
 
 function getCredentials(): { username: string; password: string } {
   const username = process.env.IMGFLIP_USERNAME;
@@ -79,14 +80,15 @@ program
 
 program
   .command("list")
-  .description("List available meme templates")
+  .description("List available meme templates from the imgflip catalog")
   .option("-n, --limit <number>", "Number of templates to show", "25")
-  .option("--aliases", "Show built-in template aliases")
+  .option("--aliases", "Show built-in template aliases (shortcuts)")
+  .option("--refresh", "Force refresh the template cache")
   .action(async (opts) => {
     if (opts.aliases) {
       console.log("Built-in template aliases:\n");
       const seen = new Set<string>();
-      for (const [alias, id] of Object.entries(POPULAR_TEMPLATES)) {
+      for (const [alias, id] of Object.entries(TEMPLATE_ALIASES)) {
         if (!seen.has(id)) {
           console.log(`  ${alias.padEnd(28)} (ID: ${id})`);
           seen.add(id);
@@ -96,10 +98,10 @@ program
     }
 
     try {
-      const templates = await getTemplates();
+      const templates = await getTemplates(opts.refresh);
       const limit = parseInt(opts.limit, 10);
 
-      console.log(`Top ${limit} meme templates:\n`);
+      console.log(`Top ${Math.min(limit, templates.length)} meme templates:\n`);
       for (const t of templates.slice(0, limit)) {
         console.log(`  ${t.name.padEnd(35)} ID: ${t.id.padEnd(12)} boxes: ${t.box_count}`);
       }
@@ -112,8 +114,13 @@ program
 
 program
   .command("search <query>")
-  .description("Search for meme templates by name")
-  .action(async (query) => {
+  .description("Search for meme templates by name in the live catalog")
+  .option("--refresh", "Force refresh the template cache")
+  .action(async (query, opts) => {
+    if (opts.refresh) {
+      await clearCache();
+    }
+
     try {
       const matches = await searchTemplates(query);
 
@@ -133,6 +140,38 @@ program
     } catch (err: any) {
       console.error(`Error: ${err.message}`);
       process.exit(1);
+    }
+  });
+
+program
+  .command("cache")
+  .description("Manage the template cache")
+  .option("--clear", "Clear the cached templates")
+  .option("--refresh", "Refresh the cache from the API")
+  .action(async (opts) => {
+    if (opts.clear) {
+      await clearCache();
+      console.log("Template cache cleared.");
+      return;
+    }
+
+    if (opts.refresh) {
+      await clearCache();
+      const templates = await getTemplates(true);
+      console.log(`Cache refreshed: ${templates.length} templates loaded.`);
+      return;
+    }
+
+    // Default: show cache status
+    const { readCache } = await import("./cache.js");
+    const cached = await readCache();
+    if (cached) {
+      const age = Date.now() - cached.fetchedAt;
+      const hours = Math.floor(age / (1000 * 60 * 60));
+      const mins = Math.floor((age % (1000 * 60 * 60)) / (1000 * 60));
+      console.log(`Cache: ${cached.templates.length} templates, age: ${hours}h ${mins}m`);
+    } else {
+      console.log("No cache found (will fetch on next command).");
     }
   });
 

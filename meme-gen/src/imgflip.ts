@@ -3,6 +3,8 @@
  * API docs: https://imgflip.com/api
  */
 
+import { readCache, writeCache } from "./cache.js";
+
 const API_BASE = "https://api.imgflip.com";
 
 export interface MemeTemplate {
@@ -20,7 +22,7 @@ export interface GenerateResult {
 }
 
 /** Popular template aliases → imgflip template IDs */
-export const POPULAR_TEMPLATES: Record<string, string> = {
+export const TEMPLATE_ALIASES: Record<string, string> = {
   drake: "181913649",
   drake_hotline_bling: "181913649",
   distracted_boyfriend: "112126428",
@@ -49,7 +51,10 @@ export const POPULAR_TEMPLATES: Record<string, string> = {
   ancient_aliens: "101470",
 };
 
-export async function getTemplates(): Promise<MemeTemplate[]> {
+/** @deprecated Use TEMPLATE_ALIASES instead */
+export const POPULAR_TEMPLATES = TEMPLATE_ALIASES;
+
+async function fetchTemplatesFromAPI(): Promise<MemeTemplate[]> {
   const res = await fetch(`${API_BASE}/get_memes`);
   const data = await res.json();
 
@@ -58,6 +63,21 @@ export async function getTemplates(): Promise<MemeTemplate[]> {
   }
 
   return data.data.memes;
+}
+
+/**
+ * Get all available templates. Uses local cache (24h TTL) to avoid
+ * hitting the imgflip API on every invocation.
+ */
+export async function getTemplates(forceRefresh = false): Promise<MemeTemplate[]> {
+  if (!forceRefresh) {
+    const cached = await readCache();
+    if (cached) return cached.templates;
+  }
+
+  const templates = await fetchTemplatesFromAPI();
+  await writeCache(templates);
+  return templates;
 }
 
 function normalizeKey(name: string): string {
@@ -76,12 +96,12 @@ export async function findTemplateId(templateName: string): Promise<string> {
 
   const key = normalizeKey(templateName);
 
-  // Check static aliases
-  if (POPULAR_TEMPLATES[key]) {
-    return POPULAR_TEMPLATES[key];
+  // Check static aliases first (fast path, no API/cache needed)
+  if (TEMPLATE_ALIASES[key]) {
+    return TEMPLATE_ALIASES[key];
   }
 
-  // Search API templates
+  // Search live catalog
   const templates = await getTemplates();
 
   // Exact name match
