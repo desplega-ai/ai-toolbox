@@ -1,5 +1,6 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import {
+  findTemplate,
   findTemplateId,
   getTemplates,
   searchTemplates,
@@ -55,6 +56,31 @@ describe("template cache", () => {
   });
 });
 
+describe("findTemplate", () => {
+  test("returns full template object with box_count", async () => {
+    const t = await findTemplate("drake");
+    expect(t.id).toBe("181913649");
+    expect(t.name).toBeDefined();
+    expect(t.box_count).toBeGreaterThan(0);
+  });
+
+  test("resolves numeric ID to full template", async () => {
+    const t = await findTemplate("181913649");
+    expect(t.id).toBe("181913649");
+    expect(t.box_count).toBeGreaterThan(0);
+  });
+
+  test("returns default box_count=2 for unknown numeric ID", async () => {
+    const t = await findTemplate("999999999");
+    expect(t.id).toBe("999999999");
+    expect(t.box_count).toBe(2);
+  });
+
+  test("throws for unknown name", async () => {
+    expect(findTemplate("zzz_nonexistent_zzz")).rejects.toThrow("not found");
+  });
+});
+
 describe("findTemplateId", () => {
   test("resolves numeric ID directly", async () => {
     const id = await findTemplateId("181913649");
@@ -72,7 +98,6 @@ describe("findTemplateId", () => {
   });
 
   test("resolves partial name from catalog", async () => {
-    // "Two Buttons" should match a template containing that text
     const id = await findTemplateId("Two Buttons");
     expect(id).toBeDefined();
     expect(/^\d+$/.test(id)).toBe(true);

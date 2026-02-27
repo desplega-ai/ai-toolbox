@@ -3,7 +3,8 @@
  * meme-gen — CLI tool for generating memes using the Imgflip API
  *
  * Usage:
- *   meme-gen generate --template "drake" --top "Writing tests" --bottom "Shipping to prod"
+ *   meme-gen generate -t "drake" --text "Writing tests" --text "Shipping to prod"
+ *   meme-gen generate -t "drake" --top "Writing tests" --bottom "Shipping to prod"
  *   meme-gen list
  *   meme-gen search "brain"
  *
