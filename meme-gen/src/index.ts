@@ -17,7 +17,7 @@ import {
   downloadMeme,
   getTemplates,
   searchTemplates,
-  findTemplateId,
+  findTemplate,
   TEMPLATE_ALIASES,
 } from "./imgflip.js";
 import { clearCache } from "./cache.js";
@@ -44,25 +44,49 @@ program
   .description("Generate memes using the Imgflip API")
   .version("0.1.0");
 
+function collect(val: string, acc: string[]): string[] {
+  acc.push(val);
+  return acc;
+}
+
 program
   .command("generate")
   .alias("gen")
   .description("Generate a meme from a template")
   .requiredOption("-t, --template <name>", "Template name, alias, or numeric ID")
-  .requiredOption("--top <text>", "Top text (first text box)")
-  .option("--bottom <text>", "Bottom text (second text box)", "")
+  .option("--text <text>", "Text for a box (repeat for each box)", collect, [])
+  .option("--top <text>", "Top text (shortcut for 2-box memes)")
+  .option("--bottom <text>", "Bottom text (shortcut for 2-box memes)")
   .option("-o, --output <path>", "Save meme image to file")
   .option("--font <font>", "Font to use (impact or arial)", "impact")
   .action(async (opts) => {
     const creds = getCredentials();
 
+    // Build texts array: prefer --text, fall back to --top/--bottom
+    let texts: string[] = opts.text;
+    if (texts.length === 0) {
+      if (opts.top) texts.push(opts.top);
+      if (opts.bottom !== undefined) texts.push(opts.bottom);
+      if (texts.length === 0) {
+        console.error("Error: Provide text with --text (repeat for each box) or --top/--bottom");
+        process.exit(1);
+      }
+    }
+
     try {
+      // Look up template to validate box_count
+      const template = await findTemplate(opts.template);
+      if (template.box_count > 0 && texts.length !== template.box_count) {
+        console.error(
+          `Warning: "${template.name}" expects ${template.box_count} text inputs, got ${texts.length}`
+        );
+      }
+
       const result = await generateMeme({
         username: creds.username,
         password: creds.password,
         templateName: opts.template,
-        topText: opts.top,
-        bottomText: opts.bottom,
+        texts,
         font: opts.font,
       });
 
