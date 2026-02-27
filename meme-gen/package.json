@@ -1,0 +1,35 @@
+{
+  "name": "@desplega.ai/meme-gen",
+  "version": "0.1.0",
+  "description": "CLI tool for generating memes using the Imgflip API",
+  "type": "module",
+  "bin": {
+    "meme-gen": "./dist/index.js"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "dev": "bun src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target bun --format esm",
+    "prepublishOnly": "bun run build",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/desplega-ai/ai-toolbox.git",
+    "directory": "meme-gen"
+  },
+  "license": "MIT",
+  "author": "Desplega AI"
+}
