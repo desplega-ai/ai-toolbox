@@ -65,6 +65,9 @@ export class PreviewNavigator {
     if (this.isEditableTarget(e.target)) return;
     if (!this.getVimEnabled()) return;
 
+    // Bail if meta key is held — let shortcuts like Cmd+K pass through
+    if (e.metaKey) return;
+
     const key = e.key;
 
     if (key === 'j') {

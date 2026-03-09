@@ -580,6 +580,20 @@ function updateViewMode() {
 }
 
 function handleAddCommentShortcut() {
+  // In preview mode, use the active block from preview navigation
+  if (!isRawMode && isMarkdownFile) {
+    const previewContainer = getPreviewContainer();
+    const activeEl = previewContainer?.querySelector<HTMLElement>('.preview-active');
+    if (activeEl) {
+      const sourceStart = parseInt(activeEl.dataset.sourceStart ?? '0', 10);
+      const sourceEnd = parseInt(activeEl.dataset.sourceEnd ?? '0', 10);
+      handlePreviewAddComment(sourceStart, sourceEnd, activeEl);
+    }
+    // No active block — nothing to comment on
+    return;
+  }
+
+  // Raw mode: use CodeMirror editor position
   const selection = getSelection();
   const view = getEditorView();
 
