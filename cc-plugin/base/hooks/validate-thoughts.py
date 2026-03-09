@@ -3,7 +3,7 @@
 
 This hook intercepts Write and Edit operations targeting thoughts directories
 and validates:
-1. Path structure: thoughts/{username|agentId|shared}/{research|plans}/YYYY-MM-DD-topic.md
+1. Path structure: thoughts/{username|agentId|shared}/{research|plans|brainstorms}/YYYY-MM-DD-topic.md
 2. File format: Must have YAML frontmatter (for Write operations)
 
 Exit codes:
@@ -29,6 +29,7 @@ def validate_path(file_path: str) -> tuple[bool, str]:
     # thoughts/{username|agentId|shared}/{research|plans}/YYYY-MM-DD-topic-slug.md
     research_pattern = r'thoughts/[^/]+/research/\d{4}-\d{2}-\d{2}-[\w-]+\.md$'
     plans_pattern = r'thoughts/[^/]+/plans/\d{4}-\d{2}-\d{2}-[\w-]+\.md$'
+    brainstorms_pattern = r'thoughts/[^/]+/brainstorms/\d{4}-\d{2}-\d{2}-[\w-]+\.md$'
 
     if "/research/" in file_path:
         if not re.search(research_pattern, file_path):
@@ -44,10 +45,17 @@ def validate_path(file_path: str) -> tuple[bool, str]:
                 "Expected: thoughts/{username|agentId|shared}/plans/YYYY-MM-DD-topic-slug.md\n"
                 f"Got: {file_path}"
             )
+    elif "/brainstorms/" in file_path:
+        if not re.search(brainstorms_pattern, file_path):
+            return False, (
+                "Invalid brainstorm path format.\n"
+                "Expected: thoughts/{username|agentId|shared}/brainstorms/YYYY-MM-DD-topic-slug.md\n"
+                f"Got: {file_path}"
+            )
     else:
         return False, (
             "Invalid thoughts subdirectory.\n"
-            "Thoughts files must be in either 'research' or 'plans' subdirectory.\n"
+            "Thoughts files must be in 'research', 'plans', or 'brainstorms' subdirectory.\n"
             f"Got: {file_path}"
         )
 
