@@ -58,11 +58,41 @@ Inside you will find:
 
 #### Commands
 
-The basic commands provided are:
+| Command | Description |
+|---------|-------------|
+| `research` | Document codebase as-is with thoughts directory |
+| `create-plan` | Create detailed implementation plans through research and iteration |
+| `create-tdd-plan` | Create TDD implementation plans with Red-Green-Commit cycles |
+| `implement-plan` | Execute approved plans phase by phase |
+| `brainstorm` | Interactive Socratic Q&A exploration of ideas |
+| `review` | Structured critique of research, plan, and brainstorm documents |
+| `verify-plan` | Post-implementation plan verification and audit |
+| `run-phase` | Execute a single plan phase as a background sub-agent |
 
-1. `research`
-2. `create-plan`
-3. `implement-plan`
+#### Skills
+
+| Skill | Description |
+|-------|-------------|
+| `researching` | Comprehensive codebase research with parallel sub-agents |
+| `planning` | Interactive plan creation with research and iteration |
+| `tdd-planning` | TDD-focused planning with Red-Green-Commit cycles |
+| `implementing` | Phase-by-phase plan execution with verification |
+| `brainstorming` | Socratic Q&A exploration producing pre-PRD documents |
+| `reviewing` | Structured critique with severity categorization |
+| `verifying` | Post-implementation audit against plan |
+| `phase-running` | Atomic phase execution as background sub-agent |
+
+#### Workflow
+
+The complete workflow chain:
+
+```
+brainstorm → research → plan → review → implement (with phase-runner) → verify-plan
+                                  ↑                                          |
+                                  └──────────── review ←─────────────────────┘
+```
+
+`review` can be used at any stage to critique a document.
 
 ## Inspiration
 
