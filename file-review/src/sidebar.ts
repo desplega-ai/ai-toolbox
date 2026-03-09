@@ -4,20 +4,24 @@ import { getEditorView } from "./editor";
 type CommentDeleteHandler = (commentId: string) => void;
 type CommentClickHandler = (comment: ReviewComment) => void;
 type CommentSubmitHandler = (text: string, lineNumber: number) => void;
+type CommentEditHandler = (commentId: string, newText: string) => void;
 
 let deleteHandler: CommentDeleteHandler | null = null;
 let clickHandler: CommentClickHandler | null = null;
 let submitHandler: CommentSubmitHandler | null = null;
+let editHandler: CommentEditHandler | null = null;
 let pendingLineNumber: number | null = null;
 
 export function initSidebar(
   onDelete: CommentDeleteHandler,
   onClick: CommentClickHandler,
-  onSubmit: CommentSubmitHandler
+  onSubmit: CommentSubmitHandler,
+  onEdit: CommentEditHandler
 ) {
   deleteHandler = onDelete;
   clickHandler = onClick;
   submitHandler = onSubmit;
+  editHandler = onEdit;
 }
 
 export function showCommentInput(lineNumber: number, label?: string) {
@@ -97,15 +101,24 @@ function createCommentCard(comment: ReviewComment): HTMLElement {
   card.innerHTML = `
     <div class="comment-header">
       <span class="comment-line">Line ${lineNumber}</span>
-      <button class="delete-btn" title="Delete comment">×</button>
+      <div class="comment-actions">
+        <button class="edit-btn" title="Edit comment">&#x270E;</button>
+        <button class="delete-btn" title="Delete comment">&times;</button>
+      </div>
     </div>
     <div class="comment-text">${escapeHtml(comment.text)}</div>
   `;
 
   card.addEventListener("click", (e) => {
-    if (!(e.target as HTMLElement).classList.contains("delete-btn")) {
-      clickHandler?.(comment);
-    }
+    const target = e.target as HTMLElement;
+    if (target.classList.contains("delete-btn") || target.classList.contains("edit-btn")) return;
+    if (card.querySelector(".comment-edit-container")) return;
+    clickHandler?.(comment);
+  });
+
+  card.querySelector(".edit-btn")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    enterEditMode(card, comment);
   });
 
   card.querySelector(".delete-btn")?.addEventListener("click", (e) => {
@@ -114,6 +127,69 @@ function createCommentCard(comment: ReviewComment): HTMLElement {
   });
 
   return card;
+}
+
+function enterEditMode(card: HTMLElement, comment: ReviewComment) {
+  const textEl = card.querySelector(".comment-text") as HTMLElement;
+  if (!textEl) return;
+
+  textEl.style.display = "none";
+
+  const container = document.createElement("div");
+  container.className = "comment-edit-container";
+
+  const textarea = document.createElement("textarea");
+  textarea.className = "comment-edit-textarea";
+  textarea.value = comment.text;
+  textarea.rows = 3;
+
+  const actions = document.createElement("div");
+  actions.className = "comment-edit-actions";
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.className = "cancel-btn";
+  cancelBtn.textContent = "Cancel";
+
+  const saveBtn = document.createElement("button");
+  saveBtn.className = "submit-btn";
+  saveBtn.textContent = "Save";
+
+  actions.appendChild(cancelBtn);
+  actions.appendChild(saveBtn);
+  container.appendChild(textarea);
+  container.appendChild(actions);
+  textEl.after(container);
+  textarea.focus();
+
+  const doSave = () => {
+    const newText = textarea.value.trim();
+    if (newText && newText !== comment.text) {
+      editHandler?.(comment.id, newText);
+    }
+    exitEditMode(card);
+  };
+
+  const doCancel = () => exitEditMode(card);
+
+  saveBtn.addEventListener("click", (e) => { e.stopPropagation(); doSave(); });
+  cancelBtn.addEventListener("click", (e) => { e.stopPropagation(); doCancel(); });
+
+  textarea.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      doCancel();
+    } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.stopPropagation();
+      doSave();
+    }
+  });
+}
+
+function exitEditMode(card: HTMLElement) {
+  const container = card.querySelector(".comment-edit-container");
+  container?.remove();
+  const textEl = card.querySelector(".comment-text") as HTMLElement;
+  if (textEl) textEl.style.display = "";
 }
 
 function escapeHtml(text: string): string {

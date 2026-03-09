@@ -1,5 +1,40 @@
 import { marked, type Token, type Tokens } from 'marked';
+import hljs from 'highlight.js/lib/core';
+import javascript from 'highlight.js/lib/languages/javascript';
+import typescript from 'highlight.js/lib/languages/typescript';
+import python from 'highlight.js/lib/languages/python';
+import bash from 'highlight.js/lib/languages/bash';
+import json from 'highlight.js/lib/languages/json';
+import css from 'highlight.js/lib/languages/css';
+import xml from 'highlight.js/lib/languages/xml';
+import yaml from 'highlight.js/lib/languages/yaml';
+import rust from 'highlight.js/lib/languages/rust';
+import sql from 'highlight.js/lib/languages/sql';
+import markdown from 'highlight.js/lib/languages/markdown';
 import type { ReviewComment } from './comments';
+
+// Register languages with aliases
+hljs.registerLanguage('javascript', javascript);
+hljs.registerLanguage('typescript', typescript);
+hljs.registerLanguage('python', python);
+hljs.registerLanguage('bash', bash);
+hljs.registerLanguage('json', json);
+hljs.registerLanguage('css', css);
+hljs.registerLanguage('xml', xml);
+hljs.registerLanguage('yaml', yaml);
+hljs.registerLanguage('rust', rust);
+hljs.registerLanguage('sql', sql);
+hljs.registerLanguage('markdown', markdown);
+
+// Register common aliases
+hljs.registerAliases(['js', 'jsx'], { languageName: 'javascript' });
+hljs.registerAliases(['ts', 'tsx'], { languageName: 'typescript' });
+hljs.registerAliases(['py'], { languageName: 'python' });
+hljs.registerAliases(['sh', 'shell', 'zsh'], { languageName: 'bash' });
+hljs.registerAliases(['html', 'htm', 'svg'], { languageName: 'xml' });
+hljs.registerAliases(['yml'], { languageName: 'yaml' });
+hljs.registerAliases(['md'], { languageName: 'markdown' });
+hljs.registerAliases(['rs'], { languageName: 'rust' });
 
 let previewContainer: HTMLElement | null = null;
 let hoverButton: HTMLElement | null = null;
@@ -46,6 +81,15 @@ interface FrontmatterParseResult {
   entries: FrontmatterEntry[];
   bodyMarkdown: string;
   consumedChars: number;
+}
+
+export function slugify(text: string): string {
+  return text
+    .replace(/<[^>]*>/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, '-');
 }
 
 export function initPreview(container: HTMLElement) {
@@ -114,7 +158,7 @@ function scheduleHideButton() {
   if (hideTimeout) return;
   hideTimeout = setTimeout(() => {
     hideHoverButtonNow();
-  }, 150);
+  }, 5000);
 }
 
 function hideHoverButtonNow() {
@@ -524,37 +568,81 @@ function getCommentableElements(root: ParentNode): HTMLElement[] {
   });
 }
 
-function setCommentableAttributes(root: ParentNode, ranges: CommentableRange[]) {
+function assignCommentable(el: HTMLElement, range: CommentableRange) {
+  if (range.end > range.start) {
+    el.setAttribute('data-commentable', 'true');
+    el.setAttribute('data-source-start', String(range.start));
+    el.setAttribute('data-source-end', String(range.end));
+  }
+}
+
+function normalizeText(text: string): string {
+  return text.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function textContentMatches(
+  el: HTMLElement,
+  source: string,
+  range: CommentableRange
+): boolean {
+  const domText = normalizeText(el.textContent ?? '');
+  const sourceText = normalizeText(source.slice(range.start, range.end));
+  if (domText.length === 0 || sourceText.length === 0) return false;
+  const shorter = domText.length < sourceText.length ? domText : sourceText;
+  const longer = domText.length < sourceText.length ? sourceText : domText;
+  return longer.includes(shorter) || shorter.includes(longer.slice(0, shorter.length));
+}
+
+function setCommentableAttributes(
+  root: ParentNode,
+  ranges: CommentableRange[],
+  sourceContent?: string
+) {
   const elements = getCommentableElements(root);
 
-  if (elements.length !== ranges.length) {
-    console.warn(
-      `[preview] Commentable mapping mismatch (elements=${elements.length}, ranges=${ranges.length}). ` +
-      'Disabling preview add-comment for this render.'
-    );
-    return;
-  }
-
-  for (let i = 0; i < elements.length; i += 1) {
-    const el = elements[i];
-    const range = ranges[i];
-    const tagName = el.tagName.toLowerCase();
-
-    if (!isCommentableKind(tagName) || tagName !== range.kind || range.end <= range.start) {
-      console.warn(
-        `[preview] Commentable tag mismatch at index ${i} (tag=${tagName}, kind=${range.kind}). ` +
-        'Disabling preview add-comment for this render.'
-      );
+  // Fast path: 1:1 count and kind match
+  if (elements.length === ranges.length) {
+    let allMatch = true;
+    for (let i = 0; i < elements.length; i++) {
+      if (elements[i].tagName.toLowerCase() !== ranges[i].kind) {
+        allMatch = false;
+        break;
+      }
+    }
+    if (allMatch) {
+      for (let i = 0; i < elements.length; i++) {
+        assignCommentable(elements[i], ranges[i]);
+      }
       return;
     }
   }
 
-  for (let i = 0; i < elements.length; i += 1) {
-    const el = elements[i];
-    const range = ranges[i];
-    el.setAttribute('data-commentable', 'true');
-    el.setAttribute('data-source-start', String(range.start));
-    el.setAttribute('data-source-end', String(range.end));
+  // Resilient path: greedy kind-based matching with optional text validation
+  console.warn(
+    `[preview] Commentable mapping mismatch (elements=${elements.length}, ranges=${ranges.length}). ` +
+    'Using resilient matching.'
+  );
+
+  let rangeIdx = 0;
+  for (const el of elements) {
+    const tag = el.tagName.toLowerCase();
+    if (!isCommentableKind(tag)) continue;
+
+    // Scan forward for next range with matching kind
+    let matchIdx = rangeIdx;
+    while (matchIdx < ranges.length && ranges[matchIdx].kind !== tag) {
+      matchIdx++;
+    }
+    if (matchIdx >= ranges.length) continue;
+
+    const range = ranges[matchIdx];
+    // Text validation when sourceContent is available
+    if (sourceContent && !textContentMatches(el, sourceContent, range)) {
+      continue;
+    }
+
+    assignCommentable(el, range);
+    rangeIdx = matchIdx + 1;
   }
 }
 
@@ -607,11 +695,22 @@ export function renderMarkdown(content: string, comments: ReviewComment[]): Rend
     frontmatter.consumedChars
   );
 
-  // Step 3: Parse markdown - marked preserves inline HTML by default.
+  // Step 3: Parse markdown with custom heading renderer for IDs.
+  const slugCounts = new Map<string, number>();
+  const renderer = new marked.Renderer();
+  renderer.heading = ({ text, depth }: { text: string; depth: number }) => {
+    let slug = slugify(text);
+    const count = slugCounts.get(slug) ?? 0;
+    slugCounts.set(slug, count + 1);
+    if (count > 0) slug = `${slug}-${count}`;
+    return `<h${depth} id="${slug}">${text}</h${depth}>\n`;
+  };
+
   const markdownHtml = marked.parse(contentWithSpans, {
     async: false,
     gfm: true,
     breaks: true,
+    renderer,
   }) as string;
 
   const html = renderFrontmatterHtml(frontmatter.entries) + markdownHtml;
@@ -626,6 +725,8 @@ function setupElementClickHandlers() {
 
   commentables.forEach((el) => {
     el.addEventListener('click', (e) => {
+      if (e.metaKey || e.ctrlKey) return;
+
       const clicked = (e.target as HTMLElement).closest('[data-commentable="true"]');
       if (!clicked || clicked !== el) {
         return;
@@ -661,7 +762,31 @@ function setupHoverHandlers() {
     scheduleHideButton();
   });
 
+  previewContainer.addEventListener('click', (e) => {
+    if (!(e.metaKey || e.ctrlKey)) return;
+    if (!addCommentCallback) return;
+
+    const target = (e.target as HTMLElement).closest('[data-commentable="true"]') as HTMLElement;
+    if (!target) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const sourceStart = parseInt(target.dataset.sourceStart ?? '0', 10);
+    const sourceEnd = parseInt(target.dataset.sourceEnd ?? '0', 10);
+    addCommentCallback(sourceStart, sourceEnd, target);
+    hideHoverButtonNow();
+  });
+
   hoverListenersAttached = true;
+}
+
+function highlightCodeBlocks() {
+  if (!previewContainer) return;
+  const codeBlocks = previewContainer.querySelectorAll<HTMLElement>('pre code');
+  codeBlocks.forEach((block) => {
+    hljs.highlightElement(block);
+  });
 }
 
 export function updatePreview(content: string, comments: ReviewComment[]) {
@@ -669,11 +794,12 @@ export function updatePreview(content: string, comments: ReviewComment[]) {
 
   const { html, ranges } = renderMarkdown(content, comments);
   previewContainer.innerHTML = html;
-  setCommentableAttributes(previewContainer, ranges);
+  setCommentableAttributes(previewContainer, ranges, content);
   applyCommentHighlights(previewContainer, comments);
 
   setupElementClickHandlers();
   setupHoverHandlers();
+  highlightCodeBlocks();
 }
 
 export function scrollPreviewToComment(commentId: string) {

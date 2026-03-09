@@ -21,6 +21,11 @@ export const shortcuts: Shortcut[] = [
   { keys: "^Q", description: "Vim visual block mode" },
   { keys: "^D", description: "Vim half-page down" },
   { keys: "^U", description: "Vim half-page up" },
+  { keys: "j / k", description: "Preview: next/prev block (vim)" },
+  { keys: "gg / G", description: "Preview: first/last block (vim)" },
+  { keys: "⌃D / ⌃U", description: "Preview: page down/up (vim)" },
+  { keys: "/ or ⌘F", description: "Preview: search" },
+  { keys: "n / N", description: "Preview: next/prev match (vim)" },
 ];
 
 let helpModalVisible = false;

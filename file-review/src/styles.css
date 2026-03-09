@@ -138,9 +138,81 @@ body {
   overflow: auto;
 }
 
+/* Preview wrapper (contains search bar + preview) */
+#preview-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Preview search bar */
+#preview-search-bar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 0 0 0 6px;
+}
+
+#preview-search-input {
+  width: 200px;
+  padding: 4px 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+#preview-search-input:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+#preview-search-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-width: 40px;
+}
+
+.preview-search-nav {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+}
+
+.preview-search-nav:hover {
+  color: var(--text-primary);
+}
+
+/* Active commentable block highlight */
+[data-commentable="true"].preview-active {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Search match highlights */
+.preview-search-match {
+  background: rgba(255, 213, 0, 0.3);
+  border-radius: 2px;
+}
+
+.preview-search-match.current {
+  background: rgba(255, 140, 0, 0.5);
+}
+
 /* Markdown preview container */
 #preview-container {
-  flex: 7;
+  flex: 1;
   overflow-y: auto;
   padding: 20px 40px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -443,7 +515,8 @@ body {
   margin-top: 10px;
 }
 
-.input-actions button {
+.input-actions button,
+.comment-edit-actions button {
   padding: 6px 14px;
   border: none;
   border-radius: 4px;
@@ -1014,6 +1087,196 @@ body {
   font-size: 12px;
   color: var(--text-secondary);
   line-height: 1.5;
+}
+
+/* === Syntax Highlighting (dark theme - VS Code dark+) === */
+#preview-container .hljs-keyword { color: #569cd6; }
+#preview-container .hljs-string { color: #ce9178; }
+#preview-container .hljs-comment { color: #6a9955; font-style: italic; }
+#preview-container .hljs-number { color: #b5cea8; }
+#preview-container .hljs-function .hljs-title,
+#preview-container .hljs-title.function_ { color: #dcdcaa; }
+#preview-container .hljs-type,
+#preview-container .hljs-title.class_ { color: #4ec9b0; }
+#preview-container .hljs-variable { color: #9cdcfe; }
+#preview-container .hljs-meta { color: #c586c0; }
+#preview-container .hljs-built_in { color: #4ec9b0; }
+#preview-container .hljs-literal { color: #569cd6; }
+#preview-container .hljs-attr { color: #9cdcfe; }
+#preview-container .hljs-params { color: #9cdcfe; }
+#preview-container .hljs-punctuation { color: #d4d4d4; }
+#preview-container .hljs-operator { color: #d4d4d4; }
+
+/* Syntax Highlighting (light theme - VS Code light) */
+body.light-theme #preview-container .hljs-keyword { color: #0000ff; }
+body.light-theme #preview-container .hljs-string { color: #a31515; }
+body.light-theme #preview-container .hljs-comment { color: #008000; font-style: italic; }
+body.light-theme #preview-container .hljs-number { color: #098658; }
+body.light-theme #preview-container .hljs-function .hljs-title,
+body.light-theme #preview-container .hljs-title.function_ { color: #795e26; }
+body.light-theme #preview-container .hljs-type,
+body.light-theme #preview-container .hljs-title.class_ { color: #267f99; }
+body.light-theme #preview-container .hljs-variable { color: #001080; }
+body.light-theme #preview-container .hljs-meta { color: #af00db; }
+body.light-theme #preview-container .hljs-built_in { color: #267f99; }
+body.light-theme #preview-container .hljs-literal { color: #0000ff; }
+body.light-theme #preview-container .hljs-attr { color: #001080; }
+body.light-theme #preview-container .hljs-params { color: #001080; }
+body.light-theme #preview-container .hljs-punctuation { color: #1e1e1e; }
+body.light-theme #preview-container .hljs-operator { color: #1e1e1e; }
+
+/* === Comment Edit UI === */
+.comment-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.edit-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  opacity: 0.6;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.edit-btn:hover {
+  color: var(--accent-color);
+  opacity: 1;
+}
+
+.comment-edit-container {
+  margin-top: 8px;
+}
+
+.comment-edit-textarea {
+  width: 100%;
+  min-height: 60px;
+  background: var(--bg-primary);
+  border: 1px solid var(--accent-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  padding: 8px;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.comment-edit-textarea:focus {
+  outline: none;
+  border-color: var(--accent-hover);
+}
+
+.comment-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+/* === Table of Contents === */
+#sidebar-comments-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#sidebar-toc-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-top: 1px solid var(--border-color);
+  max-height: 40%;
+}
+
+#toc-header {
+  padding: 12px 16px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.toc-search-toggle {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+}
+
+.toc-search-toggle:hover {
+  background: var(--bg-hover);
+  border-radius: 3px;
+}
+
+#toc-search-container {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.toc-search-input {
+  width: 100%;
+  padding: 4px 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.toc-search-input:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+.toc-entry.toc-hidden {
+  display: none;
+}
+
+#toc-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.toc-entry {
+  padding: 6px 8px;
+  cursor: pointer;
+  font-size: 13px;
+  border-radius: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.15s;
+}
+
+.toc-entry:hover {
+  background: var(--bg-hover);
+}
+
+.toc-h1 { padding-left: 8px; font-weight: 600; }
+.toc-h2 { padding-left: 20px; }
+.toc-h3 { padding-left: 32px; }
+.toc-h4 { padding-left: 44px; color: var(--text-secondary); }
+.toc-h5 { padding-left: 56px; color: var(--text-secondary); }
+.toc-h6 { padding-left: 68px; color: var(--text-secondary); }
+
+.no-toc {
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 20px;
+  font-size: 13px;
 }
 
 /* Web mode indicator badge */

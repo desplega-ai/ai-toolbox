@@ -40,27 +40,48 @@
     </div>
     <div id="main-container">
       <div id="editor-container"></div>
-      <div id="preview-container" style="display: none;"></div>
-      <div id="sidebar">
-        <div id="sidebar-header">Comments</div>
-
-        <!-- Comment input area (hidden by default) -->
-        <div id="comment-input-area" style="display: none;">
-          <div class="input-header">
-            <span id="comment-line-label">Line 0</span>
-          </div>
-          <textarea
-            id="comment-textarea"
-            placeholder="Enter your comment... (⌘↵ to submit)"
-            rows="4"
-          ></textarea>
-          <div class="input-actions">
-            <button id="comment-cancel-btn" class="cancel-btn">Cancel</button>
-            <button id="comment-submit-btn" class="submit-btn">Add Comment</button>
-          </div>
+      <div id="preview-wrapper" style="display: none; position: relative; flex: 7;">
+        <div id="preview-search-bar" style="display: none;">
+          <input id="preview-search-input" type="text" placeholder="Search..." />
+          <span id="preview-search-count"></span>
+          <button id="preview-search-prev" class="preview-search-nav" title="Previous (Shift+Enter)">&#x25B2;</button>
+          <button id="preview-search-next" class="preview-search-nav" title="Next (Enter)">&#x25BC;</button>
+          <button id="preview-search-close" class="preview-search-nav" title="Close (Esc)">&times;</button>
         </div>
+        <div id="preview-container"></div>
+      </div>
+      <div id="sidebar">
+        <div id="sidebar-comments-panel">
+          <div id="sidebar-header">Comments</div>
 
-        <div id="comments-list"></div>
+          <!-- Comment input area (hidden by default) -->
+          <div id="comment-input-area" style="display: none;">
+            <div class="input-header">
+              <span id="comment-line-label">Line 0</span>
+            </div>
+            <textarea
+              id="comment-textarea"
+              placeholder="Enter your comment... (⌘↵ to submit)"
+              rows="4"
+            ></textarea>
+            <div class="input-actions">
+              <button id="comment-cancel-btn" class="cancel-btn">Cancel</button>
+              <button id="comment-submit-btn" class="submit-btn">Add Comment</button>
+            </div>
+          </div>
+
+          <div id="comments-list"></div>
+        </div>
+        <div id="sidebar-toc-panel" style="display: none;">
+          <div id="toc-header">
+            <span>Table of Contents</span>
+            <button id="toc-search-btn" class="toc-search-toggle" title="Filter headings">&#x1F50D;</button>
+          </div>
+          <div id="toc-search-container" style="display: none;">
+            <input id="toc-search-input" class="toc-search-input" type="text" placeholder="Filter headings..." />
+          </div>
+          <div id="toc-list"></div>
+        </div>
       </div>
     </div>
 

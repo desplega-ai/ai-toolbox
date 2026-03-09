@@ -57,6 +57,48 @@ describe('collectCommentableRanges', () => {
     expect(markdown.slice(ranges[1].start, ranges[1].end)).toContain('- Child');
     expect(markdown.slice(ranges[2].start, ranges[2].end)).toContain('- Sibling');
   });
+
+  it('produces no ranges for raw HTML blocks', () => {
+    const markdown = [
+      '# Title',
+      '',
+      '<div><p>Raw HTML paragraph</p></div>',
+      '',
+      'Normal paragraph.',
+      '',
+    ].join('\n');
+
+    const ranges = collectCommentableRanges(markdown);
+    // Raw HTML block should not produce ranges — only heading and normal paragraph
+    expect(ranges.map((r) => r.kind)).toEqual(['h1', 'p']);
+    expect(markdown.slice(ranges[0].start, ranges[0].end)).toBe('# Title');
+    expect(markdown.slice(ranges[1].start, ranges[1].end)).toBe('Normal paragraph.');
+  });
+
+  it('handles mixed raw HTML and markdown without breaking range collection', () => {
+    const markdown = [
+      '# Heading',
+      '',
+      '<details>',
+      '<summary>Click me</summary>',
+      '',
+      'Hidden content.',
+      '',
+      '</details>',
+      '',
+      '## Subheading',
+      '',
+      'Final paragraph.',
+      '',
+    ].join('\n');
+
+    const ranges = collectCommentableRanges(markdown);
+    const kinds = ranges.map((r) => r.kind);
+    // Should at least capture heading, subheading, and final paragraph
+    expect(kinds).toContain('h1');
+    expect(kinds).toContain('h2');
+    expect(kinds).toContain('p');
+  });
 });
 
 describe('renderMarkdown frontmatter', () => {

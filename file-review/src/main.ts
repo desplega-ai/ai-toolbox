@@ -47,7 +47,10 @@ import {
   scrollPreviewToComment,
   initInteractiveCommenting,
   flashElement,
+  getPreviewContainer,
 } from "./markdown-preview";
+import { extractTocEntries, renderToc } from "./toc";
+import { PreviewNavigator } from "./preview-nav";
 
 let currentFilePath: string | null = null;
 let comments: ReviewComment[] = [];
@@ -59,6 +62,7 @@ let isRawMode = false; // false = pretty/rendered, true = raw CodeMirror
 let suppressCommentSync = false;
 let hasUnsavedChanges = false;
 let lastSavedSnapshot = "";
+let previewNav: PreviewNavigator | null = null;
 
 // For preview mode commenting
 let pendingPreviewComment: {
@@ -125,12 +129,33 @@ function confirmDiscardUnsavedChanges(action: string): boolean {
   return window.confirm(`You have unsaved changes. ${action}`);
 }
 
+function handleTocClick(entry: import('./toc').TocEntry) {
+  if (isRawMode) {
+    const view = getEditorView();
+    view.dispatch({ selection: { anchor: entry.sourcePos } });
+    scrollToPosition(entry.sourcePos);
+    focusEditor();
+  } else {
+    const container = getPreviewContainer();
+    if (!container) return;
+    const el = container.querySelector('#' + CSS.escape(entry.id)) as HTMLElement | null;
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    flashElement(el);
+  }
+}
+
 function renderCommentState() {
   renderComments(comments);
 
   const content = getEditorContent();
   if (isMarkdownFile && !isRawMode) {
     updatePreview(content, comments);
+    previewNav?.reset();
+  }
+  if (isMarkdownFile) {
+    const entries = extractTocEntries(content);
+    renderToc(entries, handleTocClick);
   }
 
   const view = getEditorView();
@@ -172,11 +197,17 @@ async function init() {
   updateVimButton();
 
   // Initialize sidebar handlers
-  initSidebar(handleDeleteComment, handleCommentClick, handleCommentSubmit);
+  initSidebar(handleDeleteComment, handleCommentClick, handleCommentSubmit, handleEditComment);
   setupCommentInput();
 
   // Initialize markdown preview
   initPreview(document.getElementById("preview-container")!);
+
+  // Initialize preview navigator (vim nav + search)
+  previewNav = new PreviewNavigator(
+    () => getPreviewContainer(),
+    () => vimEnabled
+  );
 
   // Set up interactive preview commenting
   initInteractiveCommenting((sourceStart, sourceEnd, element) => {
@@ -524,18 +555,27 @@ async function toggleMarkdownView() {
 
 function updateViewMode() {
   const editorContainer = document.getElementById("editor-container")!;
-  const previewContainer = document.getElementById("preview-container")!;
+  const previewWrapper = document.getElementById("preview-wrapper")!;
   const toggleBtn = document.getElementById("markdown-toggle");
+  const tocPanel = document.getElementById("sidebar-toc-panel");
 
   if (isRawMode) {
     editorContainer.style.display = "block";
-    previewContainer.style.display = "none";
+    previewWrapper.style.display = "none";
     toggleBtn?.classList.remove("active");
   } else {
     editorContainer.style.display = "none";
-    previewContainer.style.display = "block";
+    previewWrapper.style.display = "flex";
     toggleBtn?.classList.add("active");
     updatePreview(getEditorContent(), comments);
+    previewNav?.reset();
+  }
+
+  // ToC is always visible for markdown files regardless of mode
+  if (tocPanel) tocPanel.style.display = isMarkdownFile ? "flex" : "none";
+  if (isMarkdownFile) {
+    const entries = extractTocEntries(getEditorContent());
+    renderToc(entries, handleTocClick);
   }
 }
 
@@ -667,11 +707,13 @@ async function loadFile(path: string) {
       isRawMode = appConfig.markdown_raw ?? false;
       updateViewMode();
     } else {
-      // For non-markdown files, ensure editor is visible
+      // For non-markdown files, ensure editor is visible and hide ToC
       const editorContainer = document.getElementById("editor-container")!;
-      const previewContainer = document.getElementById("preview-container")!;
+      const previewWrapper = document.getElementById("preview-wrapper")!;
+      const tocPanel = document.getElementById("sidebar-toc-panel");
       editorContainer.style.display = "block";
-      previewContainer.style.display = "none";
+      previewWrapper.style.display = "none";
+      if (tocPanel) tocPanel.style.display = "none";
     }
 
     // Focus editor (only if in raw mode or not a markdown file)
@@ -741,6 +783,14 @@ function handleDeleteComment(commentId: string) {
   comments = comments.filter((comment) => comment.id !== commentId);
   renderCommentState();
   showToast("Comment removed", "info");
+}
+
+function handleEditComment(commentId: string, newText: string) {
+  const comment = comments.find((c) => c.id === commentId);
+  if (!comment) return;
+  comment.text = newText;
+  renderCommentState();
+  showToast("Comment updated", "success");
 }
 
 function handleCommentClick(comment: ReviewComment) {
