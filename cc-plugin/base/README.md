@@ -68,6 +68,9 @@ Inside you will find:
 | `review` | Structured critique of research, plan, and brainstorm documents |
 | `verify-plan` | Post-implementation plan verification and audit |
 | `run-phase` | Execute a single plan phase as a background sub-agent |
+| `commit` | Create git commits for session changes |
+| `continue-handoff` | Continue work from a saved handoff file |
+| `bu-auto-instrument` | Auto-instrument Business-Use SDK tracking |
 
 #### Skills
 
