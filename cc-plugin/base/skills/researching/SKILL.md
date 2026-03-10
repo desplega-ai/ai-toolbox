@@ -126,7 +126,11 @@ Perform a quick analysis of the research query. If anything is unclear and auton
    - Present concise summary with key file references
    - If autonomy mode is not Autopilot, ask if they have follow-up questions
 
-8. **Handle follow-up questions:**
+8. **Offer structured review:**
+   - After presenting findings, offer: "Would you like me to run `/review` on this research document for a structured quality check?"
+   - If yes, invoke the `desplega:reviewing` skill on the research document
+
+9. **Handle follow-up questions:**
    - Append to the same research document
    - Update frontmatter `last_updated` fields
    - Spawn new sub-agents as needed

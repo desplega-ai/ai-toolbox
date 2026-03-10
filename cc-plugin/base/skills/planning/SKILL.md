@@ -179,7 +179,11 @@ The template includes:
 
 2. **Iterate based on feedback** (if not Autopilot)
 
-3. **Finalize the plan** - DO NOT START implementation
+3. **Offer structured review:**
+   - After iteration, offer: "Would you like me to run `/review` on this plan for completeness and gap analysis?"
+   - If yes, invoke the `desplega:reviewing` skill on the plan document
+
+4. **Finalize the plan** - DO NOT START implementation
 
 ## Review Integration
 
