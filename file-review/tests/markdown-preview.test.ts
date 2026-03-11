@@ -175,6 +175,106 @@ describe('renderMarkdown per-line paragraphs', () => {
   });
 });
 
+describe('inline formatting rendering', () => {
+  it('renders **bold** as <strong> in split paragraphs', () => {
+    const markdown = [
+      '**bold** on first line',
+      'plain second line',
+      '',
+    ].join('\n');
+
+    const { html } = renderMarkdown(markdown, []);
+    expect(html).toContain('class="preview-paragraph"');
+    expect(html).toContain('<strong>bold</strong>');
+    expect(html).not.toContain('**bold**');
+  });
+
+  it('renders *italic* as <em> in split paragraphs', () => {
+    const markdown = [
+      '*italic* on first line',
+      'plain second line',
+      '',
+    ].join('\n');
+
+    const { html } = renderMarkdown(markdown, []);
+    expect(html).toContain('<em>italic</em>');
+    expect(html).not.toContain('*italic*');
+  });
+
+  it('renders inline code in split paragraphs', () => {
+    const markdown = [
+      'use `myFunc()` here',
+      'and more text',
+      '',
+    ].join('\n');
+
+    const { html } = renderMarkdown(markdown, []);
+    expect(html).toContain('<code>myFunc()</code>');
+  });
+
+  it('renders inline formatting in headings', () => {
+    const markdown = '# Title with **bold**\n';
+
+    const { html } = renderMarkdown(markdown, []);
+    expect(html).toContain('<strong>bold</strong>');
+    expect(html).not.toContain('**bold**');
+  });
+});
+
+describe('cross-line formatting fallback', () => {
+  it('does not split ranges when bold spans lines', () => {
+    const markdown = [
+      '**bold',
+      'text**',
+      '',
+    ].join('\n');
+
+    const ranges = collectCommentableRanges(markdown);
+    expect(ranges.length).toBe(1);
+    expect(ranges[0].kind).toBe('p');
+  });
+
+  it('does not split ranges when italic spans lines', () => {
+    const markdown = [
+      '*italic',
+      'text*',
+      '',
+    ].join('\n');
+
+    const ranges = collectCommentableRanges(markdown);
+    expect(ranges.length).toBe(1);
+    expect(ranges[0].kind).toBe('p');
+  });
+
+  it('falls back to single <p> when bold spans lines', () => {
+    const markdown = [
+      '**bold',
+      'text**',
+      '',
+    ].join('\n');
+
+    const { html } = renderMarkdown(markdown, []);
+    expect(html).not.toContain('preview-paragraph');
+    expect(html).toContain('<strong>');
+  });
+
+  it('still splits when formatting is contained per line', () => {
+    const markdown = [
+      '**bold** first',
+      '**bold** second',
+      '',
+    ].join('\n');
+
+    const ranges = collectCommentableRanges(markdown);
+    expect(ranges.length).toBe(2);
+    expect(ranges.every((r) => r.kind === 'p')).toBe(true);
+
+    const { html } = renderMarkdown(markdown, []);
+    expect(html).toContain('class="preview-paragraph"');
+    expect(html).toContain('<strong>bold</strong>');
+  });
+});
+
 describe('renderMarkdown frontmatter', () => {
   it('renders leading frontmatter as a metadata card and offsets ranges to original content', () => {
     const markdown = [

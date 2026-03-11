@@ -465,26 +465,28 @@ function splitRawLines(raw: string): Array<{ text: string; start: number; end: n
   return lines;
 }
 
-function splitAtTopLevelNewline(html: string): string[] {
+function splitAtTopLevelBreak(html: string): string[] {
   const parts: string[] = [];
   let depth = 0;
   let lastSplit = 0;
   let i = 0;
 
   while (i < html.length) {
-    if (html[i] === '\n') {
-      if (depth === 0) {
-        parts.push(html.slice(lastSplit, i));
-        lastSplit = i + 1;
-      } else {
-        // Newline inside an inline tag — bail out, return unsplit
-        return [html];
-      }
-      i++;
-      continue;
-    }
-
     if (html[i] === '<') {
+      // Check for <br> tag — treat as a split point (like \n)
+      const brMatch = html.slice(i).match(/^<br\s*\/?>/i);
+      if (brMatch) {
+        if (depth === 0) {
+          parts.push(html.slice(lastSplit, i));
+          lastSplit = i + brMatch[0].length;
+          i = lastSplit;
+          continue;
+        } else {
+          // <br> inside an inline tag — bail out, return unsplit
+          return [html];
+        }
+      }
+
       // Check for closing tag
       const closeMatch = html.slice(i).match(/^<\/\w+\s*>/);
       if (closeMatch) {
@@ -493,8 +495,8 @@ function splitAtTopLevelNewline(html: string): string[] {
         continue;
       }
 
-      // Check for self-closing tags (e.g. <br>, <img ... />)
-      const selfCloseMatch = html.slice(i).match(/^<(?:br|hr|img|input)\b[^>]*\/?>/i);
+      // Check for self-closing tags (e.g. <img ... />, <hr>, <input>)
+      const selfCloseMatch = html.slice(i).match(/^<(?:hr|img|input)\b[^>]*\/?>/i);
       if (selfCloseMatch) {
         i += selfCloseMatch[0].length;
         continue;
@@ -509,12 +511,95 @@ function splitAtTopLevelNewline(html: string): string[] {
       }
     }
 
+    // Literal \n — also treat as a split point for raw text
+    if (html[i] === '\n') {
+      if (depth === 0) {
+        parts.push(html.slice(lastSplit, i));
+        lastSplit = i + 1;
+      } else {
+        return [html];
+      }
+      i++;
+      continue;
+    }
+
     i++;
   }
 
   // Push the remaining part
   parts.push(html.slice(lastSplit));
   return parts;
+}
+
+function hasMultiLineInlineFormatting(raw: string): boolean {
+  let i = 0;
+  const len = raw.length;
+  let openStar = 0;
+  let openUnder = 0;
+  let inCode = false;
+  let codeTickLen = 0;
+
+  while (i < len) {
+    const ch = raw[i];
+
+    if (ch === '\\' && !inCode && i + 1 < len) {
+      i += 2;
+      continue;
+    }
+
+    if (ch === '`') {
+      let run = 0;
+      while (i + run < len && raw[i + run] === '`') run++;
+      if (!inCode) {
+        inCode = true;
+        codeTickLen = run;
+      } else if (run === codeTickLen) {
+        inCode = false;
+      }
+      i += run;
+      continue;
+    }
+
+    if (inCode) {
+      if (ch === '\n') return true;
+      i++;
+      continue;
+    }
+
+    if (ch === '\n') {
+      if (openStar > 0 || openUnder > 0) return true;
+      i++;
+      continue;
+    }
+
+    if (ch === '*') {
+      let run = 0;
+      while (i + run < len && raw[i + run] === '*') run++;
+      if (openStar === 0) {
+        openStar = run;
+      } else if (run >= openStar) {
+        openStar = 0;
+      }
+      i += run;
+      continue;
+    }
+
+    if (ch === '_') {
+      let run = 0;
+      while (i + run < len && raw[i + run] === '_') run++;
+      if (openUnder === 0) {
+        openUnder = run;
+      } else if (run >= openUnder) {
+        openUnder = 0;
+      }
+      i += run;
+      continue;
+    }
+
+    i++;
+  }
+
+  return false;
 }
 
 function collectParagraphLineRanges(
@@ -524,7 +609,7 @@ function collectParagraphLineRanges(
 ) {
   const lines = splitRawLines(raw).filter((line) => line.text.trim().length > 0);
 
-  if (lines.length <= 1) {
+  if (lines.length <= 1 || hasMultiLineInlineFormatting(raw)) {
     addRangeFromRaw(ranges, tokenStart, raw, 'p');
     return;
   }
@@ -773,7 +858,8 @@ export function renderMarkdown(content: string, comments: ReviewComment[]): Rend
   // Step 3: Parse markdown with custom heading renderer for IDs.
   const slugCounts = new Map<string, number>();
   const renderer = new marked.Renderer();
-  renderer.heading = ({ text, depth }: { text: string; depth: number }) => {
+  renderer.heading = function ({ tokens, depth }: Tokens.Heading) {
+    const text = this.parser.parseInline(tokens);
     let slug = slugify(text);
     const count = slugCounts.get(slug) ?? 0;
     slugCounts.set(slug, count + 1);
@@ -781,14 +867,15 @@ export function renderMarkdown(content: string, comments: ReviewComment[]): Rend
     return `<h${depth} id="${slug}">${text}</h${depth}>\n`;
   };
 
-  renderer.paragraph = ({ text }: { text: string }) => {
-    if (!text.includes('\n')) {
+  renderer.paragraph = function ({ tokens }: Tokens.Paragraph) {
+    const text = this.parser.parseInline(tokens);
+    if (!text.includes('\n') && !/<br\s*\/?>/i.test(text)) {
       return `<p>${text}</p>\n`;
     }
 
-    const parts = splitAtTopLevelNewline(text);
+    const parts = splitAtTopLevelBreak(text);
     if (parts.length <= 1) {
-      return `<p>${text.replace(/\n/g, '<br>')}</p>\n`;
+      return `<p>${text}</p>\n`;
     }
 
     const lines = parts
