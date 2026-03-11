@@ -135,6 +135,18 @@ Perform a quick analysis of the research query. If anything is unclear and auton
    - Update frontmatter `last_updated` fields
    - Spawn new sub-agents as needed
 
+10. **Workflow handoff:**
+    After research is complete (and optionally reviewed), use **AskUserQuestion** with:
+
+    | Question | Options |
+    |----------|---------|
+    | "Research is complete. What's the next step?" | 1. Create a plan based on this research (→ `/create-plan`), 2. Run a review first (→ `/review`), 3. Done for now |
+
+    Based on the answer:
+    - **Plan**: Suggest the `/create-plan` command with the research file as input context
+    - **Review**: Invoke the `desplega:reviewing` skill on the research document
+    - **Done**: No further action needed
+
 ## Review Integration
 
 If the `file-review` plugin is available and the user selected "Yes" during User Preferences setup:

@@ -12,7 +12,7 @@ You are continuing work from a saved handoff context.
 1. Use the Glob tool to find available handoffs: pattern `**/*.md` in path `~/.claude/hand-offs`
 2. Filter out any files in `completed/` subdirectories
 3. Show the available handoffs to the user
-4. Ask the user which one to continue from
+4. Use **AskUserQuestion** to ask which handoff to continue from (list them as options)
 5. Read the selected file using the Read tool
 
 ### If $ARGUMENTS is provided:
@@ -25,7 +25,7 @@ You are continuing work from a saved handoff context.
    - **Resume Prompt** - use this as your starting context
    - **Warnings & Gotchas** - avoid known pitfalls
 
-2. Present a brief summary to the user and confirm they want to continue
+2. Present a brief summary and use **AskUserQuestion**: "Continue from this handoff?" with options: 1. Yes, continue  2. No, pick a different one
 
 3. Once confirmed, mark the handoff as completed:
    - Create the completed directory if needed: `mkdir -p <handoff-dir>/completed`

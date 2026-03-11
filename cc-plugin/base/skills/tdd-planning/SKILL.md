@@ -172,7 +172,23 @@ Write the plan to `thoughts/<username|shared>/plans/YYYY-MM-DD-tdd-description.m
 
 2. **Iterate based on feedback** (if not Autopilot)
 
-3. **Finalize the plan** - DO NOT START implementation
+3. **Offer structured review:**
+   - After iteration, offer: "Would you like me to run `/review` on this TDD plan for completeness and gap analysis?"
+   - If yes, invoke the `desplega:reviewing` skill on the plan document
+
+4. **Workflow handoff:**
+   After the plan is finalized (and optionally reviewed), use **AskUserQuestion** with:
+
+   | Question | Options |
+   |----------|---------|
+   | "The TDD plan is ready. What's the next step?" | 1. Implement this plan (→ `/implement-plan`), 2. Run a review first (→ `/review`), 3. Done for now (park the plan) |
+
+   Based on the answer:
+   - **Implement**: Suggest the `/implement-plan` command with the plan file path
+   - **Review**: Invoke the `desplega:reviewing` skill on the plan document
+   - **Done**: Set the plan's `status` to `ready` or `parked` as appropriate
+
+5. **Finalize the plan** - DO NOT START implementation
 
 ## Review Integration
 

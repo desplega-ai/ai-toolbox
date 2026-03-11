@@ -217,3 +217,10 @@ When all phases are complete and verified:
 4. Offer post-implementation auditing: "Would you like me to run `/verify-plan` for a post-implementation audit, then `/review` for a final quality check?"
 
 Remember: You're implementing a solution, not just checking boxes. Keep the end goal in mind.
+
+## Review Integration
+
+If the `file-review` plugin is available and the user selected "Yes" during User Preferences setup:
+- After significant code changes in each phase, invoke `/file-review:file-review <changed-file-path>` for inline human comments
+- Process feedback with `file-review:process-review` skill before moving to the next phase
+- If user selected "No" or autonomy mode is Autopilot, skip this step

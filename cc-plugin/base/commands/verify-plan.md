@@ -22,7 +22,7 @@ A thin wrapper that invokes the `desplega:verifying` skill with autonomy control
 
 3. **If no plan path provided:**
    - Search for plans with `status: in-progress` or `status: completed` in `thoughts/*/plans/`
-   - If multiple found, ask which one to verify
+   - If multiple found, use **AskUserQuestion** to ask which plan to verify (list them as options)
    - If none found, respond with: "No active plans found. Please provide the path to the plan you'd like to verify."
 
 ## Example Usage

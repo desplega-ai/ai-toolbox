@@ -80,13 +80,15 @@ You will analyze this codebase to identify business flows that would benefit fro
 
 ## Step 1: Understand the Business Context
 
-**First, ask the user:**
+Use **AskUserQuestion** to gather business context before proceeding. Ask each question sequentially (or group if appropriate):
 
-1. **What does this application do?** (e.g., e-commerce, SaaS platform, content management, etc.)
-2. **What are the most critical user journeys?** (e.g., purchasing, signing up, publishing content)
-3. **What flows cause the most issues/support tickets?** (These are high-priority candidates)
-4. **Are there any flows with strict ordering requirements?** (Events must happen in sequence)
-5. **Where do business rules need validation?** (e.g., totals must match, status checks, permissions)
+| # | Question | Options |
+|---|----------|---------|
+| 1 | "What does this application do?" | 1. E-commerce, 2. SaaS platform, 3. Content management, 4. Other (describe) |
+| 2 | "What are the most critical user journeys?" | Free-form — describe top 2-3 journeys |
+| 3 | "What flows cause the most issues/support tickets?" | Free-form — describe problematic flows |
+| 4 | "Are there any flows with strict ordering requirements?" | 1. Yes (describe), 2. No / Not sure |
+| 5 | "Where do business rules need validation?" | Free-form — describe validation points |
 
 **Wait for the user to provide this context before proceeding.**
 
@@ -134,10 +136,13 @@ Flow: user_journey_name
 ------------------------------------------------------------
 ```
 
-**Ask the user:**
-- "Does this flow structure match your understanding?"
-- "Are there any steps I'm missing?"
-- "Should any of these steps have validators for business rules?"
+Use **AskUserQuestion** to validate the proposed flow:
+
+| Question | Options |
+|----------|---------|
+| "Does this flow structure match your understanding?" | 1. Yes, looks good, 2. No, needs changes (describe) |
+| "Are there any steps I'm missing?" | 1. No, it's complete, 2. Yes (describe missing steps) |
+| "Should any of these steps have validators for business rules?" | 1. Yes (specify which), 2. No validators needed |
 
 ## Step 4: Show Implementation Examples
 
@@ -180,10 +185,13 @@ def critical_business_operation(id: str, data: dict):
     return result
 ```
 
-**Ask the user:**
-- "Does this placement make sense?"
-- "What data should we include for debugging?"
-- "Are there any business rules I should add as validators?"
+Use **AskUserQuestion** to confirm implementation approach:
+
+| Question | Options |
+|----------|---------|
+| "Does this placement make sense?" | 1. Yes, proceed, 2. No, suggest different placement |
+| "What data should we include for debugging?" | Free-form — describe key data fields |
+| "Are there any business rules I should add as validators?" | 1. Yes (describe rules), 2. No, skip validators |
 
 ## Step 5: Generate Setup Instructions
 
@@ -209,9 +217,11 @@ Provide:
 4. **List of files to modify** with specific instrumentation points
 5. **Testing instructions** using the validation commands
 
-**Ask the user:**
-- "Do you want me to proceed with implementing these changes?"
-- "Should I start with one flow as a proof-of-concept?"
+Use **AskUserQuestion** to confirm next steps:
+
+| Question | Options |
+|----------|---------|
+| "How would you like to proceed with implementation?" | 1. Implement all flows now, 2. Start with one flow as proof-of-concept, 3. Let me review first |
 
 ## Guidelines for Analysis
 
@@ -219,7 +229,7 @@ Provide:
 - Focus on **business outcomes**, not technical implementation
 - Track at the **service/domain layer**
 - Use **descriptive, generic node IDs** (action_completed, validation_passed)
-- Ask questions when business logic is unclear
+- Use **AskUserQuestion** when business logic is unclear
 - Prioritize flows based on user input
 - Propose validators for business rule checkpoints
 
@@ -317,7 +327,7 @@ business-use prod
 
 ## Key Questions to Ask
 
-Throughout the process, ask:
+Throughout the process, use **AskUserQuestion** to ask:
 
 1. **Business Context**: "What business problem does this flow solve?"
 2. **Success Criteria**: "How do you know this flow succeeded?"
@@ -328,16 +338,19 @@ Throughout the process, ask:
 
 ## Remember
 
-- **Never assume** business importance - always ask
+- **Never assume** business importance - always use **AskUserQuestion** to confirm
 - **Use generic examples** in explanations (avoid specific domains unless confirmed)
-- **Wait for user confirmation** before making changes
+- **Wait for user confirmation** (via **AskUserQuestion**) before making changes
 - **Prioritize based on user input**, not your assumptions
-- **Ask clarifying questions** when the business logic is unclear
+- **Use AskUserQuestion** when the business logic is unclear
 
 ---
 
-Ready! Please provide:
-1. A brief description of what this application does
-2. Which business flows are most critical to track
+Ready! Use **AskUserQuestion** to get started:
 
-Then I'll analyze the codebase and propose instrumentation.
+| Question | Options |
+|----------|---------|
+| "What does this application do?" | Free-form — brief description |
+| "Which business flows are most critical to track?" | Free-form — list top priorities |
+
+Then analyze the codebase and propose instrumentation.

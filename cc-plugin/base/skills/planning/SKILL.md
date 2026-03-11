@@ -185,6 +185,18 @@ The template includes:
 
 4. **Finalize the plan** - DO NOT START implementation
 
+5. **Workflow handoff:**
+   After the plan is finalized (and optionally reviewed), use **AskUserQuestion** with:
+
+   | Question | Options |
+   |----------|---------|
+   | "The plan is ready. What's the next step?" | 1. Implement this plan (→ `/implement-plan`), 2. Run a review first (→ `/review`), 3. Done for now (park the plan) |
+
+   Based on the answer:
+   - **Implement**: Suggest the `/implement-plan` command with the plan file path
+   - **Review**: Invoke the `desplega:reviewing` skill on the plan document
+   - **Done**: Set the plan's `status` to `ready` or `parked` as appropriate
+
 ## Review Integration
 
 If the `file-review` plugin is available and the user selected "Yes" during User Preferences setup:

@@ -167,6 +167,42 @@ Based on output mode preference:
 - Write review to `thoughts/*/reviews/YYYY-MM-DD-review-of-<original-slug>.md`
 - Include all findings with references back to the original document
 
+### Step 7: Workflow Handoff
+
+After the review is complete, determine the document type (from frontmatter, file path, or content) and propose the appropriate next step.
+
+Use **AskUserQuestion** with context-dependent options:
+
+**If reviewing a brainstorm document:**
+
+| Question | Options |
+|----------|---------|
+| "Review complete. What's next for this brainstorm?" | 1. Start research (→ `/research`), 2. Create a plan directly (→ `/create-plan`), 3. Done for now |
+
+**If reviewing a research document:**
+
+| Question | Options |
+|----------|---------|
+| "Review complete. What's next for this research?" | 1. Create a plan (→ `/create-plan`), 2. Done for now |
+
+**If reviewing a plan document:**
+
+| Question | Options |
+|----------|---------|
+| "Review complete. What's next for this plan?" | 1. Start implementation (→ `/implement-plan`), 2. Done for now |
+
+**If reviewing a post-implementation verification:**
+
+| Question | Options |
+|----------|---------|
+| "Review complete. What's next?" | 1. Done — mark as complete, 2. Address remaining items |
+
+**If document type is unclear**, ask a generic question:
+
+| Question | Options |
+|----------|---------|
+| "Review complete. Would you like to proceed to the next workflow step?" | 1. Yes, suggest next step, 2. Done for now |
+
 ## No Rewriting Rule
 
 **CRITICAL**: The reviewer identifies issues — the reviewer does NOT rewrite the document. Present findings and let the original author address them. The only exception is Minor auto-fixes (typos, formatting).
