@@ -75,6 +75,52 @@ describe('collectCommentableRanges', () => {
     expect(markdown.slice(ranges[1].start, ranges[1].end)).toBe('Normal paragraph.');
   });
 
+  it('splits multi-line paragraphs into per-line ranges', () => {
+    const markdown = [
+      'First line',
+      'Second line',
+      'Third line',
+      '',
+    ].join('\n');
+
+    const ranges = collectCommentableRanges(markdown);
+    expect(ranges.length).toBe(3);
+    expect(ranges.every((r) => r.kind === 'p')).toBe(true);
+    expect(markdown.slice(ranges[0].start, ranges[0].end)).toBe('First line');
+    expect(markdown.slice(ranges[1].start, ranges[1].end)).toBe('Second line');
+    expect(markdown.slice(ranges[2].start, ranges[2].end)).toBe('Third line');
+  });
+
+  it('keeps single-line paragraphs as one range', () => {
+    const markdown = [
+      'Just one line.',
+      '',
+    ].join('\n');
+
+    const ranges = collectCommentableRanges(markdown);
+    expect(ranges.length).toBe(1);
+    expect(ranges[0].kind).toBe('p');
+    expect(markdown.slice(ranges[0].start, ranges[0].end)).toBe('Just one line.');
+  });
+
+  it('per-line ranges work correctly with frontmatter offset', () => {
+    const markdown = [
+      '---',
+      'title: Test',
+      '---',
+      '',
+      'Line one',
+      'Line two',
+      '',
+    ].join('\n');
+
+    const { ranges } = renderMarkdown(markdown, []);
+    const pRanges = ranges.filter((r) => r.kind === 'p');
+    expect(pRanges.length).toBe(2);
+    expect(markdown.slice(pRanges[0].start, pRanges[0].end)).toBe('Line one');
+    expect(markdown.slice(pRanges[1].start, pRanges[1].end)).toBe('Line two');
+  });
+
   it('handles mixed raw HTML and markdown without breaking range collection', () => {
     const markdown = [
       '# Heading',
@@ -98,6 +144,34 @@ describe('collectCommentableRanges', () => {
     expect(kinds).toContain('h1');
     expect(kinds).toContain('h2');
     expect(kinds).toContain('p');
+  });
+});
+
+describe('renderMarkdown per-line paragraphs', () => {
+  it('wraps multi-line paragraphs with preview-paragraph/preview-line', () => {
+    const markdown = [
+      'First line',
+      'Second line',
+      '',
+    ].join('\n');
+
+    const { html } = renderMarkdown(markdown, []);
+    expect(html).toContain('class="preview-paragraph"');
+    expect(html).toContain('class="preview-line"');
+    expect(html).toContain('>First line</p>');
+    expect(html).toContain('>Second line</p>');
+  });
+
+  it('renders single-line paragraphs without wrapping', () => {
+    const markdown = [
+      'Just one line.',
+      '',
+    ].join('\n');
+
+    const { html } = renderMarkdown(markdown, []);
+    expect(html).not.toContain('preview-paragraph');
+    expect(html).not.toContain('preview-line');
+    expect(html).toContain('<p>Just one line.</p>');
   });
 });
 

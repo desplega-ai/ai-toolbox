@@ -465,6 +465,76 @@ function splitRawLines(raw: string): Array<{ text: string; start: number; end: n
   return lines;
 }
 
+function splitAtTopLevelNewline(html: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let lastSplit = 0;
+  let i = 0;
+
+  while (i < html.length) {
+    if (html[i] === '\n') {
+      if (depth === 0) {
+        parts.push(html.slice(lastSplit, i));
+        lastSplit = i + 1;
+      } else {
+        // Newline inside an inline tag — bail out, return unsplit
+        return [html];
+      }
+      i++;
+      continue;
+    }
+
+    if (html[i] === '<') {
+      // Check for closing tag
+      const closeMatch = html.slice(i).match(/^<\/\w+\s*>/);
+      if (closeMatch) {
+        depth--;
+        i += closeMatch[0].length;
+        continue;
+      }
+
+      // Check for self-closing tags (e.g. <br>, <img ... />)
+      const selfCloseMatch = html.slice(i).match(/^<(?:br|hr|img|input)\b[^>]*\/?>/i);
+      if (selfCloseMatch) {
+        i += selfCloseMatch[0].length;
+        continue;
+      }
+
+      // Check for opening tag
+      const openMatch = html.slice(i).match(/^<\w+[^>]*>/);
+      if (openMatch) {
+        depth++;
+        i += openMatch[0].length;
+        continue;
+      }
+    }
+
+    i++;
+  }
+
+  // Push the remaining part
+  parts.push(html.slice(lastSplit));
+  return parts;
+}
+
+function collectParagraphLineRanges(
+  tokenStart: number,
+  raw: string,
+  ranges: CommentableRange[]
+) {
+  const lines = splitRawLines(raw).filter((line) => line.text.trim().length > 0);
+
+  if (lines.length <= 1) {
+    addRangeFromRaw(ranges, tokenStart, raw, 'p');
+    return;
+  }
+
+  for (const line of lines) {
+    const trimmedEnd = line.text.trimEnd().length;
+    addRangeFromBounds(ranges, tokenStart + line.start, tokenStart + line.start + trimmedEnd, 'p');
+  }
+}
+
 function collectTableRowRanges(
   tableToken: Tokens.Table,
   tableStart: number,
@@ -529,7 +599,7 @@ export function collectCommentableRanges(content: string): CommentableRange[] {
     if (token.type === 'heading') {
       addRangeFromRaw(ranges, tokenStart, raw, `h${token.depth}` as CommentableKind);
     } else if (token.type === 'paragraph') {
-      addRangeFromRaw(ranges, tokenStart, raw, 'p');
+      collectParagraphLineRanges(tokenStart, raw, ranges);
     } else if (token.type === 'blockquote') {
       addRangeFromRaw(ranges, tokenStart, raw, 'blockquote');
     } else if (token.type === 'code') {
@@ -549,6 +619,11 @@ export function collectCommentableRanges(content: string): CommentableRange[] {
 function getCommentableElements(root: ParentNode): HTMLElement[] {
   return Array.from(root.querySelectorAll<HTMLElement>(COMMENTABLE_SELECTORS)).filter((el) => {
     const tag = el.tagName.toLowerCase();
+
+    // Per-line paragraph elements are always commentable
+    if (tag === 'p' && el.classList.contains('preview-line')) {
+      return true;
+    }
 
     // Skip nested paragraph/heading/pre nodes that don't have deterministic source ranges yet.
     if ((tag === 'p' || tag === 'pre' || COMMENTABLE_HEADING_KINDS.has(tag))
@@ -704,6 +779,23 @@ export function renderMarkdown(content: string, comments: ReviewComment[]): Rend
     slugCounts.set(slug, count + 1);
     if (count > 0) slug = `${slug}-${count}`;
     return `<h${depth} id="${slug}">${text}</h${depth}>\n`;
+  };
+
+  renderer.paragraph = ({ text }: { text: string }) => {
+    if (!text.includes('\n')) {
+      return `<p>${text}</p>\n`;
+    }
+
+    const parts = splitAtTopLevelNewline(text);
+    if (parts.length <= 1) {
+      return `<p>${text.replace(/\n/g, '<br>')}</p>\n`;
+    }
+
+    const lines = parts
+      .filter(p => p.trim())
+      .map(p => `<p class="preview-line">${p}</p>`)
+      .join('\n');
+    return `<div class="preview-paragraph">${lines}</div>\n`;
   };
 
   const markdownHtml = marked.parse(contentWithSpans, {

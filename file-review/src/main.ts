@@ -626,7 +626,8 @@ function handlePreviewAddComment(
 
   // Show comment input in sidebar with element type label
   const tagName = element.tagName.toLowerCase();
-  const label = tagName === 'p' ? 'Paragraph' :
+  const label = (tagName === 'p' && element.classList.contains('preview-line')) ? 'Line' :
+    tagName === 'p' ? 'Paragraph' :
     tagName.match(/^h[1-6]$/) ? 'Heading' :
     tagName === 'li' ? 'List item' :
     tagName === 'tr' ? 'Table row' :

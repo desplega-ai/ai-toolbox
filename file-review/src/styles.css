@@ -311,6 +311,15 @@ body {
   margin-bottom: 1em;
 }
 
+/* Per-line paragraph groups (split multi-line paragraphs for commenting) */
+#preview-container .preview-paragraph {
+  margin-bottom: 1em;
+}
+
+#preview-container .preview-paragraph .preview-line {
+  margin-bottom: 0;
+}
+
 #preview-container code {
   background: var(--bg-secondary);
   padding: 0.2em 0.4em;
