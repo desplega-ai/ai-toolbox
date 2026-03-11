@@ -72,5 +72,6 @@ After making changes to `file-review/`, follow this sequence:
    - `file-review/src-tauri/Cargo.toml`
 2. **Commit & push**: `git add ... && git commit && git push origin main`
 3. **Build & install**: `cd file-review && bun run install:web`
+4. **Commit Cargo.lock**: The build updates `file-review/src-tauri/Cargo.lock` — commit and push it separately
 
 Use `bun run dev -- /path/to/file.md` for E2E testing before release.
