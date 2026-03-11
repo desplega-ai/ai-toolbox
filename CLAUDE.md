@@ -61,3 +61,16 @@ Each tool is independent - check its README for specific setup. General pattern:
 - Plugins: YAML/Markdown configs in `cc-plugin/`
 
 New tools: Create folder with minimal slug, add README.md.
+
+## file-review Release Process
+
+After making changes to `file-review/`, follow this sequence:
+
+1. **Bump version** in all three files (keep in sync):
+   - `file-review/package.json`
+   - `file-review/src-tauri/tauri.conf.json`
+   - `file-review/src-tauri/Cargo.toml`
+2. **Commit & push**: `git add ... && git commit && git push origin main`
+3. **Build & install**: `cd file-review && bun run install:web`
+
+Use `bun run dev -- /path/to/file.md` for E2E testing before release.
