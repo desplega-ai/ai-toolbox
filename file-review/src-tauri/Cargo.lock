@@ -757,7 +757,7 @@ dependencies = [
 
 [[package]]
 name = "file-review"
-version = "1.6.1"
+version = "1.7.0"
 dependencies = [
  "axum",
  "chrono",
