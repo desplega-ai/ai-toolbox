@@ -33,6 +33,11 @@ Install from marketplace:
 
 Plugin structure: `cc-plugin/{base,swarm,wts,teams}/` with hooks, skills, and agents.
 
+### Plugin versioning
+
+- When modifying a plugin, **always bump its version** in `cc-plugin/<plugin>/.claude-plugin/plugin.json` (patch for fixes, minor for features, major for breaking changes).
+- When adding a **new plugin**, also update the marketplace manifest so it appears in `/plugin marketplace add desplega-ai/ai-toolbox`.
+
 ## Key Tools
 
 **ai-tracker** (Python):

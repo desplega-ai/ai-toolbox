@@ -90,9 +90,12 @@ Propose candidates to the user via AskUserQuestion.
    ```bash
    file-review "<absolute_path>"
    ```
-   Wait for the process to complete.
+   - Use the Bash tool with `run_in_background: true` and `timeout: 600000` (max allowed — 10 minutes)
+   - Do **NOT** append `&` to the command — the process must block until the user closes the GUI
+   - Do **NOT** use `--bg` — let the Bash tool handle backgrounding
+   - When the background task completes, Claude is automatically notified and receives stdout (review comments)
 
-   CLI flags: `--bg` (background), `--silent` (no comment output), `--json` (JSON output).
+   Other CLI flags: `--silent` (no comment output), `--json` (JSON output).
 
 4. **Inform the user:**
    ```
@@ -100,8 +103,9 @@ Propose candidates to the user via AskUserQuestion.
 
    Shortcuts: Cmd+K (add comment), Cmd+S (save), Cmd+Q (quit), Cmd+/ (help)
    ```
+   No need to ask the user to notify you when done — you will be automatically notified when the GUI closes.
 
-5. **After the app closes**, it outputs review comments to stdout:
+5. **After the background task completes**, the notification includes stdout with review comments:
    ```
    === Review Comments (N) ===
 
