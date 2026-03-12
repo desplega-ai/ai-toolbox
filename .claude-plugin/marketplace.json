@@ -37,6 +37,11 @@
             "name": "remarkable",
             "source": "./cc-plugin/remarkable",
             "description": "Plugin to interact with your reMarkable tablet"
+        },
+        {
+            "name": "teams",
+            "source": "./cc-plugin/teams",
+            "description": "Inter-session communication — session registry, messaging, and coordination between Claude Code sessions"
         }
     ]
 }

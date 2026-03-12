@@ -10,7 +10,7 @@ Monorepo of AI and developer tools by desplega.ai. Each subdirectory is a standa
 | `brain/` | Personal knowledge management with semantic search | TypeScript, Bun, SQLite |
 | `cc-hooks/` | macOS notifications for Claude Code | Bash |
 | `cc-notch/` | Menu bar cost tracker (SwiftBar) | Shell |
-| `cc-plugin/` | Claude Code plugins (base, swarm, wts) | YAML/Markdown |
+| `cc-plugin/` | Claude Code plugins (base, swarm, wts, teams) | YAML/Markdown |
 | `dokcli/` | CLI tool for Dokploy (auto-generated from OpenAPI) | TypeScript, Bun |
 | `dns/` | DNS TXT record query utility | - |
 | `file-review/` | File review tool | - |
@@ -31,7 +31,7 @@ Install from marketplace:
 /plugin install wts@desplega-ai-toolbox           # Worktree manager
 ```
 
-Plugin structure: `cc-plugin/{base,swarm,wts}/` with hooks, skills, and agents.
+Plugin structure: `cc-plugin/{base,swarm,wts,teams}/` with hooks, skills, and agents.
 
 ## Key Tools
 

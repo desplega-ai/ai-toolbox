@@ -1,0 +1,40 @@
+{
+    "name": "teams",
+    "description": "Inter-session communication for Claude Code — session registry, messaging, and coordination",
+    "version": "0.1.0",
+    "author": {
+        "name": "desplega.ai",
+        "email": "contact@desplega.ai"
+    },
+    "repository": "https://github.com/desplega-ai/ai-toolbox",
+    "keywords": ["teams", "sessions", "communication", "mcp"],
+    "license": "MIT",
+    "hooks": {
+        "SessionStart": [
+            {
+                "matcher": "*",
+                "hooks": [{
+                    "type": "command",
+                    "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-registry.py"
+                }]
+            }
+        ],
+        "PostToolUse": [
+            {
+                "matcher": "*",
+                "hooks": [{
+                    "type": "command",
+                    "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-registry.py"
+                }]
+            }
+        ],
+        "Stop": [
+            {
+                "hooks": [{
+                    "type": "command",
+                    "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-registry.py"
+                }]
+            }
+        ]
+    }
+}
