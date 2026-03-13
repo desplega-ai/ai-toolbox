@@ -142,6 +142,7 @@ body {
 #preview-wrapper {
   display: flex;
   flex-direction: column;
+  min-width: 0; /* prevent content from pushing sidebar off-screen */
 }
 
 /* Preview search bar */
