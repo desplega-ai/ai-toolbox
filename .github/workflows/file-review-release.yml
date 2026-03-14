@@ -17,11 +17,24 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # macOS
           - target: aarch64-apple-darwin
             runner: macos-latest
+            os: darwin
             arch: arm64
           - target: x86_64-apple-darwin
             runner: macos-15
+            os: darwin
+            arch: x86_64
+          # Linux
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-22.04
+            os: linux
+            arch: x86_64
+          # Windows
+          - target: x86_64-pc-windows-msvc
+            runner: windows-latest
+            os: windows
             arch: x86_64
 
     runs-on: ${{ matrix.runner }}
@@ -29,6 +42,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: matrix.os == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -64,23 +83,27 @@ jobs:
 
       - name: Prepare release artifact
         working-directory: ./file-review
+        shell: bash
         run: |
           BINARY_PATH="src-tauri/target/${{ matrix.target }}/release/${{ env.APP_NAME }}"
-          ARTIFACT_NAME="${{ env.APP_NAME }}-darwin-${{ matrix.arch }}"
-
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            BINARY_PATH="${BINARY_PATH}.exe"
+          fi
+          ARTIFACT_NAME="${{ env.APP_NAME }}-${{ matrix.os }}-${{ matrix.arch }}"
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            ARTIFACT_NAME="${ARTIFACT_NAME}.exe"
+          fi
           cp "$BINARY_PATH" "$ARTIFACT_NAME"
-          shasum -a 256 "$ARTIFACT_NAME" > "$ARTIFACT_NAME.sha256"
-
+          shasum -a 256 "$ARTIFACT_NAME" > "$ARTIFACT_NAME.sha256" 2>/dev/null || sha256sum "$ARTIFACT_NAME" > "$ARTIFACT_NAME.sha256"
           echo "Built: $ARTIFACT_NAME"
           cat "$ARTIFACT_NAME.sha256"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.APP_NAME }}-darwin-${{ matrix.arch }}
+          name: ${{ env.APP_NAME }}-${{ matrix.os }}-${{ matrix.arch }}
           path: |
-            ./file-review/${{ env.APP_NAME }}-darwin-${{ matrix.arch }}
-            ./file-review/${{ env.APP_NAME }}-darwin-${{ matrix.arch }}.sha256
+            ./file-review/${{ env.APP_NAME }}-${{ matrix.os }}-${{ matrix.arch }}*
 
   release:
     needs: build
@@ -110,30 +133,34 @@ jobs:
         with:
           name: "File Review v${{ steps.version.outputs.version }}"
           body: |
-            ## Installation via Homebrew
+            ## Installation
 
+            ### macOS (Homebrew)
             ```bash
             brew tap desplega-ai/tap
             brew install file-review
             ```
 
-            ## Manual Installation
+            ### Manual Installation
 
-            Download the appropriate binary for your Mac:
-            - **Apple Silicon (M1/M2/M3)**: `file-review-darwin-arm64`
-            - **Intel**: `file-review-darwin-x86_64`
+            Download the appropriate binary for your platform:
+            - **macOS Apple Silicon (M1/M2/M3)**: `file-review-darwin-arm64`
+            - **macOS Intel**: `file-review-darwin-x86_64`
+            - **Linux x86_64**: `file-review-linux-x86_64`
+            - **Windows x86_64**: `file-review-windows-x86_64.exe`
 
+            #### macOS / Linux
             ```bash
-            chmod +x file-review-darwin-*
-            mv file-review-darwin-* /usr/local/bin/file-review
+            chmod +x file-review-*
+            mv file-review-* /usr/local/bin/file-review
             ```
+
+            #### Windows
+            Rename to `file-review.exe` and add to your PATH.
 
             ## SHA256 Checksums
             See the `.sha256` files for verification.
           files: |
-            artifacts/file-review-darwin-arm64
-            artifacts/file-review-darwin-arm64.sha256
-            artifacts/file-review-darwin-x86_64
-            artifacts/file-review-darwin-x86_64.sha256
+            artifacts/*
           draft: false
           prerelease: false
