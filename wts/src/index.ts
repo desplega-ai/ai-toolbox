@@ -10,6 +10,7 @@ import { listCommand } from "./commands/list.ts";
 import { mergeCommand } from "./commands/merge.ts";
 import { prCommand } from "./commands/pr.ts";
 import { setupCommand } from "./commands/setup.ts";
+import { shellInitCommand } from "./commands/shell-init.ts";
 import { switchCommand } from "./commands/switch.ts";
 
 const program = new Command();
@@ -25,6 +26,7 @@ program.addCommand(cdCommand);
 program.addCommand(switchCommand);
 program.addCommand(prCommand);
 program.addCommand(setupCommand);
+program.addCommand(shellInitCommand);
 program.addCommand(cleanupCommand);
 
 program.parse();

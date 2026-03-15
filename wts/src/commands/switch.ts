@@ -57,7 +57,7 @@ export const switchCommand = new Command("switch")
         });
       } else {
         // Fallback to basic prompt
-        console.log(chalk.dim("(fzf not found, using basic selection)"));
+        console.error(chalk.dim("(fzf not found, using basic selection)"));
 
         const worktreeOptions = nonMainWorktrees.map((wt) => ({
           value: wt.alias ?? wt.branch,
@@ -106,12 +106,18 @@ export const switchCommand = new Command("switch")
         process.exit(1);
       }
     } else {
-      // Just print the path for shell integration
-      // User can use: cd $(wts switch <alias>)
+      // Print the path to stdout for shell integration
       console.log(selectedWorktree.path);
 
       if (useTmux && !isInsideTmux()) {
         console.error(chalk.dim("\n(Note: --tmux specified but not inside tmux session)"));
+      }
+
+      if (!process.env.WTS_SHELL_WRAP) {
+        const aliasHint = alias ?? selectedWorktree.alias ?? selectedWorktree.branch;
+        console.error(chalk.dim(`\nTip: path printed but directory not changed.`));
+        console.error(chalk.dim(`  Quick:     cd $(wts switch ${aliasHint})`));
+        console.error(chalk.dim(`  Permanent: eval "$(wts shell-init)"  # add to ~/.zshrc`));
       }
     }
   });

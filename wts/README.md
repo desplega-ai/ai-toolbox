@@ -99,7 +99,7 @@ Aliases: `wts ls`
 
 ### `wts switch [alias]`
 
-Switch to a worktree.
+Switch to a worktree. With [shell integration](#shell-integration), this will `cd` into the worktree directory.
 
 ```bash
 wts switch              # Interactive fzf picker
@@ -207,26 +207,18 @@ Project-specific overrides (optional).
 
 ## Shell Integration
 
-Add this function to your `.bashrc` or `.zshrc` for easy directory switching:
+Add this to your `~/.zshrc` or `~/.bashrc` to enable `wts switch` and `wts cd` to change your shell directory:
 
 ```bash
-# Change to a worktree directory
-wcd() {
-  local path
-  path=$(wts cd "$1" 2>/dev/null)
-  if [ $? -eq 0 ] && [ -n "$path" ]; then
-    cd "$path"
-  else
-    echo "Worktree '$1' not found"
-    return 1
-  fi
-}
+eval "$(wts shell-init)"
 ```
 
-Usage:
+This wraps the `wts` command so that `switch` and `cd` subcommands capture the printed path and `cd` into it. All other subcommands pass through unchanged.
 
 ```bash
-wcd my-feature   # cd to the my-feature worktree
+wts switch my-feature   # cd into the my-feature worktree
+wts cd my-feature       # same thing
+wts switch              # interactive picker, then cd
 ```
 
 ## Setup Scripts
