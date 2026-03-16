@@ -49,6 +49,14 @@ git checkout .
 
 ## Feature 1: [Feature Name]
 
+### QA Spec (optional):
+
+**Approach:** browser-automation | manual | cli-verification
+**Test Scenarios:**
+- [ ] TC-1: [Scenario name]
+  - Steps: [1. Navigate to X, 2. Click Y, 3. Verify Z]
+  - Expected: [What should happen]
+
 ### Cycle 1.1: [Simplest behavior - happy path]
 
 #### RED Phase

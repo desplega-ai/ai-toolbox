@@ -160,8 +160,12 @@ If the user selected "Background sub-agents" for phase execution:
    - Pass the plan path and phase number as context
 3. **Wait for agent completion** — you'll be notified when it finishes
 4. **Review the agent's report** — check status (completed/blocked/failed), changed files, verification results
-5. **Handle manual verification** with the user — present the manual verification items from the phase
-6. **Proceed to next phase** after user confirms
+5. **Check QA spec status** — If the phase agent reports `QA: pending`, present the QA spec's test scenarios to the user and offer:
+   - Execute QA now (→ invoke `desplega:qa` with plan path + phase context)
+   - Skip QA for this phase
+   - If `QA: passed`, note it and proceed. If `QA: n/a`, proceed normally.
+6. **Handle manual verification** with the user — present the manual verification items from the phase
+7. **Proceed to next phase** after user confirms
 
 The implementing skill becomes an **orchestrator** — it coordinates phases, handles human checkpoints, and manages cross-phase decisions, but delegates actual implementation work to phase-runner sub-agents.
 
@@ -172,7 +176,8 @@ If the user selected "Inline" for phase execution:
 After implementing a phase:
 1. Run the success criteria checks (usually `make format` or folder-specific `Makefile`s)
 2. Fix any issues before proceeding
-3. Update progress in both the plan and your todos
+3. If the phase has a `### QA Spec` section, execute the test scenarios or offer to invoke `/qa`
+4. Update progress in both the plan and your todos
 4. Check off completed items in the plan file using Edit
 
 ### Pause for Human Verification (if not Autopilot or executing multiple phases)

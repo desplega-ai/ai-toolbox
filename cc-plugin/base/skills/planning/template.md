@@ -56,6 +56,17 @@ Key files to check:
 
 **Implementation Note**: After completing this phase, pause for manual confirmation. If commit-per-phase was requested, create commit after verification passes.
 
+### QA Spec (optional):
+
+**Approach:** browser-automation | manual | cli-verification
+**Test Scenarios:**
+- [ ] TC-1: [Scenario name]
+  - Steps: [1. Navigate to X, 2. Click Y, 3. Verify Z]
+  - Expected: [What should happen]
+- [ ] TC-2: [Scenario name]
+  - Steps: [...]
+  - Expected: [...]
+
 ---
 
 ## Phase 2: [Descriptive Name]

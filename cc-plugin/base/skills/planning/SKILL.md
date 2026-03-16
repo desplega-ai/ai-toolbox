@@ -160,6 +160,8 @@ Write the plan to `thoughts/<username|shared>/plans/YYYY-MM-DD-description.md`.
 
 **CRITICAL**: Every phase MUST include a `### Success Criteria:` section with both `#### Automated Verification:` and `#### Manual Verification:` subsections. See "Success Criteria Requirements" section at the end of this document for the exact format.
 
+**QA Specs (optional)**: Phases that change user-facing behavior, add UI, modify API responses, or alter auth/permissions SHOULD include an optional `### QA Spec (optional):` section after the Success Criteria. See the template for the exact format. Phases that are internal refactors, type changes, config updates, or dependency bumps should omit QA specs. QA specs can live either inline in plan phases (for per-phase validation) or as a separate standalone document (for cross-cutting or feature-level QA). The inline approach is the default for plans; the QA skill handles both sources transparently.
+
 **Template:** Read and follow the template at `cc-plugin/base/skills/planning/template.md`
 
 The template includes:
@@ -263,3 +265,4 @@ Before finalizing any plan, verify:
 - [ ] Each has `#### Manual Verification:` with human testing steps
 - [ ] All items use checkbox format `- [ ]`
 - [ ] Automated checks are actual commands (not descriptions)
+- [ ] Phases with user-facing changes have optional `### QA Spec` sections (if applicable)

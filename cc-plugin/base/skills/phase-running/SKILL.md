@@ -69,6 +69,10 @@ Execute the automated verification commands from the phase's "Success Criteria" 
 2. Record pass/fail for each
 3. If a check fails, attempt to fix the issue and re-run
 4. If a check continues to fail after one fix attempt, include it in the report
+5. If the phase has a `### QA Spec (optional):` section:
+   - If the QA approach is `cli-verification`, execute the test steps and record results
+   - If the approach is `browser-automation` or `manual`, report `QA: pending` — the caller handles these
+   - If no QA spec exists, report `QA: n/a`
 
 ### Step 5: Update Plan
 
@@ -88,6 +92,7 @@ Files changed: [list of files created/modified]
 Automated checks: [N/M passed]
 - [x] [Check 1] — passed
 - [x] [Check 2] — passed
+QA: passed | pending | n/a
 Manual verification needed:
 - [ ] [Manual check 1]
 - [ ] [Manual check 2]
@@ -99,6 +104,7 @@ Status: blocked
 Phase: [N] - [Phase name]
 Reason: [Clear description of what's blocking]
 Partial progress: [What was completed before blocking]
+QA status: [status at time of block]
 Suggested action: [How the caller/user can unblock]
 ```
 
@@ -108,6 +114,7 @@ Status: failed
 Phase: [N] - [Phase name]
 Error: [Error details]
 Partial progress: [What was completed before failure]
+QA status: [status at time of failure]
 Files modified: [List of files that were changed before failure]
 ```
 

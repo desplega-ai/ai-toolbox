@@ -139,7 +139,11 @@ If blocking items remain:
 
 ## Integration with Reviewing Skill
 
-After verification completes, offer: "Would you like me to also run `/review` on this plan for a final quality check?"
+After verification completes, use **AskUserQuestion** with:
+
+| Question | Options |
+|----------|---------|
+| "Verification complete. What's next?" | 1. Run QA (→ `/qa`), 2. Run review (→ `/review`), 3. Done |
 
 ## Review Integration
 

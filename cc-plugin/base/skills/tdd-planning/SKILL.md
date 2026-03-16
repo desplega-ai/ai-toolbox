@@ -158,6 +158,8 @@ Write the plan to `thoughts/<username|shared>/plans/YYYY-MM-DD-tdd-description.m
 
 **CRITICAL**: Every TDD cycle MUST include exact test code to write and expected failure message. See template for exact format.
 
+**QA Specs (optional)**: Features that change user-facing behavior SHOULD include an optional `### QA Spec (optional):` section at the Feature level (after the feature header, before the first TDD cycle). Unlike regular plans where QA specs attach per-phase, TDD plans attach them per-feature since the RED/GREEN cycle itself serves as the per-cycle verification. See the template for the format.
+
 **Template:** Read and follow the template at `cc-plugin/base/skills/tdd-planning/template.md`
 
 ### Step 5: Review and Iterate

@@ -67,6 +67,7 @@ Read the input document fully. Determine the document type from its path and con
 | `/research/` | Research document |
 | `/plans/` | Plan |
 | `/brainstorms/` | Brainstorm |
+| `/qa/` | QA report |
 
 If the type is ambiguous, infer from content structure or use **AskUserQuestion** to clarify.
 
@@ -98,6 +99,14 @@ Verify required sections exist based on document type:
 - Synthesis section
 - Next Steps section
 
+**QA reports:**
+- YAML frontmatter with required fields (date, author, topic, status)
+- Context section
+- Scope section (In Scope / Out of Scope)
+- Test Cases with Steps, Expected, Actual, Status per case
+- Evidence section (Screenshots, Videos, Logs, or External Links)
+- Verdict section with overall status and summary
+
 ### Step 3: Content Analysis
 
 Apply type-specific quality criteria:
@@ -120,6 +129,13 @@ Apply type-specific quality criteria:
 - Were conclusions reached prematurely before sufficient exploration?
 - Are constraints and requirements clearly identified?
 - Is the document ready to feed into research or planning?
+
+**QA reports:**
+- Does every test case have an actual result and status?
+- Is evidence provided for failures (screenshots, logs)?
+- Is the verdict consistent with individual test case results?
+- Are edge cases and exploratory testing documented?
+- Are external references (Sentry, PRs, CI) linked where relevant?
 
 ### Step 4: Gap Identification
 
@@ -196,6 +212,12 @@ Use **AskUserQuestion** with context-dependent options:
 | Question | Options |
 |----------|---------|
 | "Review complete. What's next?" | 1. Done — mark as complete, 2. Address remaining items |
+
+**If reviewing a QA report:**
+
+| Question | Options |
+|----------|---------|
+| "Review complete. What's next for this QA report?" | 1. Run post-QA verification (→ `/verify-plan`), 2. Address issues found, 3. Done |
 
 **If document type is unclear**, ask a generic question:
 
