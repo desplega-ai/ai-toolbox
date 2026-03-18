@@ -100,6 +100,10 @@ When the user selects "Ask another question," the skill loops:
 
 Each iteration is independent — no state accumulates between questions unless the user explicitly connects them.
 
+## Learning Capture
+
+**OPTIONAL SUB-SKILL:** If significant insights, patterns, gotchas, or decisions emerged during this workflow, consider using `desplega:learning` to capture them via `/learning capture`. Focus on learnings that would help someone else in a future session.
+
 ## What This Skill is NOT
 
 - **Not research**: No comprehensive document, no frontmatter ceremony, no multi-section output

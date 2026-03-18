@@ -62,6 +62,10 @@ Create `thoughts/<username|shared>/brainstorms/YYYY-MM-DD-<topic>.md` using the 
 
 Fill in the frontmatter and the Context section with whatever is known: the topic, any context provided, initial thoughts. Write what we know so far.
 
+### Prior Learning Recall
+
+**OPTIONAL SUB-SKILL:** If `~/.agentic-learnings.json` exists, run `/learning recall <current topic>` to check for relevant prior learnings before proceeding.
+
 ### Step 2: Assess Phase
 
 Understand the shape of the exploration. Use **AskUserQuestion** with:
@@ -122,6 +126,10 @@ When exploration is complete (user signals done, or natural saturation), append 
 - [Requirement 1 — lightweight PRD-style]
 - [Requirement 2]
 ```
+
+### Learning Capture
+
+**OPTIONAL SUB-SKILL:** If significant insights, patterns, gotchas, or decisions emerged during this workflow, consider using `desplega:learning` to capture them via `/learning capture`. Focus on learnings that would help someone else in a future session.
 
 ### Step 5: Handoff Phase
 

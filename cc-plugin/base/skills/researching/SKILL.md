@@ -62,6 +62,10 @@ The autonomy mode is passed by the invoking command. If not specified, default t
 
 ## Research Process
 
+### Prior Learning Recall
+
+**OPTIONAL SUB-SKILL:** If `~/.agentic-learnings.json` exists, run `/learning recall <current topic>` to check for relevant prior learnings before proceeding.
+
 ### Before Starting
 
 Perform a quick analysis of the research query. If anything is unclear and autonomy mode is not Autopilot, use **AskUserQuestion** to clarify:
@@ -135,7 +139,11 @@ Perform a quick analysis of the research query. If anything is unclear and auton
    - Update frontmatter `last_updated` fields
    - Spawn new sub-agents as needed
 
-10. **Workflow handoff:**
+10. **Learning Capture:**
+
+    **OPTIONAL SUB-SKILL:** If significant insights, patterns, gotchas, or decisions emerged during this workflow, consider using `desplega:learning` to capture them via `/learning capture`. Focus on learnings that would help someone else in a future session.
+
+11. **Workflow handoff:**
     After research is complete (and optionally reviewed), use **AskUserQuestion** with:
 
     | Question | Options |

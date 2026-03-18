@@ -60,6 +60,10 @@ The autonomy mode is passed by the invoking command. If not specified, default t
 
 ## Process Steps
 
+### Prior Learning Recall
+
+**OPTIONAL SUB-SKILL:** If `~/.agentic-learnings.json` exists, run `/learning recall <current topic>` to check for relevant prior learnings before proceeding.
+
 ### Step 1: Context Gathering & Initial Analysis
 
 1. **Read all mentioned files immediately and FULLY:**
@@ -187,7 +191,11 @@ The template includes:
 
 4. **Finalize the plan** - DO NOT START implementation
 
-5. **Workflow handoff:**
+5. **Learning Capture:**
+
+   **OPTIONAL SUB-SKILL:** If significant insights, patterns, gotchas, or decisions emerged during this workflow, consider using `desplega:learning` to capture them via `/learning capture`. Focus on learnings that would help someone else in a future session.
+
+6. **Workflow handoff:**
    After the plan is finalized (and optionally reviewed), use **AskUserQuestion** with:
 
    | Question | Options |

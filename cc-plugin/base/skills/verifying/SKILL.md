@@ -137,6 +137,10 @@ If all blocking items are resolved:
 If blocking items remain:
 - List them clearly and suggest next steps
 
+## Learning Capture
+
+**OPTIONAL SUB-SKILL:** If significant insights, patterns, gotchas, or decisions emerged during this workflow, consider using `desplega:learning` to capture them via `/learning capture`. Focus on learnings that would help someone else in a future session.
+
 ## Integration with Reviewing Skill
 
 After verification completes, use **AskUserQuestion** with:

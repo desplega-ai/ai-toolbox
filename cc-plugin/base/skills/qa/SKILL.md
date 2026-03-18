@@ -170,6 +170,10 @@ If the `file-review` plugin is available and the user selected "Yes" during User
 - Process feedback with `file-review:process-review` skill
 - If user selected "No" or autonomy mode is Autopilot, skip this step
 
+## Learning Capture
+
+**OPTIONAL SUB-SKILL:** If significant insights, patterns, gotchas, or decisions emerged during this workflow, consider using `desplega:learning` to capture them via `/learning capture`. Focus on learnings that would help someone else in a future session.
+
 ## Workflow Handoff
 
 After the QA report is complete, use **AskUserQuestion** with:

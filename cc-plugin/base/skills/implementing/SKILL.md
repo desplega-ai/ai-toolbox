@@ -113,6 +113,10 @@ If "Commit after each phase" is selected:
 
 Store these preferences and apply them throughout the implementation.
 
+## Prior Learning Recall
+
+**OPTIONAL SUB-SKILL:** If `~/.agentic-learnings.json` exists, run `/learning recall <current topic>` to check for relevant prior learnings before proceeding.
+
 ## Getting Started
 
 When given a plan path:
@@ -212,6 +216,10 @@ If the plan has existing checkmarks:
 - Trust that completed work is done
 - Pick up from the first unchecked item
 - Verify previous work only if something seems off
+
+## Learning Capture
+
+**OPTIONAL SUB-SKILL:** If significant insights, patterns, gotchas, or decisions emerged during this workflow, consider using `desplega:learning` to capture them via `/learning capture`. Focus on learnings that would help someone else in a future session.
 
 ## Completing Implementation
 

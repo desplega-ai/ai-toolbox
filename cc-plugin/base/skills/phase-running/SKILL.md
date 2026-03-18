@@ -80,6 +80,10 @@ Execute the automated verification commands from the phase's "Success Criteria" 
 - Do **NOT** check off manual verification items — those require human confirmation
 - Update the plan's `last_updated` and `last_updated_by` frontmatter fields
 
+### Learning Capture
+
+**OPTIONAL SUB-SKILL:** If significant learnings emerged during this phase, note them in the phase completion report for the parent session to capture via `/learning capture`.
+
 ### Step 6: Report Results
 
 The agent's return message MUST include:

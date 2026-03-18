@@ -178,7 +178,11 @@ Write the plan to `thoughts/<username|shared>/plans/YYYY-MM-DD-tdd-description.m
    - After iteration, offer: "Would you like me to run `/review` on this TDD plan for completeness and gap analysis?"
    - If yes, invoke the `desplega:reviewing` skill on the plan document
 
-4. **Workflow handoff:**
+4. **Learning Capture:**
+
+   **OPTIONAL SUB-SKILL:** If significant insights, patterns, gotchas, or decisions emerged during this workflow, consider using `desplega:learning` to capture them via `/learning capture`. Focus on learnings that would help someone else in a future session.
+
+5. **Workflow handoff:**
    After the plan is finalized (and optionally reviewed), use **AskUserQuestion** with:
 
    | Question | Options |
