@@ -31,12 +31,16 @@ Install from marketplace:
 /plugin install wts@desplega-ai-toolbox           # Worktree manager
 ```
 
-Plugin structure: `cc-plugin/{base,swarm,wts,teams}/` with hooks, skills, and agents.
+Plugin structure: `cc-plugin/{base,swarm,wts,teams,oapi,...}/` with hooks, skills, and agents.
 
 ### Plugin versioning
 
 - When modifying a plugin, **always bump its version** in `cc-plugin/<plugin>/.claude-plugin/plugin.json` (patch for fixes, minor for features, major for breaking changes).
-- When adding a **new plugin**, also update the marketplace manifest so it appears in `/plugin marketplace add desplega-ai/ai-toolbox`.
+- When adding a **new plugin**, also update **both**:
+  1. The marketplace manifest at `.claude-plugin/marketplace.json` (add an entry to the `plugins` array)
+  2. The plugin structure list in this CLAUDE.md file (below)
+
+  Without the marketplace manifest entry, the plugin won't appear in `/plugin marketplace add desplega-ai/ai-toolbox`.
 
 ## Key Tools
 
