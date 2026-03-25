@@ -16,6 +16,7 @@
     "lint:fix": "biome check --write src",
     "format": "biome format --write src",
     "test": "bun test",
+    "test:e2e": "bun test/e2e.ts",
     "tsc": "bunx -- tsc --noEmit"
   },
   "dependencies": {
