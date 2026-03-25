@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import { Command } from "commander";
-import { getApi, loadSpec } from "../config/index.ts";
+import { getApi, loadConfig, loadSpec } from "../config/index.ts";
 import { printError } from "../output/index.ts";
 import {
   collapseNullable,
@@ -321,14 +321,129 @@ function renderApiOverview(apiName: string, baseUrl: string, spec: Record<string
   console.log("");
 }
 
+function renderGeneralDocs(): void {
+  console.log(chalk.bold("oapi — Dynamic CLI for OpenAPI specs"));
+  console.log("");
+
+  // Show registered APIs
+  const config = loadConfig();
+  const apiNames = Object.keys(config.apis);
+
+  if (apiNames.length > 0) {
+    console.log(chalk.bold.underline("Registered APIs"));
+    console.log("");
+    for (const name of apiNames) {
+      const api = config.apis[name];
+      if (!api) continue;
+      const spec = loadSpec(name);
+      const count = spec ? parseSpec(spec).length : "?";
+      console.log(
+        `  ${chalk.cyan(name.padEnd(20))} ${api.baseUrl}  ${chalk.dim(`(${count} endpoints)`)}`,
+      );
+    }
+    console.log("");
+  } else {
+    console.log(chalk.dim("  No APIs registered yet."));
+    console.log("");
+  }
+
+  // Workflow
+  console.log(chalk.bold.underline("Getting Started"));
+  console.log("");
+  console.log(
+    `  ${chalk.bold("1. Register")}   oapi register --name myapi --remote https://api.example.com/openapi.json`,
+  );
+  console.log(`  ${chalk.bold("2. Explore")}    oapi docs myapi`);
+  console.log(`  ${chalk.bold("3. Execute")}    oapi x myapi /health`);
+  console.log(
+    `  ${chalk.bold("4. Auth")}       oapi profile add --name key --type header --header-name X-Api-Key --value sk-...`,
+  );
+  console.log(`                oapi profile set-default myapi key`);
+  console.log("");
+
+  // Cheat sheet
+  console.log(chalk.bold.underline("Passing Parameters"));
+  console.log("");
+  console.log(
+    `  ${chalk.bold("Query params:")}   -F key=value            ${chalk.dim("auto-typed: numbers, booleans, JSON parsed")}`,
+  );
+  console.log(
+    `  ${chalk.bold("Body params:")}    -F key=value            ${chalk.dim("same syntax — oapi routes to body for POST/PUT/PATCH")}`,
+  );
+  console.log(
+    `  ${chalk.bold("String only:")}    -f key=value            ${chalk.dim("no type conversion, always a string")}`,
+  );
+  console.log(
+    `  ${chalk.bold("Nested object:")}  -F obj.key=value        ${chalk.dim("dot notation → { obj: { key: value } }")}`,
+  );
+  console.log(
+    `  ${chalk.bold("JSON value:")}     -F 'ids=["a","b"]'      ${chalk.dim("arrays/objects parsed from JSON")}`,
+  );
+  console.log(
+    `  ${chalk.bold("From file:")}      -F data=@file.json      ${chalk.dim("file contents as value")}`,
+  );
+  console.log(
+    `  ${chalk.bold("Full body:")}      --input body.json       ${chalk.dim("entire request body from file")}`,
+  );
+  console.log(`  ${chalk.bold("From stdin:")}     echo '{...}' | ... --input -`);
+  console.log(
+    `  ${chalk.bold("Path params:")}    -F node_id=abc          ${chalk.dim("substitutes {node_id} in path")}`,
+  );
+  console.log(
+    `  ${chalk.bold("  or literal:")}   /v1/nodes/abc           ${chalk.dim("auto-matched against spec templates")}`,
+  );
+  console.log("");
+
+  console.log(chalk.bold.underline("Useful Flags"));
+  console.log("");
+  console.log(
+    `  ${chalk.bold("-H Key:Value")}    Custom header             ${chalk.dim("e.g. -H X-Api-Key:sk-123")}`,
+  );
+  console.log(
+    `  ${chalk.bold("--profile name")}  Use stored auth profile   ${chalk.dim("see: oapi profile --help")}`,
+  );
+  console.log(
+    `  ${chalk.bold("--dry-run")}       Print curl, don't send    ${chalk.dim("great for debugging")}`,
+  );
+  console.log(
+    `  ${chalk.bold("--verbose")}       Show request/response     ${chalk.dim("headers on stderr")}`,
+  );
+  console.log(
+    `  ${chalk.bold("--jq <expr>")}     Filter with jq            ${chalk.dim("e.g. --jq '.[].id'")}`,
+  );
+  console.log(
+    `  ${chalk.bold("--raw")}           Compact JSON              ${chalk.dim("pipeable to jq")}`,
+  );
+  console.log(
+    `  ${chalk.bold("--no-validate")}   Skip schema checks        ${chalk.dim("bypass validation")}`,
+  );
+  console.log("");
+
+  if (apiNames.length > 0) {
+    console.log(chalk.dim(`Tip: oapi docs ${apiNames[0]} — see all endpoints for an API`));
+    console.log(
+      chalk.dim(`     oapi docs ${apiNames[0]} <path> — see params for a specific endpoint`),
+    );
+  } else {
+    console.log(chalk.dim("Tip: oapi docs <api-name> — see all endpoints for a registered API"));
+  }
+  console.log("");
+}
+
 // ─── Command ─────────────────────────────────────────────────────────────────
 
 export const docsCommand = new Command("docs")
   .description("Show usage examples and parameter docs for an API")
-  .argument("<api-name>", "Registered API name")
+  .argument("[api-name]", "Registered API name (omit for general docs)")
   .argument("[path]", "Endpoint path (shows detailed docs)")
   .argument("[method]", "HTTP method (narrows to one endpoint)")
-  .action((apiName: string, targetPath?: string, targetMethod?: string) => {
+  .action((apiName?: string, targetPath?: string, targetMethod?: string) => {
+    // No api-name → general docs
+    if (!apiName) {
+      renderGeneralDocs();
+      return;
+    }
+
     const api = getApi(apiName);
     if (!api) {
       printError(`API '${apiName}' not found. Run 'oapi list' to see registered APIs.`);
