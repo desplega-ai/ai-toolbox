@@ -27,10 +27,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.9",
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
+    "@types/bun": "latest",
+    "typescript": "^6.0.0"
   },
   "publishConfig": {
     "access": "public"
