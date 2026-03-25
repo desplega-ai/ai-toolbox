@@ -1,6 +1,6 @@
 {
   "name": "@desplega.ai/oapi",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Dynamic CLI generator from OpenAPI specs",
   "type": "module",
   "bin": {
