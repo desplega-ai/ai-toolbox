@@ -1,0 +1,46 @@
+{
+  "name": "@desplega.ai/oapi",
+  "version": "0.1.0",
+  "description": "Dynamic CLI generator from OpenAPI specs",
+  "type": "module",
+  "bin": {
+    "oapi": "./dist/index.js"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "dev": "bun src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target node --format esm",
+    "prepublishOnly": "bun run build",
+    "release": "bun run build && bun publish",
+    "lint": "biome check src",
+    "lint:fix": "biome check --write src",
+    "format": "biome format --write src",
+    "test": "bun test",
+    "tsc": "bunx tsc --noEmit"
+  },
+  "dependencies": {
+    "@scalar/openapi-parser": "^0.25.6",
+    "ajv": "^8.18.0",
+    "ajv-formats": "^3.0.1",
+    "chalk": "^5.4.1",
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.9",
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/desplega-ai/ai-toolbox.git",
+    "directory": "oapi"
+  },
+  "keywords": ["openapi", "cli", "api", "rest", "swagger"],
+  "license": "MIT",
+  "author": "Desplega AI"
+}
