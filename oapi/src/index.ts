@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import pkg from "../package.json";
+import { docsCommand } from "./commands/docs.ts";
 import { executeCommand } from "./commands/execute.ts";
 import { listCommand } from "./commands/list.ts";
 import { profileCommand } from "./commands/profile.ts";
@@ -16,6 +17,7 @@ program.addCommand(unregisterCommand);
 program.addCommand(listCommand);
 program.addCommand(refreshCommand);
 program.addCommand(profileCommand);
+program.addCommand(docsCommand);
 program.addCommand(executeCommand);
 
 program.parse();

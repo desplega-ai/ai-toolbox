@@ -16,7 +16,7 @@
     "lint:fix": "biome check --write src",
     "format": "biome format --write src",
     "test": "bun test",
-    "tsc": "bunx tsc --noEmit"
+    "tsc": "bunx -- tsc --noEmit"
   },
   "dependencies": {
     "@scalar/openapi-parser": "^0.25.6",
