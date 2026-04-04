@@ -25,7 +25,7 @@ Before starting review (unless autonomy is Autopilot), establish these preferenc
 
 | Question | Options |
 |----------|---------|
-| "How should I present the review findings?" | 1. Append errata section to the document (Recommended), 2. Write a separate review file to thoughts/*/reviews/ |
+| "How should I present the review findings?" | 1. Append errata section to the document (Recommended), 2. Auto-apply fixes to the document, 3. Write a separate review file to thoughts/*/reviews/ |
 
 **File Review Preference** - Check if the `file-review` plugin is available (look for `file-review:file-review` in available commands).
 
@@ -179,6 +179,30 @@ Based on output mode preference:
   - [x] [Minor issue] — auto-fixed
   ```
 
+**If "Auto-apply":**
+- Auto-fix Minor issues directly in the document
+- Auto-fix Important issues directly in the document
+- For Critical findings, use **AskUserQuestion** with:
+
+| Question | Options |
+|----------|---------|
+| "There are [N] Critical findings. Would you like me to auto-apply fixes for those too?" | 1. Yes, apply Critical fixes too, 2. No, leave Critical items as errata for me to address |
+
+- Apply Critical fixes if authorized, otherwise leave them as unchecked errata items
+- Append a `## Review Errata` section summarizing all changes:
+  ```
+  ## Review Errata
+
+  _Reviewed: YYYY-MM-DD by [reviewer]_
+
+  ### Applied
+  - [x] [Finding description] — auto-applied
+  - [x] [Finding description] — auto-applied
+
+  ### Remaining (if any Critical items were not auto-applied)
+  - [ ] [Critical finding description and recommended action]
+  ```
+
 **If "Separate file":**
 - Write review to `thoughts/*/reviews/YYYY-MM-DD-review-of-<original-slug>.md`
 - Include all findings with references back to the original document
@@ -231,7 +255,9 @@ Use **AskUserQuestion** with context-dependent options:
 
 ## No Rewriting Rule
 
-**CRITICAL**: The reviewer identifies issues — the reviewer does NOT rewrite the document. Present findings and let the original author address them. The only exception is Minor auto-fixes (typos, formatting).
+**CRITICAL**: The reviewer identifies issues — the reviewer does NOT rewrite the document. Present findings and let the original author address them. Exceptions:
+- Minor auto-fixes (typos, formatting) are always applied
+- In **Auto-apply** mode, the reviewer applies Important and (optionally) Critical fixes directly, as authorized by the user
 
 ## Review Integration
 

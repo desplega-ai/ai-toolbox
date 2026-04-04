@@ -15,7 +15,7 @@ hooks:
 
 # Implementing
 
-You are implementing an approved technical plan, executing it phase by phase with verification at each step.
+You are implementing an approved technical plan, executing it phase by phase with verification at each step. Each phase is executed as a background sub-agent via `desplega:phase-running` — the main session acts as an orchestrator.
 
 ## Working Agreement
 
@@ -82,24 +82,7 @@ Then check if the `wts` plugin is available (look for `wts:wts` in available ski
 |----------|---------|
 | "You're currently on branch `<current-branch>`. Where would you like to implement?" | 1. Continue on current branch, 2. Create a new branch |
 
-### 2. Phase Execution Mode
-
-Use **AskUserQuestion** with these options:
-
-| Question | Options |
-|----------|---------|
-| "How would you like to execute plan phases?" | 1. Background sub-agents (Recommended — saves context, uses phase-runner), 2. Inline in this session (classic — all work happens here) |
-
-If "Background sub-agents" is selected:
-- Each phase is spawned as a background Agent running `desplega:phase-running`
-- The main session becomes an orchestrator: spawn → wait → review report → manual verification → next phase
-- This preserves main session context for cross-phase coordination
-
-If "Inline" is selected:
-- Phases execute directly in the current session (original behavior)
-- Better for small plans or when you want to watch every step
-
-### 3. Commit Strategy
+### 2. Commit Strategy
 
 Use **AskUserQuestion** with these options:
 
@@ -154,9 +137,7 @@ In Autopilot mode, use best judgment and document decisions in comments.
 
 ## Verification Approach
 
-### Background Sub-Agent Mode (Recommended)
-
-If the user selected "Background sub-agents" for phase execution:
+Each phase is executed via a background sub-agent running `desplega:phase-running`:
 
 1. **Read the phase overview** in the main session (minimal context usage)
 2. **Spawn a `desplega:phase-running` agent** in background with plan path + phase number:
@@ -171,18 +152,7 @@ If the user selected "Background sub-agents" for phase execution:
 6. **Handle manual verification** with the user — present the manual verification items from the phase
 7. **Proceed to next phase** after user confirms
 
-The implementing skill becomes an **orchestrator** — it coordinates phases, handles human checkpoints, and manages cross-phase decisions, but delegates actual implementation work to phase-runner sub-agents.
-
-### Inline Mode (Classic)
-
-If the user selected "Inline" for phase execution:
-
-After implementing a phase:
-1. Run the success criteria checks (usually `make format` or folder-specific `Makefile`s)
-2. Fix any issues before proceeding
-3. If the phase has a `### QA Spec` section, execute the test scenarios or offer to invoke `/qa`
-4. Update progress in both the plan and your todos
-4. Check off completed items in the plan file using Edit
+The implementing skill is an **orchestrator** — it coordinates phases, handles human checkpoints, and manages cross-phase decisions, but delegates actual implementation work to phase-runner sub-agents.
 
 ### Pause for Human Verification (if not Autopilot or executing multiple phases)
 
