@@ -26,6 +26,13 @@ export interface GraphHandle {
   recenter: () => void;
 }
 
+interface DiffOverlay {
+  addedNodes: Set<string>;
+  removedNodes: Set<string>;
+  addedEdges: Set<string>;
+  removedEdges: Set<string>;
+}
+
 interface GraphProps {
   data: GraphData;
   selectedNode: GraphNode | null;
@@ -34,10 +41,11 @@ interface GraphProps {
   hoveredNodeId: string | null;
   onNodeClick: (node: GraphNode | null) => void;
   focusNodeId: string | null;
+  diffOverlay?: DiffOverlay | null;
 }
 
 export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
-  { data, selectedNode, highlightedNodes, highlightedEdges, hoveredNodeId, onNodeClick, focusNodeId },
+  { data, selectedNode, highlightedNodes, highlightedEdges, hoveredNodeId, onNodeClick, focusNodeId, diffOverlay },
   ref,
 ) {
   const fgRef = useRef<any>(null);
@@ -101,16 +109,48 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
       const isHighlighted = !hasHighlight || highlightedNodes.has(id);
       const alpha = isHighlighted ? 1 : 0.12;
 
+      const isAdded = diffOverlay?.addedNodes.has(id);
+      const isRemoved = diffOverlay?.removedNodes.has(id);
+
       // Node circle
       ctx.beginPath();
       ctx.arc(node.x, node.y, size, 0, 2 * Math.PI);
-      ctx.fillStyle = color;
-      ctx.globalAlpha = alpha;
-      ctx.fill();
+
+      if (isRemoved) {
+        // Ghost node: semi-transparent red dashed outline
+        ctx.fillStyle = "#E74C3C";
+        ctx.globalAlpha = 0.15;
+        ctx.fill();
+        ctx.setLineDash([3, 3]);
+        ctx.strokeStyle = "#E74C3C";
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.6;
+        ctx.stroke();
+        ctx.setLineDash([]);
+      } else {
+        ctx.fillStyle = color;
+        ctx.globalAlpha = alpha;
+        ctx.fill();
+      }
+
+      // Added node: green glow
+      if (isAdded) {
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, size + 6, 0, 2 * Math.PI);
+        ctx.fillStyle = "#50C878";
+        ctx.globalAlpha = 0.25;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, size + 2, 0, 2 * Math.PI);
+        ctx.strokeStyle = "#50C878";
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.8;
+        ctx.stroke();
+      }
 
       const isHovered = hoveredNodeId === id;
 
-      if (isHovered) {
+      if (isHovered && !isRemoved) {
         // Outer glow
         ctx.beginPath();
         ctx.arc(node.x, node.y, size + 6, 0, 2 * Math.PI);
@@ -138,24 +178,37 @@ export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
       ctx.font = `${fontSize}px -apple-system, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
-      ctx.fillStyle = isHighlighted ? "#c9d1d9" : "#3b424a";
-      ctx.globalAlpha = isHighlighted ? Math.min(1, globalScale * 0.6) : alpha * 0.5;
+      if (isRemoved) {
+        ctx.fillStyle = "#E74C3C";
+        ctx.globalAlpha = 0.4;
+      } else if (isAdded) {
+        ctx.fillStyle = "#50C878";
+        ctx.globalAlpha = Math.min(1, globalScale * 0.6);
+      } else {
+        ctx.fillStyle = isHighlighted ? "#c9d1d9" : "#3b424a";
+        ctx.globalAlpha = isHighlighted ? Math.min(1, globalScale * 0.6) : alpha * 0.5;
+      }
       ctx.fillText(label, node.x, node.y + size + 2);
 
       ctx.globalAlpha = 1;
     },
-    [hasHighlight, highlightedNodes, selectedNode, hoveredNodeId],
+    [hasHighlight, highlightedNodes, selectedNode, hoveredNodeId, diffOverlay],
   );
 
   const linkColor = useCallback(
     (link: any) => {
       const key = `${link.source?.id ?? link.source}|${link.target?.id ?? link.target}`;
+      if (diffOverlay) {
+        const edgeKey = `${link.source?.id ?? link.source}|${link.target?.id ?? link.target}|${link.type}`;
+        if (diffOverlay.addedEdges.has(edgeKey)) return "#50C878";
+        if (diffOverlay.removedEdges.has(edgeKey)) return "rgba(231,76,60,0.4)";
+      }
       if (hasHighlight && !highlightedEdges.has(key)) {
         return "rgba(80,80,80,0.06)";
       }
       return EDGE_COLORS[link.type] ?? "#444";
     },
-    [hasHighlight, highlightedEdges],
+    [hasHighlight, highlightedEdges, diffOverlay],
   );
 
   const linkWidth = useCallback(

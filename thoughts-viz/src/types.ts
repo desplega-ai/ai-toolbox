@@ -48,6 +48,36 @@ export interface GraphEdge {
   type: EdgeType;
 }
 
+export interface TimelineCommit {
+  hash: string;
+  message: string;
+  author: string;
+  date: string;
+  filesChanged: number;
+}
+
+export interface TimelineSnapshot {
+  commitIndex: number;
+  nodeIds: string[];
+  edgeKeys: string[];
+}
+
+export interface TimelineDiff {
+  commitIndex: number;
+  addedNodeIds: string[];
+  removedNodeIds: string[];
+  addedEdgeKeys: string[];
+  removedEdgeKeys: string[];
+}
+
+export interface TimelineData {
+  commits: TimelineCommit[];
+  snapshots: TimelineSnapshot[];
+  diffs: TimelineDiff[];
+  allNodes: GraphNode[];
+  allEdges: GraphEdge[];
+}
+
 export interface GraphData {
   nodes: GraphNode[];
   edges: GraphEdge[];
@@ -56,5 +86,7 @@ export interface GraphData {
     sourceDir: string;
     fileCount: number;
     version: string;
+    timeline?: boolean;
   };
+  timeline?: TimelineData;
 }

@@ -12,8 +12,7 @@ function normalizeToArray(value: unknown): string[] {
   return [];
 }
 
-export async function parseFile(scanned: ScannedFile): Promise<ParsedFile> {
-  const raw = await Bun.file(scanned.absolutePath).text();
+export function parseFileFromContent(scanned: ScannedFile, raw: string): ParsedFile {
   const { data: fm, content } = matter(raw);
 
   const topic =
@@ -30,6 +29,11 @@ export async function parseFile(scanned: ScannedFile): Promise<ParsedFile> {
     rawResearch: typeof fm.research === "string" ? fm.research : null,
     bodyContent: content,
   };
+}
+
+export async function parseFile(scanned: ScannedFile): Promise<ParsedFile> {
+  const raw = await Bun.file(scanned.absolutePath).text();
+  return parseFileFromContent(scanned, raw);
 }
 
 export async function parseFiles(scanned: ScannedFile[]): Promise<ParsedFile[]> {

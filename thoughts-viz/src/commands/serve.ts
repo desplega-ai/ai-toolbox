@@ -6,13 +6,24 @@ import { loadCache, resolvePathOrId, saveCache } from "../cache.ts";
 import { buildGraph } from "../indexer/graph.ts";
 import { parseFiles } from "../indexer/parser.ts";
 import { scanDirectory } from "../indexer/scanner.ts";
+import { buildTimeline } from "../indexer/timeline.ts";
 import type { GraphData } from "../types.ts";
 
-async function indexDirectory(dir: string): Promise<GraphData> {
+async function indexDirectory(dir: string, timeline?: boolean, timelineLimit?: number): Promise<GraphData> {
   const absoluteDir = resolve(dir);
   const scanned = await scanDirectory(absoluteDir);
   const parsed = await parseFiles(scanned);
-  return buildGraph(parsed, absoluteDir, pkg.version);
+  const graphData = buildGraph(parsed, absoluteDir, pkg.version);
+
+  if (timeline) {
+    const tl = await buildTimeline(absoluteDir, pkg.version, timelineLimit);
+    if (tl) {
+      graphData.timeline = tl;
+      graphData.metadata.timeline = true;
+    }
+  }
+
+  return graphData;
 }
 
 export const serveCommand = new Command("serve")
@@ -26,10 +37,12 @@ export const serveCommand = new Command("serve")
   .option("--no-open", "don't open browser automatically")
   .option("--production", "force production mode (serve from public/data/)")
   .option("--force", "force re-index ignoring cache")
+  .option("--no-timeline", "skip git commit timeline data")
+  .option("--timeline-limit <n>", "max commits to process for timeline", Number.parseInt)
   .action(
     async (
       pathOrId: string | undefined,
-      opts: { port: string; open: boolean; production?: boolean; force?: boolean },
+      opts: { port: string; open: boolean; production?: boolean; force?: boolean; timeline: boolean; timelineLimit?: number },
     ) => {
       const port = Number.parseInt(opts.port, 10);
       const url = `http://localhost:${port}`;
@@ -50,6 +63,10 @@ export const serveCommand = new Command("serve")
 
       if (!opts.force) {
         graphData = await loadCache(dir);
+        // If timeline requested but cached data doesn't have it, skip cache
+        if (graphData && opts.timeline && !graphData.metadata.timeline) {
+          graphData = null;
+        }
         if (graphData) {
           graphData.metadata.version = pkg.version;
           console.log(
@@ -63,7 +80,7 @@ export const serveCommand = new Command("serve")
       if (!graphData) {
         console.log(chalk.blue(`Indexing ${dir}...`));
         const startTime = performance.now();
-        graphData = await indexDirectory(dir);
+        graphData = await indexDirectory(dir, opts.timeline, opts.timelineLimit);
         const elapsed = (performance.now() - startTime).toFixed(0);
 
         const connected = graphData.nodes.filter((n) => n.connectionCount > 0).length;

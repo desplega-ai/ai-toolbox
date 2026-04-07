@@ -113,6 +113,8 @@ html, body, #root {
   margin-bottom: 12px;
   line-height: 1.4;
   padding-right: 24px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .close-btn {
@@ -239,6 +241,8 @@ html, body, #root {
   justify-content: space-between;
   z-index: 10;
   pointer-events: none;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 .toolbar > * { pointer-events: auto; }
 
@@ -276,6 +280,8 @@ html, body, #root {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .dir-badge {
@@ -480,6 +486,193 @@ html, body, #root {
   cursor: pointer;
 }
 .recenter-btn:hover { color: #e1e4e8; border-color: #4A90D9; }
+
+/* View Mode Toggle */
+.view-mode-toggle {
+  display: flex;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.view-mode-toggle .toggle-btn {
+  background: transparent;
+  border: none;
+  color: #8b949e;
+  padding: 5px 12px;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.view-mode-toggle .toggle-btn:hover { color: #e1e4e8; }
+.view-mode-toggle .toggle-btn.active {
+  background: #4A90D9;
+  color: #fff;
+}
+
+/* Timeline Bar */
+.timeline-bar {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 10;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 8px 14px;
+}
+
+.timeline-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.timeline-btn {
+  background: transparent;
+  border: 1px solid #30363d;
+  border-radius: 4px;
+  color: #8b949e;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.65rem;
+  transition: all 0.15s;
+}
+.timeline-btn:hover:not(:disabled) { color: #e1e4e8; border-color: #4A90D9; }
+.timeline-btn:disabled { opacity: 0.3; cursor: default; }
+.timeline-btn.play-btn { width: 32px; }
+
+.timeline-slider-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.timeline-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: #30363d;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.timeline-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #4A90D9;
+  cursor: pointer;
+  border: 2px solid #161b22;
+}
+.timeline-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #4A90D9;
+  cursor: pointer;
+  border: 2px solid #161b22;
+}
+.timeline-position {
+  font-size: 0.6rem;
+  color: #484f58;
+  text-align: center;
+}
+
+.timeline-commit-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  max-width: 320px;
+  min-width: 0;
+}
+.commit-hash {
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 0.7rem;
+  color: #4A90D9;
+  flex-shrink: 0;
+}
+.commit-msg {
+  font-size: 0.7rem;
+  color: #c9d1d9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.commit-date {
+  font-size: 0.65rem;
+  color: #484f58;
+  flex-shrink: 0;
+}
+
+.timeline-options {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.diff-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  color: #8b949e;
+  cursor: pointer;
+}
+.diff-toggle input { cursor: pointer; }
+.speed-btn {
+  background: transparent;
+  border: 1px solid #30363d;
+  border-radius: 4px;
+  color: #8b949e;
+  padding: 3px 8px;
+  font-size: 0.65rem;
+  cursor: pointer;
+  font-family: "SF Mono", monospace;
+}
+.speed-btn:hover { color: #e1e4e8; border-color: #4A90D9; }
+
+/* Commit Detail Panel */
+.commit-detail h2 {
+  font-size: 1rem;
+  margin-bottom: 12px;
+  color: #e1e4e8;
+}
+.commit-hash-full {
+  font-family: "SF Mono", "Fira Code", monospace;
+  color: #4A90D9;
+}
+.commit-changes {
+  margin-top: 16px;
+}
+.commit-changes h3 {
+  font-size: 0.8rem;
+  margin-bottom: 6px;
+}
+.connection-item.added .connection-name { color: #50C878; }
+.connection-item.removed .connection-name { color: #E74C3C; text-decoration: line-through; }
+.edge-summary {
+  font-size: 0.75rem;
+  padding: 2px 0;
+}
+.edge-summary.added { color: #50C878; }
+.edge-summary.removed { color: #E74C3C; }
+.edge-type.edge-added { background: #1a3c2a; color: #50C878; }
+.edge-type.edge-removed { background: #3c1a1a; color: #E74C3C; }
 
 /* Cmd+K trigger */
 .cmdk-trigger {

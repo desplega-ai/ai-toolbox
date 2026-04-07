@@ -24,6 +24,12 @@ interface CommandPaletteProps {
   onSelectRepo: (repo: Repo) => void;
   onRecenter: () => void;
   onClose: () => void;
+  hasTimeline?: boolean;
+  viewMode?: "graph" | "timeline";
+  onSwitchToTimeline?: () => void;
+  onSwitchToGraph?: () => void;
+  onToggleDiffOverlay?: () => void;
+  onPlayPause?: () => void;
 }
 
 export function CommandPalette({
@@ -33,6 +39,12 @@ export function CommandPalette({
   onSelectRepo,
   onRecenter,
   onClose,
+  hasTimeline,
+  viewMode,
+  onSwitchToTimeline,
+  onSwitchToGraph,
+  onToggleDiffOverlay,
+  onPlayPause,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -43,10 +55,21 @@ export function CommandPalette({
     inputRef.current?.focus();
   }, []);
 
-  const actions: CommandItem[] = useMemo(
-    () => [{ id: "cmd:recenter", label: "Re-center view", category: "action" }],
-    [],
-  );
+  const actions: CommandItem[] = useMemo(() => {
+    const items: CommandItem[] = [
+      { id: "cmd:recenter", label: "Re-center view", category: "action" },
+    ];
+    if (hasTimeline) {
+      if (viewMode === "graph") {
+        items.push({ id: "cmd:timeline", label: "Switch to Timeline", category: "action" });
+      } else {
+        items.push({ id: "cmd:graph", label: "Switch to Graph", category: "action" });
+        items.push({ id: "cmd:diff", label: "Toggle diff overlay", category: "action" });
+        items.push({ id: "cmd:playpause", label: "Play / Pause timeline", category: "action" });
+      }
+    }
+    return items;
+  }, [hasTimeline, viewMode]);
 
   const repoItems: CommandItem[] = useMemo(
     () =>
@@ -108,6 +131,10 @@ export function CommandPalette({
       switch (item.category) {
         case "action":
           if (item.id === "cmd:recenter") onRecenter();
+          else if (item.id === "cmd:timeline") onSwitchToTimeline?.();
+          else if (item.id === "cmd:graph") onSwitchToGraph?.();
+          else if (item.id === "cmd:diff") onToggleDiffOverlay?.();
+          else if (item.id === "cmd:playpause") onPlayPause?.();
           break;
         case "repo":
           onSelectRepo(item.data as Repo);

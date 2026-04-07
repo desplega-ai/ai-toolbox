@@ -2,14 +2,14 @@ import { readdir } from "node:fs/promises";
 import { join, relative } from "node:path";
 import type { DocType, ScannedFile } from "../types.ts";
 
-function inferDocType(pathSegment: string): DocType {
+export function inferDocType(pathSegment: string): DocType {
   if (pathSegment === "research") return "research";
   if (pathSegment === "plans") return "plan";
   if (pathSegment === "brainstorms") return "brainstorm";
   return "research"; // fallback
 }
 
-function parseDateFromFilename(filename: string): string {
+export function parseDateFromFilename(filename: string): string {
   const match = filename.match(/^(\d{4}-\d{2}-\d{2})/);
   return match?.[1] ?? "";
 }

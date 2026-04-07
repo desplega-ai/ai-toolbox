@@ -1,10 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { GraphNode } from "../src/types.ts";
+import { CommitDetail } from "./components/CommitDetail.tsx";
 import { Graph } from "./components/Graph.tsx";
 import { CommandPalette } from "./components/CommandPalette.tsx";
 import { Legend } from "./components/Legend.tsx";
 import { SearchBar } from "./components/SearchBar.tsx";
+import { TimelineBar } from "./components/TimelineBar.tsx";
+import { ViewModeToggle } from "./components/ViewModeToggle.tsx";
 import { useGraphData } from "./hooks/useGraphData.ts";
+import { useTimeline } from "./hooks/useTimeline.ts";
 
 export function App() {
   const {
@@ -22,6 +26,31 @@ export function App() {
     goBack,
     pendingNodeId,
   } = useGraphData();
+
+  const {
+    hasTimeline,
+    viewMode,
+    setViewMode,
+    commitIndex,
+    setCommitIndex,
+    totalCommits,
+    currentCommit,
+    currentDiff,
+    snapshotData,
+    diffOverlay,
+    diffOverlayEnabled,
+    setDiffOverlayEnabled,
+    playing,
+    setPlaying,
+    playbackSpeed,
+    setPlaybackSpeed,
+    stepForward,
+    stepBackward,
+  } = useTimeline(data);
+
+  const isTimeline = viewMode === "timeline" && hasTimeline;
+  const graphData = isTimeline && snapshotData ? snapshotData : data;
+
   const [focusNodeId, setFocusNodeId] = useState<string | null>(pendingNodeId);
   const [hoveredConnectionId, setHoveredConnectionId] = useState<string | null>(null);
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
@@ -70,10 +99,23 @@ export function App() {
           setSelectedNode(null);
         }
       }
+      // Timeline shortcuts
+      if (isTimeline && !cmdPaletteOpen) {
+        if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          stepBackward();
+        } else if (e.key === "ArrowRight") {
+          e.preventDefault();
+          stepForward();
+        } else if (e.key === " ") {
+          e.preventDefault();
+          setPlaying(!playing);
+        }
+      }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedNode, setSelectedNode, cmdPaletteOpen]);
+  }, [selectedNode, setSelectedNode, cmdPaletteOpen, isTimeline, stepForward, stepBackward, playing, setPlaying]);
 
   // Merge hovered connection into highlighted set
   const effectiveHighlightedNodes = hoveredConnectionId
@@ -111,6 +153,7 @@ export function App() {
   }
 
   if (!data) return null;
+  if (!graphData) return null;
 
   const actualFocusId = focusNodeId?.split("::")[0] ?? null;
   const dirLabel =
@@ -126,7 +169,7 @@ export function App() {
                 &larr;
               </button>
             )}
-            <SearchBar nodes={data.nodes} onSelect={handleSearchSelect} />
+            <SearchBar nodes={graphData.nodes} onSelect={handleSearchSelect} />
           </div>
           <div className="toolbar-right">
             <button
@@ -136,6 +179,9 @@ export function App() {
             >
               <span className="cmdk-trigger-icon">&#8984;K</span>
             </button>
+            {hasTimeline && (
+              <ViewModeToggle viewMode={viewMode} onToggle={setViewMode} />
+            )}
             <div className="dir-badge" title={data.metadata.sourceDir}>
               {dirLabel}
             </div>
@@ -144,29 +190,58 @@ export function App() {
         </div>
         <Graph
           ref={graphRef}
-          data={data}
+          data={graphData}
           selectedNode={selectedNode}
           highlightedNodes={effectiveHighlightedNodes}
           highlightedEdges={highlightedEdges}
           hoveredNodeId={hoveredConnectionId}
           onNodeClick={handleGraphNodeClick}
           focusNodeId={actualFocusId}
+          diffOverlay={isTimeline ? diffOverlay : null}
         />
-        <div className="bottom-bar">
-          <div className="stats">
-            {data.metadata.fileCount} files &middot; {data.edges.length} edges &middot;
-            thoughts-viz v{data.metadata.version}
+        {isTimeline ? (
+          <TimelineBar
+            commitIndex={commitIndex}
+            totalCommits={totalCommits}
+            currentCommit={currentCommit}
+            playing={playing}
+            playbackSpeed={playbackSpeed}
+            diffOverlayEnabled={diffOverlayEnabled}
+            onCommitIndexChange={setCommitIndex}
+            onPlayToggle={setPlaying}
+            onSpeedChange={setPlaybackSpeed}
+            onDiffOverlayToggle={setDiffOverlayEnabled}
+            onStepForward={stepForward}
+            onStepBackward={stepBackward}
+          />
+        ) : (
+          <div className="bottom-bar">
+            <div className="stats">
+              {data.metadata.fileCount} files &middot; {data.edges.length} edges &middot;
+              thoughts-viz v{data.metadata.version}
+            </div>
+            <button
+              className="recenter-btn"
+              type="button"
+              onClick={() => graphRef.current?.recenter()}
+              title="Re-center view"
+            >
+              Re-center
+            </button>
           </div>
-          <button
-            className="recenter-btn"
-            type="button"
-            onClick={() => graphRef.current?.recenter()}
-            title="Re-center view"
-          >
-            Re-center
-          </button>
-        </div>
+        )}
       </div>
+      {isTimeline && !selectedNode && currentCommit && data.timeline && (
+        <div className="detail-panel">
+          <CommitDetail
+            commit={currentCommit}
+            diff={currentDiff}
+            allNodes={data.timeline.allNodes}
+            onNodeClick={handleNodeSelect}
+            onClose={() => setViewMode("graph")}
+          />
+        </div>
+      )}
       {selectedNode && (
         <div className="detail-panel">
           <button className="close-btn" onClick={() => setSelectedNode(null)} type="button">
@@ -210,11 +285,11 @@ export function App() {
           )}
           <div className="connections">
             <h3>Connections ({selectedNode.connectionCount})</h3>
-            {data.edges
+            {graphData.edges
               .filter((e) => e.source === selectedNode.id || e.target === selectedNode.id)
               .map((e) => {
                 const otherId = e.source === selectedNode.id ? e.target : e.source;
-                const otherNode = data.nodes.find((n) => n.id === otherId);
+                const otherNode = graphData.nodes.find((n) => n.id === otherId);
                 if (!otherNode) return null;
                 return (
                   <div
@@ -236,7 +311,7 @@ export function App() {
       )}
       {cmdPaletteOpen && (
         <CommandPalette
-          nodes={data.nodes}
+          nodes={graphData.nodes}
           repos={mode === "multi" ? repos : []}
           onSelectNode={(node) => {
             handleSearchSelect(node);
@@ -251,6 +326,24 @@ export function App() {
             setCmdPaletteOpen(false);
           }}
           onClose={() => setCmdPaletteOpen(false)}
+          hasTimeline={hasTimeline}
+          viewMode={viewMode}
+          onSwitchToTimeline={() => {
+            setViewMode("timeline");
+            setCmdPaletteOpen(false);
+          }}
+          onSwitchToGraph={() => {
+            setViewMode("graph");
+            setCmdPaletteOpen(false);
+          }}
+          onToggleDiffOverlay={() => {
+            setDiffOverlayEnabled(!diffOverlayEnabled);
+            setCmdPaletteOpen(false);
+          }}
+          onPlayPause={() => {
+            setPlaying(!playing);
+            setCmdPaletteOpen(false);
+          }}
         />
       )}
     </div>
