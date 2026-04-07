@@ -1,0 +1,43 @@
+{
+  "name": "@desplega.ai/thoughts-viz",
+  "version": "0.1.0",
+  "description": "Interactive graph visualization for thoughts directories",
+  "type": "module",
+  "bin": {
+    "thoughts-viz": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "bun --hot src/server.ts",
+    "build": "bun run build.ts",
+    "lint": "biome check src web",
+    "lint:fix": "biome check --write src web",
+    "test": "bun test",
+    "tsc": "bunx tsc --noEmit"
+  },
+  "dependencies": {
+    "chalk": "^5.4.1",
+    "commander": "^12.1.0",
+    "fuse.js": "^7.1.0",
+    "gray-matter": "^4.0.3",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "react-force-graph-2d": "^1.26.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.9",
+    "@types/bun": "latest",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT",
+  "author": "Desplega AI"
+}
