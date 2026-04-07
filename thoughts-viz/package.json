@@ -1,6 +1,6 @@
 {
   "name": "@desplega.ai/thoughts-viz",
-  "version": "0.1.0",
+  "version": "2026.4.7",
   "description": "Interactive graph visualization for thoughts directories",
   "type": "module",
   "bin": {
