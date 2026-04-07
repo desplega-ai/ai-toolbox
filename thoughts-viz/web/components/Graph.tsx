@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import ForceGraph2D from "react-force-graph-2d";
+import { forceX, forceY } from "d3-force-3d";
 import type { GraphData, GraphNode } from "../../src/types.ts";
 
 const NODE_COLORS: Record<string, string> = {
@@ -21,36 +22,50 @@ function truncateLabel(filename: string, maxLen = 28): string {
   return label.length > maxLen ? `${label.slice(0, maxLen)}...` : label;
 }
 
+export interface GraphHandle {
+  recenter: () => void;
+}
+
 interface GraphProps {
   data: GraphData;
   selectedNode: GraphNode | null;
   highlightedNodes: Set<string>;
   highlightedEdges: Set<string>;
+  hoveredNodeId: string | null;
   onNodeClick: (node: GraphNode | null) => void;
   focusNodeId: string | null;
 }
 
-export function Graph({
-  data,
-  selectedNode,
-  highlightedNodes,
-  highlightedEdges,
-  onNodeClick,
-  focusNodeId,
-}: GraphProps) {
+export const Graph = forwardRef<GraphHandle, GraphProps>(function Graph(
+  { data, selectedNode, highlightedNodes, highlightedEdges, hoveredNodeId, onNodeClick, focusNodeId },
+  ref,
+) {
   const fgRef = useRef<any>(null);
   const hasHighlight = highlightedNodes.size > 0;
 
+  // Detect bidirectional edge pairs and assign curvature so they don't overlap
   const graphData = useMemo(() => {
+    const edgeKeys = new Set(data.edges.map((e) => `${e.source}|${e.target}`));
+    const links = data.edges.map((e) => {
+      const hasReverse = edgeKeys.has(`${e.target}|${e.source}`);
+      return { ...e, curvature: hasReverse ? 0.15 : 0 };
+    });
     return {
       nodes: data.nodes.map((n) => ({ ...n })),
-      links: data.edges.map((e) => ({ ...e })),
+      links,
     };
   }, [data]);
 
   // Keep a ref to the mutable nodes array for position lookups
   const nodesRef = useRef(graphData.nodes);
   nodesRef.current = graphData.nodes;
+
+  useImperativeHandle(ref, () => ({
+    recenter: () => {
+      if (!fgRef.current) return;
+      fgRef.current.zoomToFit(400, 60);
+    },
+  }));
 
   // Increase forces for more spacing
   useEffect(() => {
@@ -59,6 +74,8 @@ export function Graph({
     fg.d3Force("charge")?.strength(-200);
     fg.d3Force("link")?.distance(80);
     fg.d3Force("center")?.strength(0.05);
+    fg.d3Force("gravityX", forceX(0).strength(0.06));
+    fg.d3Force("gravityY", forceY(0).strength(0.06));
   }, []);
 
   // Focus on a node when focusNodeId changes
@@ -74,13 +91,14 @@ export function Graph({
   const nodeCanvasObject = useCallback(
     (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const id = node.id as string;
-      const label = truncateLabel(node.filename);
+      const isSelected = selectedNode?.id === id;
+      const fullLabel = node.filename.replace(/\.md$/, "").replace(/^\d{4}-\d{2}-\d{2}-/, "");
+      const label = isSelected ? fullLabel : truncateLabel(node.filename, 32);
       const docType = node.docType as string;
       const size = Math.max(5, (node.connectionCount ?? 0) * 1.5 + 3);
       const color = NODE_COLORS[docType] ?? "#888";
 
       const isHighlighted = !hasHighlight || highlightedNodes.has(id);
-      const isSelected = selectedNode?.id === id;
       const alpha = isHighlighted ? 1 : 0.12;
 
       // Node circle
@@ -89,6 +107,24 @@ export function Graph({
       ctx.fillStyle = color;
       ctx.globalAlpha = alpha;
       ctx.fill();
+
+      const isHovered = hoveredNodeId === id;
+
+      if (isHovered) {
+        // Outer glow
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, size + 6, 0, 2 * Math.PI);
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.15;
+        ctx.fill();
+        // Inner ring
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, size + 3, 0, 2 * Math.PI);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.7;
+        ctx.stroke();
+      }
 
       if (isSelected) {
         ctx.strokeStyle = "#fff";
@@ -108,7 +144,7 @@ export function Graph({
 
       ctx.globalAlpha = 1;
     },
-    [hasHighlight, highlightedNodes, selectedNode],
+    [hasHighlight, highlightedNodes, selectedNode, hoveredNodeId],
   );
 
   const linkColor = useCallback(
@@ -157,13 +193,26 @@ export function Graph({
       }}
       linkColor={linkColor}
       linkWidth={linkWidth}
-      linkDirectionalArrowLength={3.5}
-      linkDirectionalArrowRelPos={0.9}
+      linkCurvature="curvature"
+      linkDirectionalArrowLength={6}
+      linkDirectionalArrowRelPos={0.85}
+      linkDirectionalParticles={(link: any) => {
+        if (!hasHighlight) return 0;
+        const key = `${link.source?.id ?? link.source}|${link.target?.id ?? link.target}`;
+        return highlightedEdges.has(key) ? 3 : 0;
+      }}
+      linkDirectionalParticleWidth={2.5}
+      linkDirectionalParticleSpeed={0.005}
+      linkDirectionalParticleColor={linkColor}
       onNodeClick={handleNodeClick}
       onBackgroundClick={handleBackgroundClick}
-      onNodeDragEnd={(node: any) => {
+      onNodeDragEnd={(node: any, translate: { x: number; y: number }) => {
         node.fx = node.x;
         node.fy = node.y;
+        const dist = Math.sqrt(translate.x ** 2 + translate.y ** 2);
+        if (dist < 8) {
+          handleNodeClick(node);
+        }
       }}
       enableNodeDrag={true}
       backgroundColor="#0f1117"
@@ -173,4 +222,4 @@ export function Graph({
       cooldownTime={3000}
     />
   );
-}
+});

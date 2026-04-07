@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { GraphData, GraphNode } from "../../src/types.ts";
+import { getParam, setParam } from "../utils/url.ts";
 
 interface ManifestEntry {
   id: string;
@@ -29,6 +30,7 @@ interface UseGraphDataReturn {
   activeRepo: ManifestEntry | null;
   loadRepo: (repo: ManifestEntry) => void;
   goBack: () => void;
+  pendingNodeId: string | null;
 }
 
 export function useGraphData(): UseGraphDataReturn {
@@ -41,6 +43,8 @@ export function useGraphData(): UseGraphDataReturn {
   const [highlightedEdges, setHighlightedEdges] = useState<Set<string>>(new Set());
   const [repos, setRepos] = useState<ManifestEntry[]>([]);
   const [activeRepo, setActiveRepo] = useState<ManifestEntry | null>(null);
+  const [pendingNodeId, setPendingNodeId] = useState<string | null>(getParam("node"));
+  const loadRepoRef = useRef<(repo: ManifestEntry) => void>(null);
 
   // Detect mode on mount
   useEffect(() => {
@@ -67,6 +71,14 @@ export function useGraphData(): UseGraphDataReturn {
           setRepos(manifest.repos);
           setMode("multi");
           setLoading(false);
+          // Auto-load repo from URL param
+          const repoParam = getParam("repo");
+          if (repoParam) {
+            const repo = manifest.repos.find((r) => r.id === repoParam);
+            if (repo && loadRepoRef.current) {
+              loadRepoRef.current(repo);
+            }
+          }
           return;
         }
       } catch {
@@ -83,6 +95,8 @@ export function useGraphData(): UseGraphDataReturn {
     setSelectedNodeRaw(null);
     setHighlightedNodes(new Set());
     setHighlightedEdges(new Set());
+    setParam("repo", repo.id);
+    setParam("node", null);
 
     fetch(`/data/${repo.file}`)
       .then((r) => r.json())
@@ -96,6 +110,7 @@ export function useGraphData(): UseGraphDataReturn {
         setLoading(false);
       });
   }, []);
+  loadRepoRef.current = loadRepo;
 
   const goBack = useCallback(() => {
     setData(null);
@@ -103,11 +118,15 @@ export function useGraphData(): UseGraphDataReturn {
     setSelectedNodeRaw(null);
     setHighlightedNodes(new Set());
     setHighlightedEdges(new Set());
+    setParam("repo", null);
+    setParam("node", null);
+    setParam("q", null);
   }, []);
 
   const setSelectedNode = useCallback(
     (node: GraphNode | null) => {
       setSelectedNodeRaw(node);
+      setParam("node", node?.id ?? null);
       if (!node || !data) {
         setHighlightedNodes(new Set());
         setHighlightedEdges(new Set());
@@ -131,6 +150,16 @@ export function useGraphData(): UseGraphDataReturn {
     [data],
   );
 
+  // Restore node selection from URL once data loads
+  useEffect(() => {
+    if (!data || !pendingNodeId) return;
+    const node = data.nodes.find((n) => n.id === pendingNodeId);
+    if (node) {
+      setSelectedNode(node);
+    }
+    setPendingNodeId(null);
+  }, [data, pendingNodeId, setSelectedNode]);
+
   return {
     mode,
     data,
@@ -144,5 +173,6 @@ export function useGraphData(): UseGraphDataReturn {
     activeRepo,
     loadRepo,
     goBack,
+    pendingNodeId,
   };
 }

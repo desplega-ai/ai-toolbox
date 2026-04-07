@@ -1,6 +1,7 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { GraphNode } from "../src/types.ts";
 import { Graph } from "./components/Graph.tsx";
+import { CommandPalette } from "./components/CommandPalette.tsx";
 import { Legend } from "./components/Legend.tsx";
 import { SearchBar } from "./components/SearchBar.tsx";
 import { useGraphData } from "./hooks/useGraphData.ts";
@@ -19,8 +20,12 @@ export function App() {
     activeRepo,
     loadRepo,
     goBack,
+    pendingNodeId,
   } = useGraphData();
-  const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
+  const [focusNodeId, setFocusNodeId] = useState<string | null>(pendingNodeId);
+  const [hoveredConnectionId, setHoveredConnectionId] = useState<string | null>(null);
+  const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
+  const graphRef = useRef<{ recenter: () => void }>(null);
 
   const handleNodeSelect = useCallback(
     (node: GraphNode | null) => {
@@ -43,9 +48,37 @@ export function App() {
   const handleGraphNodeClick = useCallback(
     (node: GraphNode | null) => {
       setSelectedNode(node);
+      if (node) {
+        setFocusNodeId(`${node.id}::${Date.now()}`);
+      }
     },
     [setSelectedNode],
   );
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setCmdPaletteOpen((v) => !v);
+        return;
+      }
+      if (e.key === "Escape") {
+        if (cmdPaletteOpen) {
+          setCmdPaletteOpen(false);
+        } else if (selectedNode) {
+          setSelectedNode(null);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedNode, setSelectedNode, cmdPaletteOpen]);
+
+  // Merge hovered connection into highlighted set
+  const effectiveHighlightedNodes = hoveredConnectionId
+    ? new Set([...highlightedNodes, hoveredConnectionId])
+    : highlightedNodes;
 
   if (loading) {
     return <div className="loading">Loading...</div>;
@@ -85,47 +118,54 @@ export function App() {
 
   return (
     <div className="app">
-      <div className="toolbar">
-        <div className="toolbar-left">
-          {mode === "multi" && (
-            <button className="back-btn" type="button" onClick={goBack} title="Back to repos">
-              &larr;
-            </button>
-          )}
-          <SearchBar nodes={data.nodes} onSelect={handleSearchSelect} />
-        </div>
-        <div className="toolbar-right">
-          {mode === "multi" && repos.length > 1 && (
-            <select
-              className="repo-dropdown"
-              value={activeRepo?.id ?? ""}
-              onChange={(e) => {
-                const repo = repos.find((r) => r.id === e.target.value);
-                if (repo) loadRepo(repo);
-              }}
-            >
-              {repos.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-          )}
-          <div className="dir-badge" title={data.metadata.sourceDir}>
-            {dirLabel}
-          </div>
-          <Legend />
-        </div>
-      </div>
       <div className="graph-container">
+        <div className="toolbar">
+          <div className="toolbar-left">
+            {mode === "multi" && (
+              <button className="back-btn" type="button" onClick={goBack} title="Back to repos">
+                &larr;
+              </button>
+            )}
+            <SearchBar nodes={data.nodes} onSelect={handleSearchSelect} />
+          </div>
+          <div className="toolbar-right">
+            <button
+              className="cmdk-trigger"
+              type="button"
+              onClick={() => setCmdPaletteOpen(true)}
+            >
+              <span className="cmdk-trigger-icon">&#8984;K</span>
+            </button>
+            <div className="dir-badge" title={data.metadata.sourceDir}>
+              {dirLabel}
+            </div>
+            <Legend />
+          </div>
+        </div>
         <Graph
+          ref={graphRef}
           data={data}
           selectedNode={selectedNode}
-          highlightedNodes={highlightedNodes}
+          highlightedNodes={effectiveHighlightedNodes}
           highlightedEdges={highlightedEdges}
+          hoveredNodeId={hoveredConnectionId}
           onNodeClick={handleGraphNodeClick}
           focusNodeId={actualFocusId}
         />
+        <div className="bottom-bar">
+          <div className="stats">
+            {data.metadata.fileCount} files &middot; {data.edges.length} edges &middot;
+            thoughts-viz v{data.metadata.version}
+          </div>
+          <button
+            className="recenter-btn"
+            type="button"
+            onClick={() => graphRef.current?.recenter()}
+            title="Re-center view"
+          >
+            Re-center
+          </button>
+        </div>
       </div>
       {selectedNode && (
         <div className="detail-panel">
@@ -181,6 +221,8 @@ export function App() {
                     key={`${e.source}-${e.target}-${e.type}`}
                     className="connection-item"
                     onClick={() => handleNodeSelect(otherNode)}
+                    onMouseEnter={() => setHoveredConnectionId(otherNode.id)}
+                    onMouseLeave={() => setHoveredConnectionId(null)}
                   >
                     <span className={`edge-type edge-${e.type}`}>{e.type}</span>
                     <span className="connection-name">
@@ -192,10 +234,25 @@ export function App() {
           </div>
         </div>
       )}
-      <div className="stats">
-        {data.metadata.fileCount} files &middot; {data.edges.length} edges &middot;
-        thoughts-viz v{data.metadata.version}
-      </div>
+      {cmdPaletteOpen && (
+        <CommandPalette
+          nodes={data.nodes}
+          repos={mode === "multi" ? repos : []}
+          onSelectNode={(node) => {
+            handleSearchSelect(node);
+            setCmdPaletteOpen(false);
+          }}
+          onSelectRepo={(repo) => {
+            loadRepo(repo);
+            setCmdPaletteOpen(false);
+          }}
+          onRecenter={() => {
+            graphRef.current?.recenter();
+            setCmdPaletteOpen(false);
+          }}
+          onClose={() => setCmdPaletteOpen(false)}
+        />
+      )}
     </div>
   );
 }
