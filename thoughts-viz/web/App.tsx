@@ -6,15 +6,26 @@ import { SearchBar } from "./components/SearchBar.tsx";
 import { useGraphData } from "./hooks/useGraphData.ts";
 
 export function App() {
-  const { data, loading, error, selectedNode, setSelectedNode, highlightedNodes, highlightedEdges } =
-    useGraphData();
+  const {
+    mode,
+    data,
+    loading,
+    error,
+    selectedNode,
+    setSelectedNode,
+    highlightedNodes,
+    highlightedEdges,
+    repos,
+    activeRepo,
+    loadRepo,
+    goBack,
+  } = useGraphData();
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
 
   const handleNodeSelect = useCallback(
     (node: GraphNode | null) => {
       setSelectedNode(node);
       if (node) {
-        // Bump the focus id to trigger centering (append timestamp to force re-trigger)
         setFocusNodeId(`${node.id}::${Date.now()}`);
       }
     },
@@ -32,31 +43,76 @@ export function App() {
   const handleGraphNodeClick = useCallback(
     (node: GraphNode | null) => {
       setSelectedNode(node);
-      // Don't auto-center on click — user clicked it, they can see it
     },
     [setSelectedNode],
   );
 
   if (loading) {
-    return <div className="loading">Loading graph...</div>;
+    return <div className="loading">Loading...</div>;
   }
 
   if (error) {
     return <div className="error">Error: {error}</div>;
   }
 
+  // Multi-repo mode: show repo selector if no repo loaded
+  if (mode === "multi" && !data) {
+    return (
+      <div className="repo-selector">
+        <h1>thoughts-viz</h1>
+        <p className="repo-subtitle">Select a repository to explore its thought graph</p>
+        <div className="repo-grid">
+          {repos.map((repo) => (
+            <button key={repo.id} className="repo-card" type="button" onClick={() => loadRepo(repo)}>
+              <h2>{repo.name}</h2>
+              <div className="repo-stats">
+                <span>{repo.fileCount} files</span>
+                <span>&middot;</span>
+                <span>{repo.edgeCount} edges</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   if (!data) return null;
 
-  // Extract actual node ID from focusNodeId (strip timestamp suffix)
   const actualFocusId = focusNodeId?.split("::")[0] ?? null;
+  const dirLabel =
+    activeRepo?.name ?? data.metadata.sourceDir.split("/").slice(-2).join("/");
 
   return (
     <div className="app">
       <div className="toolbar">
-        <SearchBar nodes={data.nodes} onSelect={handleSearchSelect} />
+        <div className="toolbar-left">
+          {mode === "multi" && (
+            <button className="back-btn" type="button" onClick={goBack} title="Back to repos">
+              &larr;
+            </button>
+          )}
+          <SearchBar nodes={data.nodes} onSelect={handleSearchSelect} />
+        </div>
         <div className="toolbar-right">
+          {mode === "multi" && repos.length > 1 && (
+            <select
+              className="repo-dropdown"
+              value={activeRepo?.id ?? ""}
+              onChange={(e) => {
+                const repo = repos.find((r) => r.id === e.target.value);
+                if (repo) loadRepo(repo);
+              }}
+            >
+              {repos.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          )}
           <div className="dir-badge" title={data.metadata.sourceDir}>
-            {data.metadata.sourceDir.split("/").slice(-2).join("/")}
+            {dirLabel}
           </div>
           <Legend />
         </div>

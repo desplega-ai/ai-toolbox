@@ -1,0 +1,32 @@
+{
+  "repos": [
+    {
+      "id": "ai-toolbox",
+      "name": "AI Toolbox",
+      "file": "ai-toolbox.json",
+      "fileCount": 96,
+      "edgeCount": 71
+    },
+    {
+      "id": "agent-swarm",
+      "name": "Agent Swarm",
+      "file": "agent-swarm.json",
+      "fileCount": 144,
+      "edgeCount": 36
+    },
+    {
+      "id": "agent-fs",
+      "name": "Agent FS",
+      "file": "agent-fs.json",
+      "fileCount": 30,
+      "edgeCount": 14
+    },
+    {
+      "id": "qa-use",
+      "name": "QA Use",
+      "file": "qa-use.json",
+      "fileCount": 32,
+      "edgeCount": 6
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { Command } from "commander";
 import pkg from "../package.json";
+import { exportCommand } from "./commands/export.ts";
 import { indexCommand } from "./commands/index-cmd.ts";
 import { infoCommand } from "./commands/info.ts";
 import { listCommand } from "./commands/list.ts";
@@ -29,6 +30,7 @@ Reference patterns detected:
 
 program.addCommand(serveCommand);
 program.addCommand(indexCommand);
+program.addCommand(exportCommand);
 program.addCommand(infoCommand);
 program.addCommand(searchCommand);
 program.addCommand(listCommand);

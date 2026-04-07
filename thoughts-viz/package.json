@@ -12,6 +12,8 @@
   "scripts": {
     "dev": "bun --hot src/server.ts",
     "build": "bun run build.ts",
+    "reindex": "bun scripts/reindex-prod.ts",
+    "release": "bun scripts/reindex-prod.ts && bun run build",
     "lint": "biome check src web",
     "lint:fix": "biome check --write src web",
     "test": "bun test",

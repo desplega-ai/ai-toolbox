@@ -23,6 +23,65 @@ html, body, #root {
 
 .error { color: #E74C3C; }
 
+/* Repo Selector */
+.repo-selector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+}
+
+.repo-selector h1 {
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: #e1e4e8;
+}
+
+.repo-subtitle {
+  font-size: 0.85rem;
+  color: #8b949e;
+  margin-bottom: 12px;
+}
+
+.repo-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  max-width: 600px;
+}
+
+.repo-card {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 20px 24px;
+  min-width: 200px;
+  cursor: pointer;
+  text-align: left;
+  color: #e1e4e8;
+  transition: border-color 0.15s, background 0.15s;
+}
+.repo-card:hover {
+  border-color: #4A90D9;
+  background: #1a2030;
+}
+
+.repo-card h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.repo-stats {
+  display: flex;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: #8b949e;
+}
+
 .app {
   width: 100%;
   height: 100%;
@@ -174,6 +233,36 @@ html, body, #root {
   pointer-events: none;
 }
 .toolbar > * { pointer-events: auto; }
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.back-btn {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  color: #e1e4e8;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+.back-btn:hover { border-color: #4A90D9; }
+
+.repo-dropdown {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  color: #e1e4e8;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  outline: none;
+  cursor: pointer;
+}
+.repo-dropdown:focus { border-color: #4A90D9; }
 
 .toolbar-right {
   display: flex;
