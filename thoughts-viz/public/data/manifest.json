@@ -11,8 +11,8 @@
       "id": "agent-swarm",
       "name": "Agent Swarm",
       "file": "agent-swarm.json",
-      "fileCount": 144,
-      "edgeCount": 36
+      "fileCount": 149,
+      "edgeCount": 38
     },
     {
       "id": "agent-fs",
