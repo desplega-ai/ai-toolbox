@@ -2,5 +2,9 @@
 .vercel
 .qa-use-tests.json
 
+# Python bytecode caches
+__pycache__/
+*.pyc
+
 # Skill-creator eval workspaces — regenerable from skills/*/evals/evals.json
 cc-plugin/*-workspace/
