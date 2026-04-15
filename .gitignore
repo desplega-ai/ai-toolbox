@@ -1,2 +1,6 @@
+.claude/scheduled_tasks.lock
 .vercel
 .qa-use-tests.json
+
+# Skill-creator eval workspaces — regenerable from skills/*/evals/evals.json
+cc-plugin/*-workspace/

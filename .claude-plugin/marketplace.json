@@ -47,6 +47,11 @@
             "name": "oapi",
             "source": "./cc-plugin/oapi",
             "description": "OpenAPI CLI expert for @desplega.ai/oapi — register specs, execute requests, manage auth"
+        },
+        {
+            "name": "radical-candor",
+            "source": "./cc-plugin/radical-candor",
+            "description": "Give Radically Candid feedback — kind, clear, specific, sincere — based on Kim Scott's framework"
         }
     ]
 }
