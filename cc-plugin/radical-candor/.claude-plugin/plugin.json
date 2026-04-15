@@ -1,7 +1,7 @@
 {
     "name": "radical-candor",
     "description": "Feedback skill based on Kim Scott's Radical Candor framework — care personally, challenge directly",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "author": {
         "name": "desplega.ai",
         "email": "contact@desplega.ai"
