@@ -1,7 +1,7 @@
 {
     "name": "desplega",
     "description": "Plugin for effective agentic development",
-    "version": "1.10.0",
+    "version": "1.11.0",
     "author": {
         "name": "desplega.ai",
         "email": "contact@desplega.ai"
@@ -18,6 +18,26 @@
                     {
                         "type": "command",
                         "command": "${CLAUDE_PLUGIN_ROOT}/hooks/validate-thoughts.py"
+                    }
+                ]
+            }
+        ],
+        "UserPromptSubmit": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/context_warn.py"
+                    }
+                ]
+            }
+        ],
+        "Stop": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/stop_confirm.py"
                     }
                 ]
             }
