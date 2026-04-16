@@ -1,14 +1,19 @@
 {
     "name": "desplega",
     "description": "Plugin for effective agentic development",
-    "version": "1.11.0",
+    "version": "1.11.1",
     "author": {
         "name": "desplega.ai",
         "email": "contact@desplega.ai"
     },
     "homepage": "https://desplega.ai",
     "repository": "https://github.com/desplega-ai/ai-toolbox",
-    "keywords": ["ai", "agent", "toolbox", "plugin"],
+    "keywords": [
+        "ai",
+        "agent",
+        "toolbox",
+        "plugin"
+    ],
     "license": "MIT",
     "hooks": {
         "PreToolUse": [

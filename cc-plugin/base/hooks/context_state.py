@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 from typing import Any
 
@@ -61,8 +62,35 @@ def read_last_usage(transcript_path: str) -> tuple[int, str]:
     return 0, ""
 
 
+_ENV_MODEL_KEYS = (
+    "ANTHROPIC_MODEL",
+    "ANTHROPIC_SMALL_FAST_MODEL",
+    "_ANTHROPIC_DEFAULT_HAIKU_MODEL",
+    "_ANTHROPIC_DEFAULT_SONNET_MODEL",
+    "_ANTHROPIC_DEFAULT_OPUS_MODEL",
+)
+
+
+def _env_signals_1m() -> bool:
+    """True if any Claude Code env var advertises a [1m] model variant.
+
+    The transcript's `message.model` field drops the `[1m]` suffix (it's a
+    display-only marker), so we also consult env vars that CC propagates to
+    hook subprocesses when 1M variants are active.
+    """
+    for key in _ENV_MODEL_KEYS:
+        val = os.environ.get(key, "")
+        if "[1m]" in val.lower():
+            return True
+    return False
+
+
 def window_size(model: str) -> int:
-    return 1_000_000 if "[1m]" in (model or "").lower() else 200_000
+    if "[1m]" in (model or "").lower():
+        return 1_000_000
+    if _env_signals_1m():
+        return 1_000_000
+    return 200_000
 
 
 def classify(used: int, total: int) -> str:
