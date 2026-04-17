@@ -71,6 +71,7 @@ Inside you will find:
 | `commit` | Create git commits for session changes |
 | `continue-handoff` | Continue work from a saved handoff file |
 | `bu-auto-instrument` | Auto-instrument Business-Use SDK tracking |
+| `script-builder` | Generate durable validation scripts from testing intent |
 
 #### Skills
 
@@ -84,6 +85,7 @@ Inside you will find:
 | `reviewing` | Structured critique with severity categorization |
 | `verifying` | Post-implementation audit against plan |
 | `phase-running` | Atomic phase execution as background sub-agent |
+| `script-builder` | Generate TS/Python/Bash validation scripts with PASS/FAIL + /tmp log convention |
 
 #### Workflow
 

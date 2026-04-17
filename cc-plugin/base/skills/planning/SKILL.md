@@ -166,6 +166,8 @@ Write the plan to `thoughts/<username|shared>/plans/YYYY-MM-DD-description.md`.
 
 **QA Specs (optional)**: Phases that change user-facing behavior, add UI, modify API responses, or alter auth/permissions SHOULD include an optional `### QA Spec (optional):` section after the Success Criteria. See the template for the exact format. Phases that are internal refactors, type changes, config updates, or dependency bumps should omit QA specs. QA specs can live either inline in plan phases (for per-phase validation) or as a separate standalone document (for cross-cutting or feature-level QA). The inline approach is the default for plans; the QA skill handles both sources transparently.
 
+**OPTIONAL SUB-SKILL:** When a phase's Automated Verification or QA Spec references a script that doesn't yet exist (e.g., `bun scripts/check-foo.ts`), it can be generated during implementation via `desplega:script-builder`. Plans may use a checkbox like `- [ ] Run scripts/foo.ts (generate via /script-builder if missing)` so the implementer knows the script is intentionally TBD. Do not generate scripts during planning itself — keep planning purely descriptive.
+
 **Template:** Read and follow the template at `cc-plugin/base/skills/planning/template.md`
 
 The template includes:

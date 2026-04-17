@@ -116,6 +116,8 @@ Write all test cases into the QA document's `## Test Cases` section.
 2. Compare output against expected results
 3. Record pass/fail automatically
 
+**OPTIONAL SUB-SKILL:** When a CLI test case needs the same multi-step probe re-run later (regression coverage, post-deploy smoke, multi-environment validation) and no existing script captures it, invoke `desplega:script-builder` inline. The generated script is committed to the project's `scripts/` directory with the PASS/FAIL + `/tmp` log convention; this QA session uses it for the current run, and future QA/verifying sessions discover it via the auto-added `<important if>` block in CLAUDE.md.
+
 For each test case, record the actual result and pass/fail status.
 
 ### Step 4: Capture Evidence

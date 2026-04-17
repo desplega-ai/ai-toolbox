@@ -109,6 +109,8 @@ For each phase's "Automated Verification" section:
 - If a command fails, capture the error output for the report
 - Don't re-run destructive or state-modifying commands — only read-only checks
 
+**OPTIONAL SUB-SKILL:** When a verification command is missing, flaky, or so verbose that re-running it pollutes the report, invoke `desplega:script-builder` to wrap it into a re-runnable script. The generated script enforces PASS/FAIL + `/tmp` log output, so future verifications get a clean single-line result instead of a wall of stdout. The wrapped command stays in the plan; subsequent verifications discover the new script via the `<important if>` block script-builder adds to CLAUDE.md.
+
 ### Step 6: Plan Freshness Check
 
 Compare phase descriptions against actual implementation:
