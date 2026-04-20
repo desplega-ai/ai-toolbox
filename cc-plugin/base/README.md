@@ -65,11 +65,14 @@ Inside you will find:
 | `create-tdd-plan` | Create TDD implementation plans with Red-Green-Commit cycles |
 | `implement-plan` | Execute approved plans phase by phase |
 | `brainstorm` | Interactive Socratic Q&A exploration of ideas |
+| `question` | One-shot question answering using the research process |
 | `review` | Structured critique of research, plan, and brainstorm documents |
 | `verify-plan` | Post-implementation plan verification and audit |
+| `qa` | Functional validation with test evidence and QA reports |
 | `run-phase` | Execute a single plan phase as a background sub-agent |
 | `commit` | Create git commits for session changes |
 | `continue-handoff` | Continue work from a saved handoff file |
+| `learning` | Capture, search, and promote institutional learnings across projects |
 | `bu-auto-instrument` | Auto-instrument Business-Use SDK tracking |
 | `script-builder` | Generate durable validation scripts from testing intent |
 
@@ -82,22 +85,65 @@ Inside you will find:
 | `tdd-planning` | TDD-focused planning with Red-Green-Commit cycles |
 | `implementing` | Phase-by-phase plan execution with verification |
 | `brainstorming` | Socratic Q&A exploration producing pre-PRD documents |
+| `questioning` | One-shot Q&A using the research process, no document generated |
 | `reviewing` | Structured critique with severity categorization |
 | `verifying` | Post-implementation audit against plan |
+| `qa` | Functional validation capturing evidence into `thoughts/*/qa/` |
 | `phase-running` | Atomic phase execution as background sub-agent |
+| `learning` | Compounding knowledge via tiered backends (local/qmd/agent-fs) |
 | `script-builder` | Generate TS/Python/Bash validation scripts with PASS/FAIL + /tmp log convention |
 
 #### Workflow
 
 The complete workflow chain:
 
-```
-brainstorm → research → plan → review → implement (with phase-runner) → verify-plan
-                                  ↑                                          |
-                                  └──────────── review ←─────────────────────┘
+```mermaid
+flowchart LR
+    B[brainstorm]:::stage
+    Q[question]:::aux
+    R[research]:::stage
+    P["plan<br/><i>or create-tdd-plan</i>"]:::stage
+    I[implement]:::stage
+    PR[run-phase]:::aux
+    V[verify-plan]:::stage
+    QA[qa]:::parallel
+    SB[script-builder]:::aux
+    L[learning]:::aux
+    RV[review]:::aux
+
+    B -.->|clear context| R
+    R -.->|clear context| P
+    P -.->|clear context| I
+    I -.->|clear context| V
+
+    B --> Q --> R
+    R --> P
+    P --> I
+    I --> PR --> I
+    I --> V
+
+    P -.-> QA
+    I -.-> QA
+    QA -.->|findings| P
+
+    I --- SB
+    V -.->|revise| P
+    RV -.->|critique| P
+
+    classDef stage fill:#1f6feb,stroke:#0b3a8f,color:#fff,font-weight:bold;
+    classDef aux fill:#eef2f7,stroke:#6b7280,color:#111;
+    classDef parallel fill:#f59e0b,stroke:#92400e,color:#111;
 ```
 
-`review` can be used at any stage to critique a document.
+**Context control (the dotted "clear context" arrows):** after each major stage (`brainstorm`, `research`, `plan`, `implement`), start a **new Claude Code session** before the next one. The `thoughts/` file produced by each stage is the handoff — that's why every stage writes to disk. Empirically, context above ~40% yields noticeably worse results (see "Problem 2" above), so clearing between stages is a load-bearing part of the workflow, not an optimization.
+
+**Variants and helpers:**
+- `create-tdd-plan` is a drop-in variant of `create-plan` with strict Red-Green-Commit cycles — use it when you want TDD discipline baked into the phases.
+- `qa` runs **in parallel** with `plan` and `implement`: start it alongside to produce functional test evidence while planning/implementation is in flight; findings feed back into the plan.
+- `script-builder` is invoked inside `implement` (or anywhere you want durable validation) to turn throwaway bash into re-runnable PASS/FAIL scripts.
+- `learning` is out-of-band — capture reusable knowledge whenever you notice a pattern worth keeping across runs.
+- `review` can be invoked at any stage to critique a document before moving on.
+- `question` is an optional one-shot shortcut before committing to full `research`.
 
 ## Inspiration
 
