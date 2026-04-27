@@ -48,23 +48,29 @@ Common commands to verify the implementation locally:
 
 ### Success Criteria:
 
+*(Push everything you can into the first two buckets — Automated Verification + Automated QA — so the agent provides proof of work. Manual Verification is the exception, not the default.)*
+
 #### Automated Verification:
+*(Low-level: runnable commands. Tests, lint, type-check, build.)*
 - [ ] Tests pass: `make test`
 - [ ] Linting passes: `make lint`
 - [ ] [Other automated check]: `command here`
 
 #### Automated QA:
-*(Browser-/agent-driven: Claude runs these — same kind of work a human QA would do, but automated.)*
-- [ ] [Scenario Claude can verify, e.g. via `browser-use`, screenshot diff, CLI walkthrough]
+*(Agent-driven proof of work: same job a human QA would do, but the agent does it. Browser-use, screenshot diff, CLI walkthrough, etc.)*
+- [ ] [Scenario the agent verifies end-to-end]
 
 #### Manual Verification:
-- [ ] [Human-only step — visual judgment, real-device perf, etc.]
+*(Only what truly needs a human — visual judgment, real-device perf, things the agent genuinely cannot reach.)*
+- [ ] [Human-only step]
 
 **Implementation Note**: After this phase, pause for manual confirmation. If commit-per-phase was requested, create commit after verification passes.
 
 ### QA Spec (optional):
 
-**QA Doc**: `thoughts/<username|shared>/qa/YYYY-MM-DD-[feature].md` (generate via `desplega:qa` if applicable; do not inline scenarios here).
+For phases warranting a *separate* QA report (cross-cutting, evidence-heavy, end-of-feature) — not just per-phase checks. The inline Automated QA bucket above already covers per-phase agent verification.
+
+**QA Doc**: `thoughts/<username|shared>/qa/YYYY-MM-DD-[feature].md` (generate via `desplega:qa`; scenarios live in the doc, not here).
 
 ---
 

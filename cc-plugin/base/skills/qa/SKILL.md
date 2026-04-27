@@ -9,35 +9,33 @@ You are performing functional validation of a feature, bugfix, or deployment. Yo
 
 ## Working Agreement
 
-These instructions establish a working agreement between you and the user. The key principles are:
+**All user-facing questions go through `AskUserQuestion`** (when not Autopilot) — see `desplega:ask-user` for conventions.
 
-1. **AskUserQuestion is your primary communication tool** - Whenever you need to ask the user anything (clarifications, preferences, decisions), use the **AskUserQuestion tool**. Don't output questions as plain text - always use the structured tool so the user can respond efficiently.
+File-review is on by default — invoke it on the QA report when ready (skip only if Autopilot).
 
-2. **Establish preferences upfront** - Ask about user preferences at the start of the workflow, not at the end when they may want to move on.
+## Ownership: QA Doc Lives Here, Not in Plans
 
-3. **Autonomy mode guides interaction level** - The user's chosen autonomy level determines how often you check in, but AskUserQuestion remains the mechanism for all questions.
+QA test cases live in QA docs (`thoughts/<username|shared>/qa/YYYY-MM-DD-<feature>.md`), **not inline in plans**. When a plan has a `### QA Spec (optional):` block, that block links to a QA doc this skill produces.
 
-### User Preferences
+**This skill is reserved for cross-cutting or evidence-heavy QA** — not routine per-phase checks. Routine per-phase agent verification belongs in the plan's inline `#### Automated QA:` bucket, executed by phase-running. Use this skill when:
+- The QA work spans multiple phases or the whole feature
+- Evidence (screenshots, recordings, logs) needs to live somewhere durable
+- A formal verdict (pass/fail/blocked) is required
 
-Before starting QA (unless autonomy is Autopilot), establish these preferences:
+Invocation paths:
+- **Planning Step 3** ("Generate QA docs") calls this skill *before* handoff, for any phase whose QA needs a separate doc.
+- **Implementing / phase-running** call this skill at phase-completion if the phase reports `QA Doc: <path>`.
+- **Direct user invocation** (`/qa`) creates a standalone doc not linked to a plan.
 
-**QA Approach** - Use **AskUserQuestion** with:
+### QA Approach
 
-| Question | Options |
-|----------|---------|
-| "How would you like to execute test scenarios?" | 1. Browser automation (qa-use) — if available, 2. Manual testing with guided steps, 3. Mixed — automate what we can, manual for the rest |
-
-**Note on qa-use availability**: Check if the `qa-use` plugin is available (look for `qa-use:*` in available skills). Also check if the project's `CLAUDE.md` specifies a different QA/testing tool. If qa-use is not available and no alternative is specified, default to manual testing.
-
-**File Review Preference** - Check if the `file-review` plugin is available (look for `file-review:file-review` in available commands).
-
-If file-review plugin is installed, use **AskUserQuestion** with:
+Unless Autopilot, ask once at the start:
 
 | Question | Options |
 |----------|---------|
-| "Would you like to use file-review for inline feedback on the QA report?" | 1. Yes, open file-review when report is ready, 2. No, just show me the report |
+| "How would you like to execute test cases?" | 1. Browser automation (qa-use) — if available, 2. Manual testing with guided steps, 3. Mixed — automate what we can, manual for the rest |
 
-Store these preferences and act on them during the QA process.
+**Note on qa-use availability**: Check if `qa-use` is available (look for `qa-use:*` in available skills). Also check if the project's `CLAUDE.md` specifies a different testing tool. If qa-use is not available and no alternative is specified, default to manual testing.
 
 ## When to Use
 
@@ -63,21 +61,21 @@ The autonomy mode is passed by the invoking command. If not specified, default t
 
 ### Step 1: Context & Scope
 
-Determine the source of QA specs. The skill handles three input modes:
+Determine the source of QA specs:
 
-**Plan path provided** → Read the plan, extract `### QA Spec` sections from each phase, aggregate into a QA document. Each phase's QA spec becomes a group of test cases.
+**Plan-driven (called from planning/implementing/phase-running)** → A plan path + phase reference is supplied. Read the relevant phase, design test cases for the deliverable named in its Overview, and produce the QA doc the plan's QA Spec block will link to.
 
-**Separate QA spec document provided** → Read the standalone QA spec (could be a dedicated file in `thoughts/*/qa/` or any markdown with test scenarios), use it as the basis for the QA session.
+**Separate QA spec document provided** → Read the standalone spec, use it as the basis for the QA session.
 
-**No source / PR / issue / description only** → Build test cases from scratch with the user. Use **AskUserQuestion** to establish:
+**Direct user invocation, no source** → Build test cases from scratch with the user. Use **AskUserQuestion** to establish:
 
 | Question | Options |
 |----------|---------|
 | "What are we validating? Please describe the feature or provide context." | [Free text response] |
 
-In all cases, create a QA document from the template at `cc-plugin/base/skills/qa/template.md`. Write it to `thoughts/<username|shared>/qa/YYYY-MM-DD-<topic>.md`.
+In all cases, create the QA document from `cc-plugin/base/skills/qa/template.md` at `thoughts/<username|shared>/qa/YYYY-MM-DD-<topic>.md`. Use the user's name when known; fall back to `thoughts/shared/qa/`.
 
-**Path selection:** Use the user's name (e.g., `thoughts/taras/qa/`) if known from context. Fall back to `thoughts/shared/qa/` when unclear.
+**For plan-driven invocation**: after the doc exists, update the plan's `### QA Spec (optional):` block in the relevant phase to point at the doc path. Do not inline scenarios in the plan.
 
 ### Step 2: Test Case Design
 
@@ -167,10 +165,9 @@ Also persist useful patterns to memory if they emerge across QA sessions.
 
 ## Review Integration
 
-If the `file-review` plugin is available and the user selected "Yes" during User Preferences setup:
+File-review is on by default (unless Autopilot):
 - After the QA report is complete, invoke `/file-review:file-review <qa-report-path>` for inline human comments
-- Process feedback with `file-review:process-review` skill
-- If user selected "No" or autonomy mode is Autopilot, skip this step
+- Process feedback with the `file-review:process-review` skill
 
 ## Learning Capture
 

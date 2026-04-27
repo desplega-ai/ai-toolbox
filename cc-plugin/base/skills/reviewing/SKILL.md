@@ -9,33 +9,17 @@ You are performing a structured critique of a document (research, plan, or brain
 
 ## Working Agreement
 
-These instructions establish a working agreement between you and the user. The key principles are:
+**All user-facing questions go through `AskUserQuestion`** (when not Autopilot) — see `desplega:ask-user` for conventions. Never ask in chat as plain bullets.
 
-1. **AskUserQuestion is your primary communication tool** - Whenever you need to ask the user anything (clarifications, preferences, decisions), use the **AskUserQuestion tool**. Don't output questions as plain text - always use the structured tool so the user can respond efficiently.
+File-review is on by default — invoke it after the automated review (skip only if Autopilot).
 
-2. **Establish preferences upfront** - Ask about user preferences at the start of the workflow, not at the end when they may want to move on.
+### Output Mode
 
-3. **Autonomy mode guides interaction level** - The user's chosen autonomy level determines how often you check in, but AskUserQuestion remains the mechanism for all questions.
-
-### User Preferences
-
-Before starting review (unless autonomy is Autopilot), establish these preferences:
-
-**Output Mode** - Use **AskUserQuestion** with:
+Unless Autopilot, ask once at the start:
 
 | Question | Options |
 |----------|---------|
 | "How should I present the review findings?" | 1. Append errata section to the document (Recommended), 2. Auto-apply fixes to the document, 3. Write a separate review file to thoughts/*/reviews/ |
-
-**File Review Preference** - Check if the `file-review` plugin is available (look for `file-review:file-review` in available commands).
-
-If file-review plugin is installed, use **AskUserQuestion** with:
-
-| Question | Options |
-|----------|---------|
-| "Would you like to use file-review for inline feedback after the automated review?" | 1. Yes, open file-review after review (Recommended), 2. No, the automated review is sufficient |
-
-Store these preferences and act on them during the review process.
 
 ## When to Use
 
@@ -85,12 +69,15 @@ Verify required sections exist based on document type:
 
 **Plans:**
 - YAML frontmatter with required fields (date, planner, topic, status)
-- Overview section
+- Overview with Motivation + Related links
 - Current State Analysis
-- Desired End State with Key Discoveries
+- Desired End State
 - What We're NOT Doing
-- Phases with Changes Required and Success Criteria (both Automated and Manual Verification)
+- Implementation Approach (bullet one-liners)
 - Quick Verification Reference
+- Phases with Changes Required and Success Criteria (all three subsections: Automated Verification, Automated QA, Manual Verification)
+- QA Spec (when present) is a link to a `desplega:qa`-generated doc, not inline scenarios
+- Appendix (follow-up plans, derail notes, references)
 
 **Brainstorms:**
 - YAML frontmatter with required fields (date, author, topic, status)
@@ -261,7 +248,6 @@ Use **AskUserQuestion** with context-dependent options:
 
 ## Review Integration
 
-If the `file-review` plugin is available and the user selected "Yes" during User Preferences setup:
+File-review is on by default (unless Autopilot):
 - After the automated review, invoke `/file-review:file-review <path>` for inline human comments
-- Process feedback with `file-review:process-review` skill
-- If user selected "No" or autonomy mode is Autopilot, skip this step
+- Process feedback with the `file-review:process-review` skill

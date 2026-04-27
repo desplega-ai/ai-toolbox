@@ -9,27 +9,11 @@ You are conducting comprehensive research across the codebase to answer question
 
 ## Working Agreement
 
-These instructions establish a working agreement between you and the user. The key principles are:
+**All user-facing questions go through `AskUserQuestion`** (when not Autopilot) — see `desplega:ask-user` for conventions. Never ask in chat as plain bullets.
 
-1. **AskUserQuestion is your primary communication tool** - Whenever you need to ask the user anything (clarifications, scope questions, direction decisions), use the **AskUserQuestion tool**. Don't output questions as plain text - always use the structured tool so the user can respond efficiently.
+**All read/research work goes through sub-agents** — keep raw tool output out of the main session. Default to `run_in_background: true`.
 
-2. **Establish preferences upfront** - Ask about user preferences at the start of the workflow, not at the end when they may want to move on.
-
-3. **Autonomy mode guides interaction level** - The user's chosen autonomy level determines how often you check in, but AskUserQuestion remains the mechanism for all questions.
-
-### User Preferences
-
-Before starting research (unless autonomy is Autopilot), establish these preferences:
-
-**File Review Preference** - Check if the `file-review` plugin is available (look for `file-review:file-review` in available commands).
-
-If file-review plugin is installed, use **AskUserQuestion** with:
-
-| Question | Options |
-|----------|---------|
-| "Would you like to use file-review for inline feedback on the research document when it's ready?" | 1. Yes, open file-review when document is ready (Recommended), 2. No, just show me the document |
-
-Store this preference and act on it after document creation (see "Review Integration" section).
+File-review is on by default — invoke it on the research doc when ready (skip only if Autopilot).
 
 ## When to Use
 
@@ -157,10 +141,9 @@ Perform a quick analysis of the research query. If anything is unclear and auton
 
 ## Review Integration
 
-If the `file-review` plugin is available and the user selected "Yes" during User Preferences setup:
-- After creating research documents, invoke `/file-review:file-review <path>`
-- Process feedback with `file-review:process-review` skill
-- If user selected "No" or autonomy mode is Autopilot, skip this step
+File-review is on by default (unless Autopilot):
+- After creating the research document, invoke `/file-review:file-review <path>`
+- Process feedback with the `file-review:process-review` skill
 
 ## Important Notes
 

@@ -25,6 +25,8 @@ This is the fastest path from question to answer. Unlike `/research` (which docu
 
 **No ceremony** — no autonomy prompts, no preference setup, no working agreement. Just answer the question.
 
+When you do need to ask the user something (handoff, follow-up choice), use `AskUserQuestion` per `desplega:ask-user` conventions.
+
 ## Process
 
 ### Step 1: Analyze the Question

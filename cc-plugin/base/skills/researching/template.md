@@ -44,15 +44,13 @@ last_updated_by: [Researcher name]
 | `path/to/file.py` | 123 | [What this code does] |
 | `path/to/other.ts` | 45 | [What this code does] |
 
-## Architecture Documentation
-[Current patterns, conventions, and architectural decisions found in the codebase]
-
-## Historical Context (from thoughts/)
-[Relevant insights from thoughts/ directory - previous research, plans, or decisions that inform this topic]
-
-## Related Research
-- `thoughts/<username|shared>/research/[related-topic].md` - [Brief description]
-
 ## Open Questions
 - [Any areas that need further investigation]
 - [Ambiguities or uncertainties discovered]
+
+## Appendix
+
+- **Architecture notes**: [current patterns, conventions, architectural decisions found in the codebase]
+- **Historical context (from thoughts/)**: [relevant prior research, plans, or decisions that inform this topic]
+- **Related research**:
+  - `thoughts/<username|shared>/research/[related-topic].md` — [brief description]

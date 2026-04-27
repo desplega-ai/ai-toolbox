@@ -67,7 +67,9 @@ last_updated_by: [Name]
 **Status**: PASS | FAIL | BLOCKED
 **Summary**: [1-2 sentence summary of QA outcome]
 
-## References
-- Plan: `thoughts/.../plans/YYYY-MM-DD-topic.md`
-- Verification: `thoughts/.../plans/YYYY-MM-DD-verification-report.md`
-- Related documents: [links]
+## Appendix
+
+- **Plan**: `thoughts/.../plans/YYYY-MM-DD-topic.md`
+- **Verification**: `thoughts/.../plans/YYYY-MM-DD-verification-report.md`
+- **Related documents**: [links]
+- **Notes**: [follow-up QA, derail items, environment caveats]

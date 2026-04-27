@@ -9,27 +9,11 @@ You are performing a post-implementation audit of a plan, cross-referencing it a
 
 ## Working Agreement
 
-These instructions establish a working agreement between you and the user. The key principles are:
+**All user-facing questions go through `AskUserQuestion`** — see `desplega:ask-user` for conventions.
 
-1. **AskUserQuestion is your primary communication tool** - Whenever you need to ask the user anything (clarifications, decisions about discrepancies), use the **AskUserQuestion tool**. Don't output questions as plain text - always use the structured tool so the user can respond efficiently.
+**All read/research/validation work goes through sub-agents** — default to `run_in_background: true`.
 
-2. **Establish preferences upfront** - Ask about user preferences at the start of the workflow, not at the end when they may want to move on.
-
-3. **Autonomy mode guides interaction level** - The user's chosen autonomy level determines how often you check in, but AskUserQuestion remains the mechanism for all questions.
-
-### User Preferences
-
-Before starting verification (unless autonomy is Autopilot), establish these preferences:
-
-**File Review Preference** - Check if the `file-review` plugin is available (look for `file-review:file-review` in available commands).
-
-If file-review plugin is installed, use **AskUserQuestion** with:
-
-| Question | Options |
-|----------|---------|
-| "Would you like to use file-review for inline feedback on the verification report?" | 1. Yes, open file-review when report is ready, 2. No, just show me the report |
-
-Store this preference and act on it after the verification report.
+File-review is on by default (unless Autopilot) — invoke it on the verification report when ready.
 
 ## When to Use
 
@@ -67,10 +51,11 @@ Parse all `- [ ]` and `- [x]` items in the plan. Report:
 |--------|-------------|
 | Total items | Count of all checkbox items |
 | Checked items | Count of `- [x]` items |
-| Unchecked automated | Items under `#### Automated Verification:` still unchecked |
-| Unchecked manual | Items under `#### Manual Verification:` still unchecked |
+| Unchecked Automated Verification | Items under `#### Automated Verification:` still unchecked |
+| Unchecked Automated QA | Items under `#### Automated QA:` still unchecked |
+| Unchecked Manual Verification | Items under `#### Manual Verification:` still unchecked |
 
-Flag any automated verification items that are still unchecked — these are expected to be checked by the implementing skill.
+Flag any Automated Verification or Automated QA items that are still unchecked — these are expected to be checked by the implementing/phase-running skills.
 
 ### Step 3: Git Diff Correlation
 
@@ -99,15 +84,22 @@ Be conservative here — flag only clear scope violations, not borderline cases.
 
 ### Step 5: Success Criteria Re-run
 
-For each phase's "Automated Verification" section:
-1. Extract the commands from the checkbox items
-2. Re-run each command
-3. Report pass/fail for each
+For each phase's Success Criteria, re-run both runnable buckets:
 
-**Edge cases:**
-- Skip commands that reference files or paths that clearly no longer exist
-- If a command fails, capture the error output for the report
-- Don't re-run destructive or state-modifying commands — only read-only checks
+**Automated Verification** (commands):
+1. Extract the commands from each checkbox item
+2. Re-run each command
+3. Report pass/fail
+
+**Automated QA** (agent-driven scenarios):
+1. For each scenario, re-execute via the appropriate tool (browser-use, screenshot diff, CLI walkthrough)
+2. Report pass/fail per scenario
+
+**Edge cases (apply to both):**
+- Skip items that reference files or paths that clearly no longer exist
+- If an item fails, capture the error/output for the report
+- Don't re-run destructive or state-modifying items — only read-only checks
+- If a phase's QA Spec links to an external QA doc, note its path in the report; re-running that doc is the qa skill's job, not this one's
 
 **OPTIONAL SUB-SKILL:** When a verification command is missing, flaky, or so verbose that re-running it pollutes the report, invoke `desplega:script-builder` to wrap it into a re-runnable script. The generated script enforces PASS/FAIL + `/tmp` log output, so future verifications get a clean single-line result instead of a wall of stdout. The wrapped command stays in the plan; subsequent verifications discover the new script via the `<important if>` block script-builder adds to CLAUDE.md.
 
@@ -153,7 +145,6 @@ After verification completes, use **AskUserQuestion** with:
 
 ## Review Integration
 
-If the `file-review` plugin is available and the user selected "Yes" during User Preferences setup:
+File-review is on by default (unless Autopilot):
 - After the verification report, invoke `/file-review:file-review <plan-path>` for inline human comments
-- Process feedback with `file-review:process-review` skill
-- If user selected "No" or autonomy mode is Autopilot, skip this step
+- Process feedback with the `file-review:process-review` skill

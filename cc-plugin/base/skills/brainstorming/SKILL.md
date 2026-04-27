@@ -9,27 +9,9 @@ You are facilitating interactive exploration of ideas through Socratic Q&A. The 
 
 ## Working Agreement
 
-These instructions establish a working agreement between you and the user. The key principles are:
+Brainstorming is interactive by design — Q&A is the whole point. Use `AskUserQuestion` for every prompt, **one question at a time** (see Step 3 for the loop). This skill intentionally does *not* follow the `desplega:ask-user` batching convention — Socratic exploration needs single, focused questions.
 
-1. **AskUserQuestion is your primary communication tool** - Whenever you need to ask the user anything, use the **AskUserQuestion tool**. Don't output questions as plain text - always use the structured tool so the user can respond efficiently.
-
-2. **Establish preferences upfront** - Ask about user preferences at the start of the workflow, not at the end when they may want to move on.
-
-3. **Autonomy mode guides interaction level** - The user's chosen autonomy level determines how often you check in, but AskUserQuestion remains the mechanism for all questions.
-
-### User Preferences
-
-Before starting brainstorming, establish these preferences:
-
-**File Review Preference** - Check if the `file-review` plugin is available (look for `file-review:file-review` in available commands).
-
-If file-review plugin is installed, use **AskUserQuestion** with:
-
-| Question | Options |
-|----------|---------|
-| "Would you like to use file-review for inline feedback on the brainstorm document after synthesis?" | 1. Yes, open file-review when synthesis is ready (Recommended), 2. No, just show me the document |
-
-Store this preference and act on it after synthesis (see "Review Integration" section).
+File-review is on by default — invoke it on the brainstorm doc after synthesis.
 
 ## When to Use
 
@@ -152,7 +134,6 @@ The brainstorm document is a living artifact during the session. It starts rough
 
 ## Review Integration
 
-If the `file-review` plugin is available and the user selected "Yes" during User Preferences setup:
+File-review is on by default:
 - After synthesis, invoke `/file-review:file-review <path>` for inline human comments
-- Process feedback with `file-review:process-review` skill
-- If user selected "No", skip this step
+- Process feedback with the `file-review:process-review` skill

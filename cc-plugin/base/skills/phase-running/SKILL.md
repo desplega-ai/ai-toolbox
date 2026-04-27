@@ -64,20 +64,17 @@ Implement all changes described in the phase:
 
 ### Step 4: Run Verification
 
-Execute the automated verification commands from the phase's "Success Criteria" section:
-1. Run each command listed under "Automated Verification"
-2. Record pass/fail for each
-3. If a check fails, attempt to fix the issue and re-run
-4. If a check continues to fail after one fix attempt, include it in the report
-5. If the phase has a `### QA Spec (optional):` section:
-   - If the QA approach is `cli-verification`, execute the test steps and record results
-   - If the approach is `browser-automation` or `manual`, report `QA: pending` — the caller handles these
-   - If no QA spec exists, report `QA: n/a`
+The phase's Success Criteria has three subsections. Handle each:
+
+1. **Automated Verification** (runnable commands): run each command listed, record pass/fail. If a check fails, attempt to fix and re-run once. If it still fails, include it in the report.
+2. **Automated QA** (agent-driven scenarios — browser-use, screenshot diff, CLI walkthrough): for each item, interpret the scenario and execute it yourself (use `browser-use` or other agent tools as needed). Record pass/fail per item.
+3. **Manual Verification**: leave unchecked. The caller handles these with the user.
+4. **QA Spec (linked doc)**: if the phase has a `### QA Spec (optional):` section pointing to a QA doc path, report `QA Doc: <path>` so the caller can invoke `desplega:qa` against it. Do not execute scenarios inline — they live in the QA doc, not the plan. If no QA Spec section exists, report `QA: n/a`.
 
 ### Step 5: Update Plan
 
-- Check off (`- [x]`) automated verification items that passed
-- Do **NOT** check off manual verification items — those require human confirmation
+- Check off (`- [x]`) Automated Verification and Automated QA items that passed
+- Do **NOT** check off Manual Verification items — those require human confirmation
 - Update the plan's `last_updated` and `last_updated_by` frontmatter fields
 
 ### Learning Capture
@@ -93,10 +90,13 @@ The agent's return message MUST include:
 Status: completed
 Phase: [N] - [Phase name]
 Files changed: [list of files created/modified]
-Automated checks: [N/M passed]
+Automated Verification: [N/M passed]
 - [x] [Check 1] — passed
 - [x] [Check 2] — passed
-QA: passed | pending | n/a
+Automated QA: [N/M passed]
+- [x] [Scenario 1] — passed
+- [x] [Scenario 2] — passed
+QA Doc: <path> | n/a
 Manual verification needed:
 - [ ] [Manual check 1]
 - [ ] [Manual check 2]

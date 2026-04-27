@@ -19,27 +19,13 @@ You are implementing an approved technical plan, executing it phase by phase wit
 
 ## Working Agreement
 
-These instructions establish a working agreement between you and the user. The key principles are:
+**All user-facing questions go through `AskUserQuestion`** — see `desplega:ask-user` for conventions. Never ask in chat as plain bullets.
 
-1. **AskUserQuestion is your primary communication tool** - Whenever you need to ask the user anything (clarifications, preferences, decisions, confirmations), use the **AskUserQuestion tool**. Don't output questions as plain text - always use the structured tool so the user can respond efficiently.
+**All read/research/validation work goes through sub-agents** — keep raw tool output out of the main session. Default to `run_in_background: true`.
 
-2. **Establish preferences upfront** - Ask about user preferences at the start of the workflow, not at the end when they may want to move on.
+The autonomy mode (below) controls how often you check in. AskUserQuestion is always the mechanism.
 
-3. **Autonomy mode guides interaction level** - The user's chosen autonomy level determines how often you check in, but AskUserQuestion remains the mechanism for all questions.
-
-### User Preferences
-
-Before starting implementation (unless autonomy is Autopilot), establish these preferences:
-
-**File Review Preference** - Check if the `file-review` plugin is available (look for `file-review:file-review` in available commands).
-
-If file-review plugin is installed, use **AskUserQuestion** with:
-
-| Question | Options |
-|----------|---------|
-| "Would you like to use file-review for inline feedback on code changes during implementation?" | 1. Yes, open file-review for significant changes (Recommended), 2. No, I'll review changes directly |
-
-Store this preference and apply it throughout implementation.
+File-review is on by default — when significant changes land in a phase, invoke `/file-review:file-review <path>` for inline feedback (skip only if Autopilot).
 
 ## When to Use
 
@@ -145,10 +131,7 @@ Each phase is executed via a background sub-agent running `desplega:phase-runnin
    - Pass the plan path and phase number as context
 3. **Wait for agent completion** — you'll be notified when it finishes
 4. **Review the agent's report** — check status (completed/blocked/failed), changed files, verification results
-5. **Check QA spec status** — If the phase agent reports `QA: pending`, present the QA spec's test scenarios to the user and offer:
-   - Execute QA now (→ invoke `desplega:qa` with plan path + phase context)
-   - Skip QA for this phase
-   - If `QA: passed`, note it and proceed. If `QA: n/a`, proceed normally.
+5. **Check QA Doc status** — if the phase agent reports `QA Doc: <path>`, the linked QA doc has scenarios that need execution. Invoke `desplega:qa` against the QA doc path. (For `QA: n/a`, proceed normally.) Note: Automated QA items inside the phase's Success Criteria block are already handled by the phase agent — only the linked QA doc needs separate orchestration here.
 6. **Handle manual verification** with the user — present the manual verification items from the phase
 7. **Proceed to next phase** after user confirms
 
@@ -203,7 +186,6 @@ Remember: You're implementing a solution, not just checking boxes. Keep the end 
 
 ## Review Integration
 
-If the `file-review` plugin is available and the user selected "Yes" during User Preferences setup:
+File-review is on by default (unless Autopilot):
 - After significant code changes in each phase, invoke `/file-review:file-review <changed-file-path>` for inline human comments
-- Process feedback with `file-review:process-review` skill before moving to the next phase
-- If user selected "No" or autonomy mode is Autopilot, skip this step
+- Process feedback with the `file-review:process-review` skill before moving to the next phase
