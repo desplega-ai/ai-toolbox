@@ -48,6 +48,30 @@ Then install the plugin inside it with:
 /plugin install desplega@desplega-ai-toolbox
 ```
 
+### Versions
+
+By default, `marketplace add` tracks `main` and auto-updates. To pin to a specific release, append `@<tag>`:
+
+```bash
+/plugin marketplace add desplega-ai/ai-toolbox@cc-desplega-1.13.0
+```
+
+Tag scheme: `cc-desplega-<semver>`. Current pinnable tags:
+
+| Tag | Notes |
+|-----|-------|
+| `cc-desplega-1.13.0` | Last 1.x release. Pin here if you want pre-v2 behavior. |
+
+**v2.0 breaking changes** (rolling out — pin to `cc-desplega-1.13.0` if your workflow depends on v1 contracts):
+
+- `planning` skill restructured around "Setup + 10 Rules" (Shape D); old "Process Steps" headings are gone.
+- Plan templates use three Success Criteria buckets: **Automated Verification** + **Automated QA** + **Manual Verification** (was two).
+- `### QA Spec (optional):` block now links to an external `desplega:qa` doc — inline test scenarios moved out.
+- New `desplega:ask-user` skill consolidates `AskUserQuestion` conventions; other skills point at it instead of duplicating boilerplate.
+- File-review is always-on by default (was a per-run preference question).
+- New skills: `v-planning` / `v-implementing` (DAG plans for parallel execution) + `step-running` (atomic step sub-agent).
+- Consumer-skill API changes: `phase-running` reports three buckets; `implementing` handles `QA Doc: <path>` by invoking `desplega:qa`.
+
 ### What's inside?
 
 Inside you will find:

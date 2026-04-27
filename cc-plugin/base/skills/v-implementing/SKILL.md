@@ -21,31 +21,13 @@ This is the parallel sibling of `implementing`. The orchestration model is the s
 
 ## Working Agreement
 
-1. **AskUserQuestion is your primary communication tool.**
-2. **Establish preferences upfront.**
-3. **Autonomy mode guides interaction level.**
+**All user-facing questions go through `AskUserQuestion`** — see `desplega:ask-user` for conventions. Never ask in chat as plain bullets.
 
-### User Preferences
+**All read/research/validation work goes through sub-agents** — keep raw tool output out of the main session. Default to `run_in_background: true`. The fan-out scheduler below is built on this.
 
-Before starting (unless Autopilot):
+The autonomy mode (below) controls how often you check in. AskUserQuestion is always the mechanism.
 
-**Branch / Worktree Setup** — Same logic as `implementing`. Check `git branch --show-current`. If `wts` plugin is available, offer worktree as an option.
-
-**Commit Strategy** — Use **AskUserQuestion**:
-
-| Question | Options |
-|----------|---------|
-| "How would you like to handle commits during parallel implementation?" | 1. Commit after each step completes (Recommended), 2. Commit at the end (single commit), 3. Let me decide as I go |
-
-**File Review Preference** — Same as `implementing` if `file-review` is installed.
-
-## When to Use
-
-- User invokes `/v-implement <plan-dir>`
-- Plan path points at a **directory** containing `root.md`
-- Another skill references `**REQUIRED SUB-SKILL:** Use desplega:v-implementing`
-
-If pointed at a single `.md` file, hand off to `implementing` instead.
+File-review is on by default — when significant changes land in a step (or wave), invoke `/file-review:file-review <path>` for inline feedback (skip only if Autopilot).
 
 ## Autonomy Mode
 
@@ -54,6 +36,32 @@ If pointed at a single `.md` file, hand off to `implementing` instead.
 | **Autopilot** | Drain the DAG without pausing. Only stop on blocker / failed step. |
 | **Critical** (Default) | Pause when each *wave* of parallel steps completes; wait for manual verification before unlocking the next wave. |
 | **Verbose** | Pause after each individual step (even within a wave). |
+
+## Initial Setup Questions
+
+After understanding the plan and before the scheduler loop starts, gather implementation-specific details (skip in Autopilot):
+
+### 1. Branch / Worktree Setup
+
+Check the current branch: `git branch --show-current`. Then check if the `wts` plugin is installed (look for `wts:wts` in available skills).
+
+**If wts is installed**, use **AskUserQuestion**:
+
+| Question | Options |
+|----------|---------|
+| "You're on `<current-branch>`. Where would you like to implement?" | 1. Continue on current branch, 2. Create a new branch, 3. Create a wts worktree |
+
+**If wts is not installed**, drop the worktree option.
+
+### 2. Commit Strategy
+
+Use **AskUserQuestion**:
+
+| Question | Options |
+|----------|---------|
+| "How would you like to handle commits during parallel implementation?" | 1. Commit after each step completes (Recommended), 2. Commit at the end (single commit), 3. Let me decide as I go |
+
+If "Commit after each step" is selected, after a step's manual verification passes, create a commit: `[step-N] <step name>`.
 
 ## Getting Started
 
@@ -73,40 +81,48 @@ If no path given, ask via AskUserQuestion.
 
 ## The Scheduler Loop
 
+The scheduler reads each step's frontmatter `status` (`ready` | `claimed` | `done`) and `depends_on`. The frontmatter `status` field is the **single source of truth** — multiple orchestrator instances on the same plan dir coordinate through it (each `desplega:step-running` sub-agent atomically claims its step before doing work).
+
 ```
-while steps remain undone:
-    ready = [step for step in undone if all(dep in done for dep in step.depends_on)]
+while any step has status != done:
+    ready = [step for step in steps
+             if step.status == "ready"
+             and all(dep.status == "done" for dep in step.depends_on)]
     if not ready:
-        break  # cycle or stuck — error
-    fan out each step in `ready` as a parallel sub-agent (see below)
+        # DAG drained, OR every remaining undone step is claimed by another worker
+        if any step has status == claimed: wait for in-flight claims to resolve
+        else: report stuck (likely cycle or unrecoverable failure)
+        continue
+    fan out each step in `ready` as a parallel `desplega:step-running` sub-agent
     wait for the wave to complete
-    review reports; mark each step done | blocked | failed
-    if Critical mode: pause for manual verification of completed steps
+    review reports; step-running has already updated frontmatter
+        (status: done on success, status: ready on retry-able failure, status: claimed if held for investigation)
+    if Critical mode: pause for manual verification of newly-completed steps
     if any failed: stop and ask user how to proceed
 ```
 
 ### Spawning a Step Sub-agent
 
-For each ready step in the wave, use the `Agent` tool with `run_in_background: true`. Mirror the spawning pattern of `implementing` + `phase-running`, except the unit of work is a step, not a phase.
+Use the `Agent` tool with `run_in_background: true`, invoking `desplega:step-running`. Pass:
 
-Each sub-agent receives:
-- The plan directory path
-- The step ID (`step-<n>`)
-- A pointer to read `step-<n>.md` for changes-required and success criteria
-- The plan-level context from `root.md` (Current State, Desired End State, Implementation Approach) — enough to act locally without reading sibling steps
+- **Step path**: full path to `step-<n>.md`
+- **Plan dir**: full path to the parent plan directory
+- **Agent ID**: unique ID for this sub-agent (e.g. orchestrator session ID + step ID + timestamp). step-running uses this for atomic claim + stale-claim detection.
+- **Plan-level context** (optional): a quick brief from `root.md`. step-running re-reads `root.md` itself, so this is just to reduce round-trips.
 
-The sub-agent's job:
-1. Implement the changes in the step file.
-2. Run the step's `#### Automated Verification:` checks. Tick the boxes on success.
-3. Report back: `completed | blocked | failed`, list of changed files, results of automated checks, any QA spec status (`pending | passed | n/a`).
+`step-running` owns:
+- Atomic claim (rewrite frontmatter `status: ready` → `status: claimed, assignee: <agent-id>, claimed_at: <ts>`)
+- Three-bucket verification (Automated Verification, Automated QA, QA Doc identification)
+- Terminal status transition (`status: done` on success, `status: ready` on retry-able failure)
+- Reporting back
 
-Do **not** ask the sub-agent to do manual verification — that's a human checkpoint owned by the main session.
+The orchestrator does NOT do step work itself — it delegates. See `desplega:step-running` for the full sub-agent contract.
 
 ### Wave Completion
 
 When a wave finishes:
 1. **Review each agent's report.** Mark steps `done` only if `completed` was reported.
-2. **Handle QA pending** — for each step reporting `QA: pending`, present its QA scenarios and offer: execute via `desplega:qa`, or skip.
+2. **Handle `QA Doc: <path>`** — for each step that reported a QA doc, invoke `desplega:qa` against that path. The Automated QA bucket inside the step is already handled by the sub-agent; only the linked doc needs separate orchestration here. (`QA: n/a` → proceed normally.)
 3. **Manual verification (if not Autopilot)** — present manual verification items from each completed step's body. Wait for user confirmation. Don't tick manual boxes until confirmed.
 4. **Commits (if commit-per-step was selected)** — after a step's manual verification passes, create a commit: `[step-N] <step name>`.
 5. **Loop** — recompute `ready` and start the next wave.

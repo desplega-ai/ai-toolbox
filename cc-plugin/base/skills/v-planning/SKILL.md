@@ -5,163 +5,89 @@ description: Vertical / parallel implementation planning skill. Creates DAG-stru
 
 # v-planning
 
-You are creating implementation plans as a **DAG of vertical steps**, not a linear sequence of phases. Each step is a complete, QA-able slice of value (e.g., a full feature: DB + API + UI + tests). The DAG captures *feature-level* dependencies, so independent steps can be implemented in parallel by sub-agents.
+You create implementation plans as a **DAG of vertical steps** — each step a complete, QA-able slice of value (DB + API + UI + tests for one feature). The DAG captures feature-level dependencies, so independent steps can be implemented in parallel by sub-agents.
 
-This skill is a small, focused variant of `planning`. The research/interview/iteration process is the same — only the **output shape** is different: a plan **directory** with `root.md` + one `step-<n>.md` per node.
-
-## Working Agreement
-
-These instructions establish a working agreement between you and the user:
-
-1. **AskUserQuestion is your primary communication tool** — for clarifications, design decisions, preferences, approvals.
-2. **Establish preferences upfront**, not at the end.
-3. **Autonomy mode guides interaction level.**
-
-### User Preferences
-
-Before starting (unless autonomy is Autopilot), establish:
-
-**File Review Preference** — If the `file-review` plugin is available, use **AskUserQuestion**:
-
-| Question | Options |
-|----------|---------|
-| "Would you like to use file-review for inline feedback on the plan when it's ready?" | 1. Yes, open file-review when plan is ready (Recommended), 2. No, just show me the plan |
-
-## When to Use
-
-- User invokes `/v-plan` command
-- User asks for a "parallel plan", "DAG plan", or work that can fan out
-- The task naturally splits into independent vertical slices (multiple features, multiple entities, multiple subsystems)
-- Another skill references `**REQUIRED SUB-SKILL:** Use desplega:v-planning`
-
-For strictly sequential work, route to `planning` instead.
-
-## Autonomy Mode
-
-| Mode | Behavior |
-|------|----------|
-| **Autopilot** | Research independently, write the full plan dir, present for final review only |
-| **Critical** (Default) | Get buy-in at major decision points (esp. step decomposition + DAG shape) |
-| **Verbose** | Check in at each step, validate understanding, confirm before writing each step file |
-
-## Process Steps
-
-### Step 1: Context Gathering & Initial Analysis
-
-Same as `planning`:
-1. Read all mentioned files completely (no `limit`/`offset`).
-2. Spawn parallel research sub-agents (`codebase-locator`, `codebase-analyzer`, `thoughts-locator`).
-3. Read what they found.
-4. Surface understanding + open questions via AskUserQuestion.
-
-### Step 2: Research & Discovery
-
-Same as `planning`. Verify any corrections via fresh research. Present findings + design options before committing.
-
-### Step 3: DAG Decomposition
-
-This is the key step that differs from `planning`.
-
-1. Identify **vertical slices**. Each slice should be:
-   - **QA-able on its own** — has its own success criteria, can be demoed/tested in isolation
-   - **Roughly feature-sized**, not layer-sized (don't split "DB migration" and "API endpoint" into separate steps)
-   - **One of ~3–8 steps total** for most plans. More than that → reconsider granularity.
-
-2. Identify **dependencies** between slices. A depends on B if B must be merged before A can start (shared types, shared schema, shared base component).
-
-3. Identify **integration steps** (optional). If multiple parallel slices need a non-trivial stitching step (cross-cutting e2e, shared-surface reconciliation), add an explicit `step-N` whose `depends_on` lists the parallel siblings.
-
-4. Present the DAG outline as text + ASCII/mermaid graph, then use **AskUserQuestion** to confirm shape:
-
-   | Question | Options |
-   |----------|---------|
-   | "Does this step decomposition + DAG shape look right?" | 1. Yes, proceed, 2. No, let's discuss changes |
-
-A linear DAG (chain with no fan-out) is acceptable — produce it without complaint.
-
-### Step 4: Write the Plan Directory
-
-Exit plan mode and write the plan as a directory:
+Output is a plan **directory** at `thoughts/<username|shared>/plans/YYYY-MM-DD-description/`:
 
 ```
-thoughts/<username|shared>/plans/YYYY-MM-DD-<description>/
-├── root.md
-├── step-1.md
-├── step-2.md
+root.md            # Overview, mermaid DAG, step index, Global Verification
+step-1.md          # frontmatter (id, name, depends_on) + Success Criteria
+step-2.md
 └── step-N.md
 ```
 
-**Path selection:** Use the user's name (e.g., `thoughts/taras/plans/`) if known from context. Fall back to `thoughts/shared/plans/` when unclear.
+## Setup (before starting)
 
-**Templates:**
-- `root.md` — read and follow `cc-plugin/base/skills/v-planning/templates/root.md`
-- `step-<n>.md` — read and follow `cc-plugin/base/skills/v-planning/templates/step.md`
+1. **Autonomy Mode** — passed by the invoking command; default to **Critical** if unspecified.
 
-**Critical rules:**
-- Every `step-<n>.md` has frontmatter with `id`, `name`, and `depends_on: [step-X, ...]` (empty list `[]` if no deps). This is the **canonical** dependency source.
-- `root.md` renders a derived view: a mermaid graph + a step-index table. Keep it consistent with the frontmatter.
-- Every `step-<n>.md` includes `### Success Criteria:` with `#### Automated Verification:` and `#### Manual Verification:` subsections (same format as `planning`'s phases — see template).
-- `root.md` includes a `## Global Verification` section for cross-cutting checks that only fire after the whole DAG completes.
-- Steps with user-facing changes SHOULD include an optional `### QA Spec (optional):` section after Success Criteria. Internal refactors omit it.
+   | Mode | Behavior |
+   |------|----------|
+   | **Autopilot** | Research independently, write the full plan dir, present for final review only |
+   | **Critical** (Default) | After each research step, ask clarifying questions before drafting; surface design options especially at DAG decomposition |
+   | **Verbose** | Check in at every sub-step: validate understanding, confirm scope, surface unknowns, confirm before writing each step file |
 
-**OPTIONAL SUB-SKILL:** When a step references a script that doesn't yet exist (e.g. `bun scripts/check-foo.ts`), it can be generated during implementation via `desplega:script-builder`. Use a checkbox like `- [ ] Run scripts/foo.ts (generate via /script-builder if missing)`.
+2. **Commit preference** — unless Autopilot, ask once via `AskUserQuestion`:
 
-### Step 5: Review and Iterate
+   | Question | Options |
+   |----------|---------|
+   | "Create a commit after each step once manual verification passes?" | 1. Yes (Recommended), 2. No, I'll handle commits |
 
-1. Present the plan directory location:
-   ```
-   I've created the plan directory at:
-   `thoughts/<username|shared>/plans/YYYY-MM-DD-<description>/`
+3. **Prior learnings** — **OPTIONAL SUB-SKILL:** if `~/.agentic-learnings.json` exists, run `/learning recall <topic>` first.
 
-   Files: root.md, step-1.md, ..., step-N.md
-   Please review.
-   ```
-2. Iterate based on feedback. When edits change dependencies, update both the step's frontmatter **and** the rendered DAG/index in `root.md`.
-3. Offer `/review` for a structured completeness pass.
-4. Set `root.md` frontmatter `status: ready` when finalized. **Do not start implementation.**
+## The 10 Rules
 
-### Step 6: Handoff
+1. **Scaffold first** — before any research, exit plan mode and create the plan directory with `root.md` from `cc-plugin/base/skills/v-planning/templates/root.md`. (Use the user's name when known, e.g. `taras`; fall back to `thoughts/shared/` otherwise.) Step files are added as the DAG emerges in rule 4. The directory grows incrementally; the user can correct course early.
 
-Use **AskUserQuestion**:
+2. **Sub-agent everything heavy** — file reads, research, validation. Default `run_in_background: true`. Keep raw tool output out of the main session.
+   *Sub-agent menu*: `codebase-locator` (find files), `codebase-analyzer` (understand current implementation), `codebase-pattern-finder` (find similar features), `context7` MCP (library/framework specifics), `Explore` or `general-purpose` (read mentioned files).
 
-| Question | Options |
-|----------|---------|
-| "The plan is ready. What's next?" | 1. Implement in parallel (→ `/v-implement`), 2. Run `/review` first, 3. Done for now (park the plan) |
+3. **Ask via `AskUserQuestion`** — see `desplega:ask-user` for conventions. Never ask in chat as plain bullets.
 
-- **Implement** → suggest `/v-implement <plan-dir>`.
-- **Review** → invoke `desplega:reviewing` on `root.md`.
-- **Done** → set `root.md` `status` to `parked`.
+4. **Ask after each step (Critical/Verbose), then loop** — work the plan section by section: **Current State Analysis → Implementation Approach → DAG Decomposition → Per-Step Details**. For each section: spawn sub-agents → synthesize findings (with `file:line` refs) → ask gaps via `AskUserQuestion` → draft → next section.
+   - **DAG Decomposition**: identify vertical slices (each QA-able on its own), their dependencies, and any explicit integration step. Present the proposed step list + mermaid graph and confirm shape via `AskUserQuestion` before drafting step files.
+   - **Per-Step Details**: create each `step-<n>.md` from `cc-plugin/base/skills/v-planning/templates/step.md`. Frontmatter `depends_on: [step-X, ...]` is **canonical**; `root.md`'s mermaid graph + step-index table is a derived view — keep them in sync.
 
-## Important Guidelines
+5. **Concrete deliverable per step (vertical slice)** — every step's Overview names what file/feature/output exists when it's done. **Each step must be QA-able on its own.** Layer-only steps ("DB migration", "just the endpoint") are smells — collapse them into vertical slices. "Improve X" and "refactor Y" are also smells.
 
-1. **Steps are vertical slices, not layers.** If you find yourself writing `step-1: DB migration` and `step-2: API endpoint` for the same feature, collapse them into one step.
-2. **Frontmatter is canonical for deps.** `root.md`'s graph is derived. If they disagree, frontmatter wins.
-3. **Self-contained steps.** A sub-agent handed only `step-<n>.md` (plus the plan-level context from `root.md`) should be able to implement it without reading sibling steps.
-4. **No status/assignee in step frontmatter.** Execution state lives outside the file. Steps are immutable specs during implementation.
-5. **Heading hierarchy is the same as `planning`** — `### Success Criteria:` (h3), `#### Automated Verification:` (h4), `#### Manual Verification:` (h4). Consistency matters for downstream tooling.
+6. **Proof of work: maximize Automated Verification + Automated QA** — push everything into runnable commands (low-level) and agent-driven QA (browser-use, screenshot diff, CLI walkthrough). Manual Verification is the exception. Each step has its own Success Criteria block; `root.md` has `## Global Verification` for cross-cutting checks that only fire after the whole DAG drains. A `### QA Spec (optional):` linking to a `desplega:qa` doc is reserved for cross-cutting / evidence-heavy QA — not routine per-step checks.
 
-## Success Criteria Requirements
+7. **Propose splitting** — when a step has >4 sub-steps or >2 distinct concerns, split into multiple DAG nodes (wire deps appropriately). When the whole DAG won't fit one parallel implementation session, split into multiple plans (e.g., contract → storage → UI). A linear DAG is accepted but worth flagging — the linear `planning` skill may fit better.
 
-Every `step-<n>.md` MUST end with:
+8. **Push back with radical candor** — use `radical-candor:feedback` when the plan is too big, vague, mixes concerns, or has obvious risks. Silence is Ruinous Empathy.
 
-```markdown
-### Success Criteria:
+9. **Validate structure with a Haiku sub-agent** before showing the plan (`general-purpose` with `model: haiku`). Verify: every `step-<n>.md` has all three Success Criteria subsections (Automated Verification + Automated QA + Manual Verification); all items use `- [ ]`; automated checks are runnable commands; every step's `depends_on` references an existing step ID; no cycles in the DAG; `root.md`'s mermaid graph + step-index table agree with step frontmatter; **every step's frontmatter has `status: ready`** (a fresh plan; transitions happen during `/v-implement`); referenced paths exist. Apply fixes *before* reveal.
 
-#### Automated Verification:
-- [ ] [Command]: `command here`
+10. **Hand off to a fresh session — never implement here.** Close-out:
+    1. Open `/file-review:file-review <plan-dir>/root.md` (unless Autopilot); iterate on comments. Re-open with individual `step-<n>.md` files if needed.
+    2. Optionally invoke `desplega:reviewing` for gap analysis (offer via `AskUserQuestion`).
+    3. **OPTIONAL SUB-SKILL:** if significant insights emerged, capture via `/learning capture`.
+    4. **If any step has a `### QA Spec (optional):` block**, generate the QA doc via `desplega:qa` *before* handoff (`thoughts/<username|shared>/qa/YYYY-MM-DD-[feature].md`). Scenarios live in the doc, not the plan.
+    5. Ask via `AskUserQuestion`:
 
-#### Manual Verification:
-- [ ] [Human testing step]
+       | Question | Options |
+       |----------|---------|
+       | "Plan ready. What's next?" | 1. Implement in a fresh session, 2. Run `/review` first, 3. Done for now (park the plan) |
 
-**Implementation Note**: [When to pause for confirmation, if commit-per-step requested]
-```
+    6. Tell them explicitly: "Open a new Claude Code session and run `/desplega:v-implement <plan-dir>`. Starting fresh keeps the implementation context clean."
 
-`root.md` MUST end with:
+## DAG Specifics
 
-```markdown
-## Global Verification
+- **Frontmatter is canonical for deps.** `root.md`'s mermaid graph is derived. If they disagree, frontmatter wins.
+- **Self-contained steps.** A sub-agent handed only one `step-<n>.md` (plus plan-level context from `root.md`) should be able to implement it without reading sibling steps.
+- **Frontmatter carries execution state.** Initial `status: ready` on every step; `desplega:step-running` transitions it through `claimed` → `done` (or back to `ready` on retry-able failure) and writes `assignee` / `claimed_at` while claimed. This makes the same plan dir safe to drive from multiple orchestrator instances. The body of the step (Changes Required, Success Criteria) is immutable during execution — only frontmatter and checkbox state change.
+- **Integration steps are explicit when needed.** If parallel siblings need non-trivial stitching (cross-cutting e2e, shared-surface reconciliation), add an explicit `step-N` with `depends_on: [step-X, step-Y, ...]` whose work is "stitch + e2e". Otherwise the DAG just terminates at its leaves.
 
-Run after all steps complete:
-- [ ] [Whole-repo automated check]: `command here`
-- [ ] [Cross-cutting manual check]
-```
+## Commit Integration
+
+If commit-per-step was enabled in Setup:
+- After each step's manual verification passes, commit with format `[step-N] <brief description>`.
+- Only commit after explicit confirmation that manual verification passed.
+- Otherwise, skip — the user handles commits.
+
+## Success Criteria Format (MANDATORY)
+
+Canonical format and heading hierarchy live in:
+- `cc-plugin/base/skills/v-planning/templates/root.md` (`## Global Verification`)
+- `cc-plugin/base/skills/v-planning/templates/step.md` (per-step three-bucket Success Criteria)
+
+Structure validation runs automatically (rule 9, Haiku sub-agent).
