@@ -5,274 +5,157 @@ description: Implementation planning skill. Creates detailed technical plans thr
 
 # Planning
 
-You are creating detailed implementation plans through an interactive, iterative process. Be skeptical, thorough, and collaborative.
+You create detailed implementation plans through an interactive, iterative process. Be skeptical, thorough, and collaborative.
 
 ## Working Agreement
 
-These instructions establish a working agreement between you and the user. The key principles are:
+**All user-facing questions go through `AskUserQuestion`** — see `desplega:ask-user` for conventions. Never ask in chat as plain bullets.
 
-1. **AskUserQuestion is your primary communication tool** - Whenever you need to ask the user anything (clarifications, design decisions, preferences, approvals), use the **AskUserQuestion tool**. Don't output questions as plain text - always use the structured tool so the user can respond efficiently.
+**All read/research/validation work goes through sub-agents** — keep raw tool output out of the main session. Default to `run_in_background: true` so you can keep moving.
 
-2. **Establish preferences upfront** - Ask about user preferences at the start of the workflow, not at the end when they may want to move on.
+The autonomy mode (below) controls how often you check in. AskUserQuestion is always the mechanism.
 
-3. **Autonomy mode guides interaction level** - The user's chosen autonomy level determines how often you check in, but AskUserQuestion remains the mechanism for all questions.
+### User Preference: Commit After Each Phase
 
-### User Preferences
-
-Before starting planning (unless autonomy is Autopilot), establish these preferences:
-
-**Commit After Each Phase** - Use **AskUserQuestion** with:
+Unless autonomy is Autopilot, ask once at the start:
 
 | Question | Options |
 |----------|---------|
-| "Would you like me to create a commit after each phase once manual verification passes?" | 1. Yes, commit after each phase passes (Recommended), 2. No, I'll handle commits myself |
+| "Create a commit after each phase once manual verification passes?" | 1. Yes (Recommended), 2. No, I'll handle commits |
 
-Store this preference and act on it during implementation (see "Commit Integration" section).
+Store the answer; act on it during implementation (see "Commit Integration").
 
-**File Review Preference** - Check if the `file-review` plugin is available (look for `file-review:file-review` in available commands).
-
-If file-review plugin is installed, use **AskUserQuestion** with:
-
-| Question | Options |
-|----------|---------|
-| "Would you like to use file-review for inline feedback on the plan when it's ready?" | 1. Yes, open file-review when plan is ready (Recommended), 2. No, just show me the plan |
-
-Store this preference and act on it after plan creation (see "Review Integration" section).
-
-## When to Use
-
-This skill activates when:
-- User invokes `/create-plan` command
-- Another skill references `**REQUIRED SUB-SKILL:** Use desplega:planning`
-- User asks to plan an implementation or create a technical spec
+File-review is on by default — open the plan in `/file-review:file-review` once it's ready (skip only if Autopilot).
 
 ## Autonomy Mode
 
-At the start of planning, adapt your interaction level based on the autonomy mode:
-
 | Mode | Behavior |
 |------|----------|
-| **Autopilot** | Research independently, create complete plan, present for final review only |
-| **Critical** (Default) | Get buy-in at major decision points, present design options for approval |
-| **Verbose** | Check in at each step, validate understanding, confirm before each phase |
+| **Autopilot** | Research independently, write the full plan, present for final review only |
+| **Critical** (Default) | After each step's research, ask clarifying questions before moving on; surface design options at decision points |
+| **Verbose** | Check in at every sub-step: validate understanding, confirm scope, surface unknowns, confirm before each phase |
 
-The autonomy mode is passed by the invoking command. If not specified, default to **Critical**.
+If unspecified, default to **Critical**.
+
+**Ask-cadence in Critical/Verbose**: after each step's analysis, call `AskUserQuestion` at least once to surface ambiguity, missing constraints, or design alternatives. Assumed inputs are the #1 source of bad plans.
 
 ## Process Steps
 
 ### Prior Learning Recall
 
-**OPTIONAL SUB-SKILL:** If `~/.agentic-learnings.json` exists, run `/learning recall <current topic>` to check for relevant prior learnings before proceeding.
+**OPTIONAL SUB-SKILL:** If `~/.agentic-learnings.json` exists, run `/learning recall <topic>` first.
+
+### Step 0: Initialize Plan File
+
+**Deliverable:** empty plan scaffold at `thoughts/<username|shared>/plans/YYYY-MM-DD-description.md`.
+
+Exit plan mode and create the plan file from `cc-plugin/base/skills/planning/template.md`. Each later step fills in its assigned sections so the file grows incrementally.
+
+Use `thoughts/<username>/` when the user is known (e.g. `taras`); fall back to `thoughts/shared/` otherwise.
 
 ### Step 1: Context Gathering & Initial Analysis
 
-1. **Read all mentioned files immediately and FULLY:**
-   - Research documents, related plans, JSON/data files
-   - **IMPORTANT**: Use Read tool WITHOUT limit/offset parameters
-   - **CRITICAL**: Read files yourself before spawning sub-tasks
+**Deliverable:** populated "Current State Analysis" section with `file:line` refs, plus a list of open questions.
 
-2. **Spawn initial research tasks:**
-   - Use **codebase-locator** agent to find all files related to the task
-   - Use **codebase-analyzer** agent to understand current implementation
-   - Use **thoughts-locator** agent to find existing thoughts documents
-   - Use context7 MCP for library/framework insights
+1. **Read mentioned files in a background sub-agent** (`Explore` or `general-purpose` with `run_in_background: true`). Don't pull raw file content into the main session.
 
-3. **Read all files identified by research tasks**
+2. **Spawn research sub-agents in parallel (background):**
+   - **codebase-locator** — find files related to the task
+   - **codebase-analyzer** — understand current implementation
+   - **codebase-pattern-finder** — find similar features to model after
+   - **context7** MCP — library/framework specifics
 
-4. **Analyze and verify understanding:**
-   - Identify discrepancies or misunderstandings
-   - Note assumptions needing verification
+3. **Synthesize into the plan file** — populate Current State Analysis with `file:line` refs.
 
-5. **Present understanding and questions (if not Autopilot):**
+4. **Identify gaps** — discrepancies, missing context, ambiguous requirements, assumptions needing user verification.
 
-   First, present your findings as text:
-   ```
-   Based on the research of the codebase, I understand we need to [summary].
-
-   I've found that:
-   - [Current implementation detail with file:line reference]
-   - [Relevant pattern or constraint discovered]
-   ```
-
-   Then, if there are questions that research couldn't answer, use **AskUserQuestion** with:
-
-   | Question | Options |
-   |----------|---------|
-   | "[Specific technical question]" | Provide relevant options based on the choices available |
-   | "[Design preference question]" | Provide relevant options based on the choices available |
+5. **In Critical/Verbose: ask before designing.** Brief text summary, then `AskUserQuestion` for everything research couldn't resolve. Batch related questions into one call.
 
 ### Step 2: Research & Discovery
 
-1. **If the user corrects any misunderstanding:**
-   - Spawn new research tasks to verify
-   - Read specific files/directories mentioned
+**Deliverable:** an agreed-upon high-level approach written into the plan's "Implementation Approach" section.
 
-2. **Create a research todo list** using TodoWrite
+1. **If the user corrected anything**, spawn new background research sub-agents to verify.
 
-3. **Spawn parallel sub-tasks:**
-   - **codebase-locator** - Find specific files
-   - **codebase-analyzer** - Understand implementation details
-   - **codebase-pattern-finder** - Find similar features to model after
+2. **Track research items via TodoWrite** if the discovery surface is wide.
 
-4. **Present findings and design options (if not Autopilot):**
+3. **Spawn parallel sub-agents (background)** for any new questions raised: `codebase-locator`, `codebase-analyzer`, `codebase-pattern-finder`.
 
-   First, present findings as text:
-   ```
-   **Current State:**
-   - [Key discovery about existing code]
-   ```
-
-   Then, use **AskUserQuestion** to present design options:
-
-   | Question | Options |
-   |----------|---------|
-   | "Which approach aligns best with your vision?" | 1. [Option A] - [brief description], 2. [Option B] - [brief description] |
-
-   Include pros/cons in the option descriptions to help the user decide.
+4. **Present design options** (if not Autopilot) via `AskUserQuestion` — each option labelled with pros/cons.
 
 ### Step 3: Plan Structure Development
 
-1. **Create initial plan outline (if not Autopilot):**
+**Deliverable:** an approved phase outline written into the plan file.
 
-   Present the outline as text:
-   ```
-   Here's my proposed plan structure:
+1. **Draft the phase outline** under "Implementation Phases" — phase names + one-line summary each.
 
-   ## Overview
-   [1-2 sentence summary]
+2. **Get approval** (if not Autopilot) via `AskUserQuestion`: does this phasing make sense?
 
-   ## Implementation Phases:
-   1. [Phase name] - [what it accomplishes]
-   2. [Phase name] - [what it accomplishes]
-   ```
-
-   Then, use **AskUserQuestion** to get approval:
-
-   | Question | Options |
-   |----------|---------|
-   | "Does this phasing make sense?" | 1. Yes, proceed with this structure, 2. No, let's discuss changes |
-
-2. **Get feedback on structure** before writing details
+3. **Propose splitting if too big.** A phase with >4 sub-steps or >2 distinct concerns should split. A whole plan that won't fit one implementation session should split into multiple plans (e.g., contract → storage → UI).
 
 ### Step 4: Detailed Plan Writing
 
-Before proceeding, exit plan mode to write the plan file.
+**Deliverable:** a fully populated plan file ready for review.
 
-Write the plan to `thoughts/<username|shared>/plans/YYYY-MM-DD-description.md`.
+Fill each phase's Changes Required, Success Criteria, and (if applicable) QA Spec sections in the plan file.
 
-**Path selection:** Use the user's name (e.g., `thoughts/taras/plans/`) if known from context. Fall back to `thoughts/shared/plans/` when unclear.
+**MANDATORY**: Every phase has `### Success Criteria:` with three subsections — `#### Automated Verification:` (build/test/lint), `#### Automated QA:` (Claude-driven equivalent of manual QA — browser-use, screenshots, CLI walkthrough), and `#### Manual Verification:` (only what truly needs a human). Push as much as possible into the first two buckets. The exact format lives in `cc-plugin/base/skills/planning/template.md` — follow it.
 
-**CRITICAL**: Every phase MUST include a `### Success Criteria:` section with both `#### Automated Verification:` and `#### Manual Verification:` subsections. See "Success Criteria Requirements" section at the end of this document for the exact format.
+**QA Spec (optional)**: for phases that change user-facing behavior, UI, API responses, or auth/permissions, link to a separate QA doc generated via `desplega:qa` (`thoughts/<username|shared>/qa/YYYY-MM-DD-[feature].md`). Don't inline scenarios in the plan. Skip entirely for internal refactors, type changes, config bumps.
 
-**QA Specs (optional)**: Phases that change user-facing behavior, add UI, modify API responses, or alter auth/permissions SHOULD include an optional `### QA Spec (optional):` section after the Success Criteria. See the template for the exact format. Phases that are internal refactors, type changes, config updates, or dependency bumps should omit QA specs. QA specs can live either inline in plan phases (for per-phase validation) or as a separate standalone document (for cross-cutting or feature-level QA). The inline approach is the default for plans; the QA skill handles both sources transparently.
+**OPTIONAL SUB-SKILL:** When a phase's verification references a script that doesn't exist yet (e.g. `bun scripts/check-foo.ts`), it'll be generated during implementation via `desplega:script-builder`. Mark it `- [ ] Run scripts/foo.ts (generate via /script-builder if missing)`. Don't generate scripts during planning.
 
-**OPTIONAL SUB-SKILL:** When a phase's Automated Verification or QA Spec references a script that doesn't yet exist (e.g., `bun scripts/check-foo.ts`), it can be generated during implementation via `desplega:script-builder`. Plans may use a checkbox like `- [ ] Run scripts/foo.ts (generate via /script-builder if missing)` so the implementer knows the script is intentionally TBD. Do not generate scripts during planning itself — keep planning purely descriptive.
+### Step 5: Validate, Review, and Hand Off
 
-**Template:** Read and follow the template at `cc-plugin/base/skills/planning/template.md`
+**Deliverable:** a finalized plan, structurally validated, with handoff instructions.
 
-The template includes:
-- Standard plan sections (Overview, Current State, Desired End State, etc.)
-- Multiple phase examples with proper Success Criteria structure
-- Correct heading hierarchy throughout
+1. **Auto-validate plan structure in a Haiku sub-agent** (`general-purpose` with `model: haiku`):
+   - Every phase has `### Success Criteria:` with all three subsections (Automated Verification, Automated QA, Manual Verification)
+   - All checklist items use `- [ ]`
+   - Automated checks are runnable commands, not descriptions
+   - Referenced paths/files exist
 
-### Step 5: Review and Iterate
+   Apply fixes the validator surfaces *before* showing the user.
 
-1. **Present draft plan location:**
-   ```
-   I've created the implementation plan at:
-   `thoughts/<username|shared>/plans/YYYY-MM-DD-description.md`
+2. **Announce plan location** in chat.
 
-   Please review it.
-   ```
+3. **Open file-review** (always, unless Autopilot): `/file-review:file-review <path>`.
 
-2. **Iterate based on feedback** (if not Autopilot)
+4. **Iterate based on review comments** (if not Autopilot).
 
-3. **Offer structured review:**
-   - After iteration, offer: "Would you like me to run `/review` on this plan for completeness and gap analysis?"
-   - If yes, invoke the `desplega:reviewing` skill on the plan document
+5. **Offer `/review`** via `AskUserQuestion` for completeness/gap analysis. If yes, invoke `desplega:reviewing`.
 
-4. **Finalize the plan** - DO NOT START implementation
+6. **Capture learnings** — **OPTIONAL SUB-SKILL:** if significant insights emerged, run `/learning capture` (`desplega:learning`).
 
-5. **Learning Capture:**
-
-   **OPTIONAL SUB-SKILL:** If significant insights, patterns, gotchas, or decisions emerged during this workflow, consider using `desplega:learning` to capture them via `/learning capture`. Focus on learnings that would help someone else in a future session.
-
-6. **Workflow handoff:**
-   After the plan is finalized (and optionally reviewed), use **AskUserQuestion** with:
+7. **Hand off — DO NOT START implementation in this session.** Use `AskUserQuestion`:
 
    | Question | Options |
    |----------|---------|
-   | "The plan is ready. What's the next step?" | 1. Implement this plan (→ `/implement-plan`), 2. Run a review first (→ `/review`), 3. Done for now (park the plan) |
+   | "Plan ready. What's next?" | 1. Implement in a fresh session, 2. Run `/review` first, 3. Done for now (park the plan) |
 
-   Based on the answer:
-   - **Implement**: Suggest the `/implement-plan` command with the plan file path
-   - **Review**: Invoke the `desplega:reviewing` skill on the plan document
-   - **Done**: Set the plan's `status` to `ready` or `parked` as appropriate
+   **Tell the user explicitly:** "Open a new Claude Code session and run `/desplega:implement-plan <path>`. Starting fresh keeps the implementation context clean — the planner's research drops out of memory and the implementer reads only what it needs."
 
-## Review Integration
-
-If the `file-review` plugin is available and the user selected "Yes" during User Preferences setup:
-- After creating plans, invoke `/file-review:file-review <path>`
-- If user selected "No" or autonomy mode is Autopilot, skip this step
+   - **Implement (new session)**: print the exact command, stop.
+   - **Review**: invoke `desplega:reviewing` on the plan.
+   - **Done**: set the plan's `status` to `ready` or `parked`.
 
 ## Commit Integration
 
-If the user selected "Yes" to commits during User Preferences setup:
-- After each phase's manual verification passes, create a commit with a descriptive message
-- Commit message format: `[phase N] <brief description of what the phase accomplished>`
-- Only commit after explicit confirmation that manual verification passed
-- If user selected "No", skip commits entirely - the user will handle them
+If the user opted into commit-per-phase:
+- After each phase's manual verification passes, commit with format `[phase N] <brief description>`.
+- Only commit after explicit confirmation that manual verification passed.
+- Otherwise, skip — the user handles commits.
 
 ## Important Guidelines
 
-1. **Be Skeptical**: Question vague requirements, verify with code
-2. **Be Interactive**: Don't write full plan in one shot (unless Autopilot)
-3. **Be Thorough**: Read context files COMPLETELY, include file:line references
-4. **Be Practical**: Focus on incremental, testable changes
-5. **No Open Questions**: Research or clarify immediately, don't leave questions in plan
+1. **Be Skeptical** — question vague requirements, verify with code.
+2. **Be Interactive** — don't write the full plan in one shot (unless Autopilot).
+3. **Sub-agent everything heavy** — file reads, research, validation. Keep raw output out of the main session.
+4. **Concrete deliverables per phase** — every phase Overview names what file/feature/output exists when it's done. "Improve X" is a smell.
+5. **Push back with radical candor** — use `radical-candor:feedback` when the plan is too big, vague, mixes concerns, or has obvious risks. Silence is Ruinous Empathy.
+6. **Propose splitting big plans** — multiple smaller plans, each implementable in one session, beats one mega-plan.
+7. **No open questions in the plan** — research or clarify immediately; don't leave TBDs.
 
-## Success Criteria Requirements (MANDATORY)
+## Success Criteria Format (MANDATORY)
 
-**Every phase MUST have a Success Criteria section.** Plans without proper success criteria are incomplete.
-
-### Required Structure
-
-Each phase must end with this exact structure:
-
-```markdown
-### Success Criteria:
-
-#### Automated Verification:
-- [ ] [Command that can be run]: `command here`
-- [ ] [Another automated check]: `command here`
-
-#### Manual Verification:
-- [ ] [Human testing step]
-- [ ] [Another manual check]
-
-**Implementation Note**: [When to pause for confirmation]
-```
-
-### Heading Hierarchy
-
-Use these exact heading levels (this is critical for consistency):
-- `### Success Criteria:` (h3) - section header
-- `#### Automated Verification:` (h4) - subsection
-- `#### Manual Verification:` (h4) - subsection
-
-### What Goes Where
-
-| Type | Examples |
-|------|----------|
-| **Automated** | `make test`, `npm run lint`, `tsc --noEmit`, `ls path/to/file`, `grep pattern file` |
-| **Manual** | UI interactions, visual checks, performance testing, edge case validation |
-
-### Validation Checklist
-
-Before finalizing any plan, verify:
-- [ ] Every phase has `### Success Criteria:` section
-- [ ] Each has `#### Automated Verification:` with runnable commands
-- [ ] Each has `#### Manual Verification:` with human testing steps
-- [ ] All items use checkbox format `- [ ]`
-- [ ] Automated checks are actual commands (not descriptions)
-- [ ] Phases with user-facing changes have optional `### QA Spec` sections (if applicable)
+Every phase ends with a Success Criteria section. The canonical format and heading hierarchy lives in `cc-plugin/base/skills/planning/template.md` — follow it. Structure validation runs automatically in Step 5 (Haiku sub-agent).
