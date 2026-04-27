@@ -26,9 +26,11 @@ def validate_path(file_path: str) -> tuple[bool, str]:
         Tuple of (is_valid, error_message)
     """
     # Pattern for valid thoughts paths
-    # thoughts/{username|agentId|shared}/{research|plans|brainstorms}/YYYY-MM-DD-topic-slug.md
+    # Plans accept two shapes:
+    #   - linear (planning skill):   thoughts/{user|shared}/plans/YYYY-MM-DD-topic.md
+    #   - DAG (v-planning skill):    thoughts/{user|shared}/plans/YYYY-MM-DD-topic/{root|step-N}.md
     research_pattern = r'thoughts/[^/]+/research/\d{4}-\d{2}-\d{2}-[\w-]+\.md$'
-    plans_pattern = r'thoughts/[^/]+/plans/\d{4}-\d{2}-\d{2}-[\w-]+\.md$'
+    plans_pattern = r'thoughts/[^/]+/plans/\d{4}-\d{2}-\d{2}-[\w-]+(?:\.md|/(?:root|step-\d+)\.md)$'
     brainstorms_pattern = r'thoughts/[^/]+/brainstorms/\d{4}-\d{2}-\d{2}-[\w-]+\.md$'
     qa_pattern = r'thoughts/[^/]+/qa/\d{4}-\d{2}-\d{2}-[\w-]+\.md$'
     questions_pattern = r'thoughts/[^/]+/questions/\d{4}-\d{2}-\d{2}-[\w-]+\.md$'
