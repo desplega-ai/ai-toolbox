@@ -60,9 +60,10 @@ Tag scheme: `cc-desplega-<semver>`. Current pinnable tags:
 
 | Tag | Notes |
 |-----|-------|
+| `cc-desplega-2.0.0` | Current latest. Shape D planning, three Success Criteria buckets, v-skills (DAG plans), step-running. |
 | `cc-desplega-1.13.0` | Last 1.x release. Pin here if you want pre-v2 behavior. |
 
-**v2.0 breaking changes** (rolling out — pin to `cc-desplega-1.13.0` if your workflow depends on v1 contracts):
+**v2.0 breaking changes** (released — pin to `cc-desplega-1.13.0` if your workflow depends on v1 contracts):
 
 - `planning` skill restructured around "Setup + 10 Rules" (Shape D); old "Process Steps" headings are gone.
 - Plan templates use three Success Criteria buckets: **Automated Verification** + **Automated QA** + **Manual Verification** (was two).
