@@ -249,6 +249,10 @@ async function init() {
     await listen("menu:save", async () => {
       await saveFile();
     });
+
+    // Guard the window close so unsaved review progress isn't dropped silently.
+    // Default: prompt the user. With `save_on_quit: true` in config: save silently.
+    await registerTauriCloseGuard();
   }
 
   // Set up empty state open button
@@ -471,6 +475,101 @@ function escapeHtml(text: string): string {
   const div = document.createElement("div");
   div.textContent = text;
   return div.innerHTML;
+}
+
+type QuitChoice = "save" | "discard" | "cancel";
+
+function showQuitConfirmDialog(): Promise<QuitChoice> {
+  return new Promise((resolve) => {
+    const modal = document.createElement("div");
+    modal.className = "quit-confirm-modal";
+    modal.innerHTML = `
+      <div class="quit-confirm-content">
+        <div class="quit-confirm-header">
+          <h3>Unsaved review progress</h3>
+        </div>
+        <div class="quit-confirm-body">
+          <p>You have unsaved comments or edits. What would you like to do?</p>
+        </div>
+        <div class="quit-confirm-footer">
+          <button class="secondary-btn" data-action="cancel">Cancel</button>
+          <button class="secondary-btn" data-action="discard">Quit anyway</button>
+          <button class="primary-btn" data-action="save">Save and quit</button>
+        </div>
+      </div>
+    `;
+
+    let settled = false;
+    const finish = (choice: QuitChoice) => {
+      if (settled) return;
+      settled = true;
+      document.removeEventListener("keydown", onKeydown);
+      modal.remove();
+      resolve(choice);
+    };
+
+    const onKeydown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        finish("cancel");
+      }
+    };
+
+    modal.querySelectorAll<HTMLButtonElement>("button[data-action]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        finish((btn.dataset.action as QuitChoice) ?? "cancel");
+      });
+    });
+
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) finish("cancel");
+    });
+
+    document.addEventListener("keydown", onKeydown);
+    document.body.appendChild(modal);
+    modal.querySelector<HTMLButtonElement>(".primary-btn")?.focus();
+  });
+}
+
+async function registerTauriCloseGuard() {
+  const { getCurrentWindow } = await import("@tauri-apps/api/window");
+  const tauriWindow = getCurrentWindow();
+  let allowClose = false;
+
+  await tauriWindow.onCloseRequested(async (event) => {
+    if (allowClose || !hasUnsavedChanges) {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (appConfig.save_on_quit) {
+      try {
+        await saveFile();
+      } catch (error) {
+        console.error("Failed to save on quit:", error);
+        return;
+      }
+      allowClose = true;
+      await tauriWindow.close();
+      return;
+    }
+
+    const choice = await showQuitConfirmDialog();
+    if (choice === "cancel") {
+      return;
+    }
+    if (choice === "save") {
+      try {
+        await saveFile();
+      } catch (error) {
+        console.error("Failed to save before quit:", error);
+        return;
+      }
+    }
+    allowClose = true;
+    await tauriWindow.close();
+  });
 }
 
 function showEmptyState() {

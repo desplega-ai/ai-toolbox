@@ -10,6 +10,7 @@ export interface AppConfig {
   vim_mode: boolean;
   font_size: number;
   markdown_raw: boolean;
+  save_on_quit: boolean;
   window: WindowConfig;
 }
 

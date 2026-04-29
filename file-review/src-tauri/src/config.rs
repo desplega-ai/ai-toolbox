@@ -16,6 +16,8 @@ pub struct AppConfig {
     pub font_size: u32,
     #[serde(default)]
     pub markdown_raw: bool,
+    #[serde(default)]
+    pub save_on_quit: bool,
     pub window: WindowConfig,
 }
 
@@ -30,6 +32,7 @@ impl Default for AppConfig {
             vim_mode: false,
             font_size: 14,
             markdown_raw: false,
+            save_on_quit: false,
             window: WindowConfig {
                 width: 1200,
                 height: 800,
