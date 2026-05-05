@@ -38,7 +38,14 @@
         </button>
       </div>
     </div>
-    <div id="tab-strip" class="tab-strip" role="tablist"></div>
+    <div id="tab-strip-row" class="tab-strip-row">
+      <div id="tab-strip" class="tab-strip" role="tablist"></div>
+      <button id="closed-files-btn" class="closed-files-btn" type="button" title="Closed files in this review session" aria-label="Closed files" hidden>
+        <span class="icon">&#9776;</span>
+        <span id="closed-files-count" class="closed-files-count">0</span>
+      </button>
+    </div>
+    <div id="closed-files-popover" class="closed-files-popover" hidden></div>
     <div id="main-container">
       <div id="editor-container"></div>
       <div id="preview-wrapper" style="display: none; position: relative; flex: 7;">

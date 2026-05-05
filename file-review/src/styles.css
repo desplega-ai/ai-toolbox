@@ -126,6 +126,136 @@ body {
   font-size: 14px;
 }
 
+/* Tab strip row (tab strip + closed-files indicator) */
+.tab-strip-row {
+  display: flex;
+  align-items: stretch;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.tab-strip-row > .tab-strip {
+  flex: 1;
+  min-width: 0;
+}
+
+.tab-strip-row:has(.tab-strip:empty):has(.closed-files-btn[hidden]) {
+  display: none;
+}
+
+.closed-files-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  margin: 4px 8px 0 0;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.closed-files-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.closed-files-btn .icon {
+  font-size: 14px;
+}
+
+.closed-files-count {
+  background: var(--accent-color);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  min-width: 16px;
+  text-align: center;
+}
+
+.closed-files-popover {
+  position: absolute;
+  top: 88px;
+  right: 8px;
+  z-index: 200;
+  min-width: 280px;
+  max-width: 400px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
+  padding: 8px 0;
+  font-size: 12px;
+}
+
+.closed-files-popover-header {
+  padding: 4px 12px 8px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.closed-files-popover-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  color: var(--text-primary);
+}
+
+.closed-files-popover-item:hover {
+  background: var(--bg-hover);
+}
+
+.closed-files-popover-path {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+  background: transparent;
+  border: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+  font-size: inherit;
+}
+
+.closed-files-popover-path:hover {
+  color: var(--accent-color);
+}
+
+.closed-files-popover-remove {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 14px;
+  line-height: 1;
+  border-radius: 3px;
+}
+
+.closed-files-popover-remove:hover {
+  background: var(--bg-hover);
+  color: var(--danger-color);
+}
+
 /* Tab strip */
 .tab-strip {
   display: flex;
@@ -1236,6 +1366,26 @@ body {
   gap: 8px;
   padding: 16px;
   border-top: 1px solid var(--border-color);
+}
+
+.quit-confirm-footer kbd {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  vertical-align: middle;
+}
+
+.quit-confirm-footer .primary-btn kbd {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(0, 0, 0, 0.25);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 /* === Syntax Highlighting (dark theme - VS Code dark+) === */

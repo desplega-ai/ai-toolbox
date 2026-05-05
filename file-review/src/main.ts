@@ -76,6 +76,144 @@ function readActive(): Tab | null {
 }
 
 /**
+ * Saved-and-closed tabs that should still appear in the final close-window
+ * comment-export summary. Discarded closes never land here. Each entry's
+ * `content` is the on-disk serialization at close time.
+ */
+interface ClosedFileEntry {
+  path: string;
+  content: string;
+}
+const closedFiles: ClosedFileEntry[] = [];
+const closedFilesSubscribers: Array<() => void> = [];
+function notifyClosedFilesChange() {
+  for (const fn of closedFilesSubscribers) fn();
+}
+function addClosedFile(entry: ClosedFileEntry) {
+  // De-dupe by path: if already remembered, replace with newer content.
+  const existing = closedFiles.findIndex((f) => f.path === entry.path);
+  if (existing >= 0) closedFiles[existing] = entry;
+  else closedFiles.push(entry);
+  notifyClosedFilesChange();
+}
+function removeClosedFile(path: string) {
+  const idx = closedFiles.findIndex((f) => f.path === path);
+  if (idx >= 0) {
+    closedFiles.splice(idx, 1);
+    notifyClosedFilesChange();
+  }
+}
+
+function setupClosedFilesIndicator() {
+  const btn = document.getElementById("closed-files-btn") as HTMLButtonElement | null;
+  const count = document.getElementById("closed-files-count");
+  const popover = document.getElementById("closed-files-popover");
+  if (!btn || !count || !popover) return;
+
+  const renderIndicator = () => {
+    const n = closedFiles.length;
+    if (n === 0) {
+      btn.hidden = true;
+      popover.hidden = true;
+      return;
+    }
+    btn.hidden = false;
+    count.textContent = String(n);
+  };
+
+  const renderPopover = () => {
+    if (closedFiles.length === 0) {
+      popover.hidden = true;
+      return;
+    }
+    const items = closedFiles
+      .map((f) => {
+        const basename = f.path.split("/").pop() || f.path;
+        return `
+          <div class="closed-files-popover-item" data-path="${escapeHtml(f.path)}">
+            <button class="closed-files-popover-path" type="button" title="Click to reopen — ${escapeHtml(f.path)}">${escapeHtml(basename)}</button>
+            <button class="closed-files-popover-remove" type="button" aria-label="Remove from review session" title="Remove from review session">×</button>
+          </div>`;
+      })
+      .join("");
+    popover.innerHTML = `
+      <div class="closed-files-popover-header">In this review session</div>
+      ${items}
+    `;
+    popover.querySelectorAll<HTMLButtonElement>(".closed-files-popover-remove").forEach((rm) => {
+      rm.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const item = (e.currentTarget as HTMLElement).closest<HTMLElement>(
+          ".closed-files-popover-item"
+        );
+        const path = item?.dataset.path;
+        if (path) {
+          removeClosedFile(path);
+          void pushTabStatesToRust();
+        }
+      });
+    });
+    popover.querySelectorAll<HTMLButtonElement>(".closed-files-popover-path").forEach((p) => {
+      p.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const item = (e.currentTarget as HTMLElement).closest<HTMLElement>(
+          ".closed-files-popover-item"
+        );
+        const path = item?.dataset.path;
+        if (!path) return;
+        popover.hidden = true;
+        try {
+          await loadFile(path, "append");
+          hideEmptyState();
+          // Re-opening replaces "remembered" with "live" — drop from closed list.
+          removeClosedFile(path);
+          void pushTabStatesToRust();
+        } catch (error) {
+          console.error("Failed to reopen closed file:", path, error);
+        }
+      });
+    });
+  };
+
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (popover.hidden) {
+      renderPopover();
+      popover.hidden = false;
+    } else {
+      popover.hidden = true;
+    }
+  });
+  document.addEventListener("click", (e) => {
+    if (popover.hidden) return;
+    const target = e.target as Node;
+    if (popover.contains(target) || btn.contains(target)) return;
+    popover.hidden = true;
+  });
+
+  closedFilesSubscribers.push(() => {
+    renderIndicator();
+    if (!popover.hidden) renderPopover();
+  });
+  renderIndicator();
+}
+
+/**
+ * Cycle the active tab forward (+1) or backward (-1) with wrap-around.
+ * No-op if fewer than 2 tabs exist.
+ */
+function rotateActiveTab(direction: 1 | -1) {
+  if (tabManager.tabs.length < 2) return;
+  const activeIdx = tabManager.tabs.findIndex(
+    (t) => t.id === tabManager.activeId
+  );
+  if (activeIdx < 0) return;
+  const len = tabManager.tabs.length;
+  const nextIdx = (activeIdx + direction + len) % len;
+  tabManager.setActive(tabManager.tabs[nextIdx].id);
+}
+
+/**
  * Patch fields on the active tab. No-op if no tab is open.
  */
 function writeActive(patch: Partial<Tab>): void {
@@ -272,6 +410,8 @@ async function init() {
       const target = tabManager.tabs[n - 1];
       if (target) tabManager.setActive(target.id);
     },
+    nextTab: () => rotateActiveTab(1),
+    prevTab: () => rotateActiveTab(-1),
     zoomIn,
     zoomOut,
     undo: editorUndo,
@@ -364,6 +504,11 @@ async function init() {
   document
     .getElementById("open-file-btn")
     ?.addEventListener("click", showFilePickerAndLoad);
+
+  // Closed-files indicator: button + popover. Visible only when at least
+  // one tab has been closed-with-save during this session. Lets the user
+  // remove an entry (drops it from the final stdout summary).
+  setupClosedFilesIndicator();
 
   // Set up toolbar buttons
   document
@@ -591,22 +736,37 @@ function escapeHtml(text: string): string {
 
 type QuitChoice = "save" | "discard" | "cancel";
 
-function showQuitConfirmDialog(): Promise<QuitChoice> {
-  return new Promise((resolve) => {
+interface UnsavedDialogOpts {
+  title: string;
+  body: string;
+  saveLabel: string;
+  discardLabel: string;
+  /** Single-letter (lowercase) shortcut key for the discard action. */
+  discardKey: string;
+}
+
+// Module-scoped guard so re-entrant triggers (Cmd+Q spam, Cmd+W spam)
+// don't stack dialog backdrops.
+let activeUnsavedDialog: Promise<QuitChoice> | null = null;
+
+function showUnsavedChangesDialog(opts: UnsavedDialogOpts): Promise<QuitChoice> {
+  if (activeUnsavedDialog) return activeUnsavedDialog;
+
+  activeUnsavedDialog = new Promise<QuitChoice>((resolve) => {
     const modal = document.createElement("div");
     modal.className = "quit-confirm-modal";
     modal.innerHTML = `
       <div class="quit-confirm-content">
         <div class="quit-confirm-header">
-          <h3>Unsaved review progress</h3>
+          <h3>${escapeHtml(opts.title)}</h3>
         </div>
         <div class="quit-confirm-body">
-          <p>You have unsaved comments or edits. What would you like to do?</p>
+          <p>${escapeHtml(opts.body)}</p>
         </div>
         <div class="quit-confirm-footer">
-          <button class="secondary-btn" data-action="cancel">Cancel</button>
-          <button class="secondary-btn" data-action="discard">Quit anyway</button>
-          <button class="primary-btn" data-action="save">Save and quit</button>
+          <button class="secondary-btn" data-action="cancel">Cancel <kbd>Esc</kbd></button>
+          <button class="secondary-btn" data-action="discard">${escapeHtml(opts.discardLabel)} <kbd>${opts.discardKey.toUpperCase()}</kbd></button>
+          <button class="primary-btn" data-action="save">${escapeHtml(opts.saveLabel)} <kbd>S</kbd></button>
         </div>
       </div>
     `;
@@ -617,13 +777,23 @@ function showQuitConfirmDialog(): Promise<QuitChoice> {
       settled = true;
       document.removeEventListener("keydown", onKeydown);
       modal.remove();
+      activeUnsavedDialog = null;
       resolve(choice);
     };
 
     const onKeydown = (e: KeyboardEvent) => {
+      // Don't intercept system Cmd+Q / Cmd+W while the dialog is open —
+      // a second press should fall through to the OS / menu accelerator.
+      if (e.metaKey || e.ctrlKey) return;
       if (e.key === "Escape") {
         e.preventDefault();
         finish("cancel");
+      } else if (e.key.toLowerCase() === opts.discardKey) {
+        e.preventDefault();
+        finish("discard");
+      } else if (e.key === "s" || e.key === "S") {
+        e.preventDefault();
+        finish("save");
       }
     };
 
@@ -640,6 +810,28 @@ function showQuitConfirmDialog(): Promise<QuitChoice> {
     document.addEventListener("keydown", onKeydown);
     document.body.appendChild(modal);
     modal.querySelector<HTMLButtonElement>(".primary-btn")?.focus();
+  });
+
+  return activeUnsavedDialog;
+}
+
+function showQuitConfirmDialog(): Promise<QuitChoice> {
+  return showUnsavedChangesDialog({
+    title: "Unsaved review progress",
+    body: "You have unsaved comments or edits. What would you like to do?",
+    saveLabel: "Save and quit",
+    discardLabel: "Quit anyway",
+    discardKey: "q",
+  });
+}
+
+function showCloseTabConfirmDialog(label: string): Promise<QuitChoice> {
+  return showUnsavedChangesDialog({
+    title: `Close ${label}?`,
+    body: `${label} has unsaved comments or edits. What would you like to do?`,
+    saveLabel: "Save and close",
+    discardLabel: "Close anyway",
+    discardKey: "c",
   });
 }
 
@@ -669,42 +861,43 @@ async function saveAllDirtyTabs(): Promise<void> {
 async function registerTauriCloseGuard() {
   const { getCurrentWindow } = await import("@tauri-apps/api/window");
   const tauriWindow = getCurrentWindow();
-  let allowClose = false;
+  // Re-entry guard: a second Cmd+Q while the dialog is open or a save is
+  // in progress would otherwise stack handlers (and modal backdrops).
+  let resolving = false;
 
   await tauriWindow.onCloseRequested(async (event) => {
     const anyDirty = tabManager.tabs.some((t) => t.hasUnsavedChanges);
-    if (allowClose || !anyDirty) {
+    if (!anyDirty) {
       return;
     }
 
     event.preventDefault();
+    if (resolving) return;
+    resolving = true;
 
-    if (appConfig.save_on_quit) {
-      try {
+    try {
+      if (appConfig.save_on_quit) {
         await saveAllDirtyTabs();
-      } catch (error) {
-        console.error("Failed to save on quit:", error);
+        await tauriWindow.destroy();
         return;
       }
-      allowClose = true;
-      await tauriWindow.close();
-      return;
-    }
 
-    const choice = await showQuitConfirmDialog();
-    if (choice === "cancel") {
-      return;
-    }
-    if (choice === "save") {
-      try {
-        await saveAllDirtyTabs();
-      } catch (error) {
-        console.error("Failed to save before quit:", error);
+      const choice = await showQuitConfirmDialog();
+      if (choice === "cancel") {
         return;
       }
+      if (choice === "save") {
+        await saveAllDirtyTabs();
+      }
+      // Use destroy() instead of close() because we're inside the
+      // onCloseRequested handler; close() would re-enter the handler
+      // and (in some Tauri 2 webview builds) silently no-op.
+      await tauriWindow.destroy();
+    } catch (error) {
+      console.error("Failed to quit:", error);
+    } finally {
+      resolving = false;
     }
-    allowClose = true;
-    await tauriWindow.close();
   });
 }
 
@@ -1104,14 +1297,21 @@ async function pushTabStatesToRust(): Promise<void> {
   if (active) {
     tabManager.update(active.id, { doc: getEditorContent() });
   }
-  const states = tabManager.tabs
+  const openStates = tabManager.tabs
     .filter((t) => t.path !== null)
     .map((t) => ({
       path: t.path!,
       content: serializeComments(t.doc, t.comments),
     }));
+  // Append closed-but-remembered files so the final stdout summary
+  // includes them too. De-dupe paths in favour of the open tab (a path
+  // can't be both open and closed simultaneously, but defensive).
+  const openPaths = new Set(openStates.map((s) => s.path));
+  const closedStates = closedFiles
+    .filter((f) => !openPaths.has(f.path))
+    .map((f) => ({ path: f.path, content: f.content }));
   try {
-    await API.submitTabStates(states);
+    await API.submitTabStates([...openStates, ...closedStates]);
   } catch (error) {
     console.error("Failed to push tab states:", error);
   }
@@ -1216,17 +1416,56 @@ function handleCommentClick(comment: ReviewComment) {
 }
 
 /**
- * Close a tab by id. In step-1 only the active tab can be closed (single-tab
- * semantics); step-2 will allow closing any tab.
+ * Close a tab by id. If the tab has unsaved changes, prompts via the same
+ * 3-button dialog the close-window flow uses (Cancel / Close anyway /
+ * Save and close). Save persists the tab to disk before removing it.
  */
-function closeTab(id: string) {
+async function closeTab(id: string) {
   const tab = tabManager.tabs.find((t) => t.id === id);
   if (!tab) return;
+  let discarded = false;
   if (tab.hasUnsavedChanges) {
-    if (!window.confirm("You have unsaved changes. Close this tab and discard them?")) {
-      return;
+    const label = tab.path ? tab.path.split("/").pop() || tab.path : "this tab";
+    const choice = await showCloseTabConfirmDialog(label);
+    if (choice === "cancel") return;
+    if (choice === "discard") discarded = true;
+    if (choice === "save") {
+      try {
+        // Snapshot active editor content into the tab if this is the active
+        // tab (so we save the latest in-memory edits, not a stale doc).
+        if (tabManager.activeId === id) {
+          tabManager.update(id, { doc: getEditorContent() });
+        }
+        const fresh = tabManager.tabs.find((t) => t.id === id);
+        if (fresh && fresh.path) {
+          const serialized = serializeComments(fresh.doc, fresh.comments);
+          await API.writeFile(fresh.path, serialized);
+          tabManager.update(id, {
+            hasUnsavedChanges: false,
+            lastSavedSnapshot: serialized,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to save tab before close:", error);
+        return;
+      }
     }
   }
+
+  // Remember non-discarded closes so the final window-close summary
+  // still lists their comments. The captured `content` is what's on
+  // disk after any pending save: the in-memory editor doc combined
+  // with the comment markers.
+  const fresh = tabManager.tabs.find((t) => t.id === id);
+  if (fresh && fresh.path && !discarded) {
+    const docToCapture =
+      tabManager.activeId === id ? getEditorContent() : fresh.doc;
+    addClosedFile({
+      path: fresh.path,
+      content: serializeComments(docToCapture, fresh.comments),
+    });
+  }
+
   tabManager.remove(id);
   void pushTabStatesToRust();
 
