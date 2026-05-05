@@ -261,6 +261,15 @@ async function init() {
     toggleVim,
     toggleMarkdownView,
     openFile: showFilePickerAndLoad,
+    newTab: showFilePickerAndLoad,
+    closeTab: () => {
+      const active = tabManager.activeId;
+      if (active) closeTab(active);
+    },
+    jumpToTab: (n: number) => {
+      const target = tabManager.tabs[n - 1];
+      if (target) tabManager.setActive(target.id);
+    },
     zoomIn,
     zoomOut,
     undo: editorUndo,
@@ -272,22 +281,70 @@ async function init() {
   const versionBadge = document.getElementById("version-badge");
   if (versionBadge) versionBadge.textContent = `v${version}`;
 
-  // Get file path from Rust state (set from CLI args)
-  const filePath = await API.getCurrentFile();
+  // Wire active-tab swap: snapshot outgoing tab's editor doc, then load
+  // the incoming tab's content. `subscribeActiveChange` fires synchronously
+  // BEFORE the regular subscribe() listeners (tab-strip render).
+  tabManager.subscribeActiveChange((from, to) => {
+    if (from) snapshotActiveDocFor(from);
+    if (to) activateTab(to);
+    else clearActiveDisplay();
+  });
 
-  if (filePath) {
-    await loadFile(filePath);
-    hideEmptyState();
+  // Get file paths from Rust state (set from CLI args). Open one tab per
+  // path; the first becomes active. `getInitialFiles` returns [] if no
+  // args were passed.
+  const initialFiles = await API.getInitialFiles();
+  if (initialFiles.length > 0) {
+    let opened = 0;
+    for (const path of initialFiles) {
+      try {
+        await loadFile(path, "append");
+        opened++;
+      } catch (error) {
+        console.error("Failed to load CLI arg:", path, error);
+      }
+    }
+    if (opened > 0) {
+      hideEmptyState();
+    } else {
+      showEmptyState();
+    }
   } else {
     showEmptyState();
   }
 
-  // Listen for save command from menu (Tauri only)
+  // Listen for menu commands from Tauri menu (Tauri only).
   if (isTauri()) {
     const { listen } = await import("@tauri-apps/api/event");
     await listen("menu:save", async () => {
       await saveFile();
     });
+    await listen("menu:close-tab", () => {
+      const active = tabManager.activeId;
+      if (active) closeTab(active);
+    });
+    await listen("menu:new-tab", () => {
+      void showFilePickerAndLoad();
+    });
+
+    // Drag-drop: append every dropped file as a tab.
+    try {
+      const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+      await getCurrentWebview().onDragDropEvent(async (event) => {
+        if (event.payload.type === "drop") {
+          for (const path of event.payload.paths) {
+            try {
+              await loadFile(path, "append");
+            } catch (error) {
+              console.error("Failed to load dropped file:", path, error);
+            }
+          }
+          if (tabManager.tabs.length > 0) hideEmptyState();
+        }
+      });
+    } catch (err) {
+      console.warn("Drag-drop not available:", err);
+    }
   }
 
   // Set up empty state open button
@@ -531,15 +588,19 @@ function hideEmptyState() {
 }
 
 async function showFilePickerAndLoad() {
-  if (!confirmDiscardUnsavedChanges("Open another file and discard them?")) {
-    return;
-  }
+  const paths = await showFilePicker();
+  if (paths.length === 0) return;
 
-  const filePath = await showFilePicker();
-  if (filePath) {
-    await loadFile(filePath);
-    hideEmptyState();
+  let opened = 0;
+  for (const path of paths) {
+    try {
+      await loadFile(path, "append");
+      opened++;
+    } catch (error) {
+      console.error("Failed to load picked file:", path, error);
+    }
   }
+  if (opened > 0) hideEmptyState();
 }
 
 async function toggleTheme() {
@@ -747,82 +808,137 @@ async function handleCommentSubmit(text: string, _lineNumber: number) {
   focusEditor();
 }
 
-async function loadFile(path: string) {
-  try {
-    const fileContent = await API.readFile(path);
-    const parsed = parseAndStripComments(fileContent);
-    await API.setCurrentFile(path);
+type LoadFileMode = "replace" | "append";
 
-    const isMarkdownFile = path.endsWith(".md") || path.endsWith(".markdown");
-    const initialRawMode = isMarkdownFile ? (appConfig.markdown_raw ?? false) : false;
-    const snapshot = serializeComments(parsed.cleanContent, parsed.comments);
-
-    // Step-1: replace-in-active-tab semantics. Step-2 will append a new tab.
-    if (tabManager.tabs.length === 0) {
-      tabManager.add({
-        path,
-        comments: parsed.comments,
-        isMarkdownFile,
-        isRawMode: initialRawMode,
-        hasUnsavedChanges: false,
-        lastSavedSnapshot: snapshot,
-        pendingPreviewComment: null,
-      });
-    } else {
-      const active = tabManager.getActive();
-      if (active) {
-        tabManager.update(active.id, {
-          path,
-          comments: parsed.comments,
-          isMarkdownFile,
-          isRawMode: initialRawMode,
-          hasUnsavedChanges: false,
-          lastSavedSnapshot: snapshot,
-          pendingPreviewComment: null,
-        });
-      }
-    }
-
-    withSuppressedCommentSync(() => {
-      setEditorContent(parsed.cleanContent);
-    });
-
-    // Check if stdin mode for UI adjustments
-    const isStdin = await API.isStdinMode();
-    updateFileNameDisplay(path, isStdin);
-
-    const toggleBtn = document.getElementById("markdown-toggle");
-    if (toggleBtn) {
-      toggleBtn.style.display = isMarkdownFile ? "flex" : "none";
-    }
-
-    // Show comment button
-    const commentBtn = document.getElementById("add-comment-btn");
-    if (commentBtn) commentBtn.style.display = "flex";
-
-    // Render existing comments/highlights from in-memory state
-    renderCommentState();
-
-    // Set up view mode for markdown files
-    if (isMarkdownFile) {
-      updateViewMode();
-    } else {
-      // For non-markdown files, ensure editor is visible and hide ToC
-      const editorContainer = document.getElementById("editor-container")!;
-      const previewWrapper = document.getElementById("preview-wrapper")!;
-      const tocPanel = document.getElementById("sidebar-toc-panel");
-      editorContainer.style.display = "block";
-      previewWrapper.style.display = "none";
-      if (tocPanel) tocPanel.style.display = "none";
-    }
-
-    // Focus editor (only if in raw mode or not a markdown file)
-    if (initialRawMode || !isMarkdownFile) {
-      focusEditor();
-    }
-  } catch (error) {
-    console.error("Failed to load file:", error);
+/**
+ * Open `path` as a tab.
+ *
+ * - `append` (default): if a tab already has this path, switch to it; else
+ *   create a new tab and make it active. Used by CLI args, drag-drop,
+ *   `Cmd+T`, the toolbar Open button, and the empty-state Open button.
+ * - `replace`: load into the active tab (creating one if none exists).
+ *   Reserved for future "reopen in current tab" affordances.
+ *
+ * Throws on file-read failure so callers can decide whether to surface
+ * (e.g. CLI args at startup → bail to empty state on full failure).
+ */
+async function loadFile(path: string, mode: LoadFileMode = "append"): Promise<void> {
+  // De-dupe: if the file is already open, just activate its tab.
+  const existing = tabManager.findByPath(path);
+  if (existing && mode === "append") {
+    tabManager.setActive(existing.id);
+    return;
   }
+
+  const fileContent = await API.readFile(path);
+  const parsed = parseAndStripComments(fileContent);
+  await API.setCurrentFile(path);
+
+  const isMarkdownFile = path.endsWith(".md") || path.endsWith(".markdown");
+  const initialRawMode = isMarkdownFile ? (appConfig.markdown_raw ?? false) : false;
+  const snapshot = serializeComments(parsed.cleanContent, parsed.comments);
+  const tabFields = {
+    path,
+    doc: parsed.cleanContent,
+    comments: parsed.comments,
+    isMarkdownFile,
+    isRawMode: initialRawMode,
+    hasUnsavedChanges: false,
+    lastSavedSnapshot: snapshot,
+    pendingPreviewComment: null,
+  };
+
+  if (mode === "replace") {
+    const active = tabManager.getActive();
+    if (active) {
+      tabManager.update(active.id, tabFields);
+    } else {
+      tabManager.add(tabFields);
+    }
+  } else {
+    // append: always create a new tab (we already de-duped above).
+    tabManager.add(tabFields);
+  }
+
+  // The activeChange subscriber handles editor + preview hydration. For
+  // the very first tab where `from` was null and we're already on `to`,
+  // we still need to render — call activateTab explicitly to be safe.
+  const active = tabManager.getActive();
+  if (active && active.path === path) {
+    activateTabUI(active);
+  }
+}
+
+/**
+ * Hydrate the singleton editor/preview/sidebar/toolbar from a tab's
+ * in-memory state. Called by the active-change subscriber.
+ */
+function activateTabUI(tab: Tab) {
+  withSuppressedCommentSync(() => {
+    setEditorContent(tab.doc);
+  });
+
+  // Show toolbar/file-name UI
+  void (async () => {
+    const isStdin = tab.path ? await API.isStdinMode() : false;
+    if (tab.path) updateFileNameDisplay(tab.path, isStdin);
+  })();
+
+  const toggleBtn = document.getElementById("markdown-toggle");
+  if (toggleBtn) {
+    toggleBtn.style.display = tab.isMarkdownFile ? "flex" : "none";
+  }
+  const commentBtn = document.getElementById("add-comment-btn");
+  if (commentBtn) commentBtn.style.display = "flex";
+
+  renderCommentState();
+
+  if (tab.isMarkdownFile) {
+    updateViewMode();
+  } else {
+    const editorContainer = document.getElementById("editor-container")!;
+    const previewWrapper = document.getElementById("preview-wrapper")!;
+    const tocPanel = document.getElementById("sidebar-toc-panel");
+    editorContainer.style.display = "block";
+    previewWrapper.style.display = "none";
+    if (tocPanel) tocPanel.style.display = "none";
+  }
+
+  if (tab.isRawMode || !tab.isMarkdownFile) {
+    focusEditor();
+  }
+}
+
+/**
+ * Snapshot the outgoing tab's editor doc into TabManager state before a
+ * tab swap. Cursor/scroll preservation is step-3.
+ */
+function snapshotActiveDocFor(tabId: string) {
+  const tab = tabManager.tabs.find((t) => t.id === tabId);
+  if (!tab) return;
+  tabManager.update(tab.id, { doc: getEditorContent() });
+}
+
+/** Lookup the tab by id and hydrate the UI from it. */
+function activateTab(tabId: string) {
+  const tab = tabManager.tabs.find((t) => t.id === tabId);
+  if (!tab) return;
+  void API.setCurrentFile(tab.path ?? "");
+  activateTabUI(tab);
+}
+
+/** Reset UI to empty-state visuals (no tab open). */
+function clearActiveDisplay() {
+  withSuppressedCommentSync(() => setEditorContent(""));
+  const toggleBtn = document.getElementById("markdown-toggle");
+  if (toggleBtn) toggleBtn.style.display = "none";
+  const commentBtn = document.getElementById("add-comment-btn");
+  if (commentBtn) commentBtn.style.display = "none";
+  const fileNameEl = document.getElementById("file-name");
+  if (fileNameEl) fileNameEl.style.display = "none";
+  const openBtn = document.getElementById("open-file-btn");
+  if (openBtn) openBtn.style.display = "flex";
+  showEmptyState();
 }
 
 function updateFileNameDisplay(path: string, isStdin = false) {

@@ -5,6 +5,11 @@ use tauri::State;
 
 pub struct AppState {
     pub current_file: Mutex<Option<PathBuf>>,
+    /// All file paths supplied on the CLI (in order). Used by JS at startup
+    /// to open one tab per path. `current_file` mirrors the first path so the
+    /// existing single-file close-export flow keeps working until step-3
+    /// promotes it to multi-file. Empty if no file args were passed.
+    pub initial_files: Mutex<Vec<PathBuf>>,
     pub silent: bool,
     pub json_output: bool,
     pub stdin_mode: bool,
@@ -32,6 +37,18 @@ pub fn set_current_file(path: String, state: State<'_, AppState>) -> Result<(), 
 pub fn get_current_file(state: State<'_, AppState>) -> Option<String> {
     let current = state.current_file.lock().ok()?;
     current.as_ref().map(|p| p.to_string_lossy().to_string())
+}
+
+/// Return all file paths that were passed on the CLI. JS calls this at
+/// startup to open one tab per path. Empty if no file args.
+#[tauri::command]
+pub fn get_initial_files(state: State<'_, AppState>) -> Vec<String> {
+    state
+        .initial_files
+        .lock()
+        .ok()
+        .map(|v| v.iter().map(|p| p.to_string_lossy().to_string()).collect())
+        .unwrap_or_default()
 }
 
 #[tauri::command]

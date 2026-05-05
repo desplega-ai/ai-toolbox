@@ -44,20 +44,30 @@ fn main() {
         .and_then(|w| w[1].parse().ok())
         .unwrap_or(3456);
 
-    // Extract file path (first non-flag argument after program name)
-    let file_arg = args
+    // Extract file paths (all non-flag arguments after program name).
+    // Excludes the value following --port and the port number itself.
+    let port_str = port.to_string();
+    let file_args: Vec<String> = args
         .iter()
         .skip(1)
-        .find(|a| !a.starts_with('-') && *a != &port.to_string())
-        .cloned();
+        .filter(|a| !a.starts_with('-') && *a != &port_str)
+        .cloned()
+        .map(resolve_cli_path)
+        .collect();
 
-    // Determine if stdin mode
-    let (file_path, stdin_mode, original_content) = match file_arg.as_deref() {
+    // Determine if stdin mode. Only the FIRST positional arg is checked for
+    // "-" / piped-stdin handling (matches existing behavior); remaining args
+    // are passed through as additional file paths.
+    let first = file_args.first().map(|s| s.as_str());
+    let (file_paths, stdin_mode, original_content): (Vec<String>, bool, Option<String>) = match first {
         Some("-") => {
-            // Explicit stdin mode with "-" argument
+            // Explicit stdin mode with "-" argument. Other paths after "-"
+            // are still appended.
             match read_stdin_to_temp() {
                 Ok((path, content)) => {
-                    (Some(path.to_string_lossy().to_string()), true, Some(content))
+                    let mut paths = vec![path.to_string_lossy().to_string()];
+                    paths.extend(file_args.iter().skip(1).cloned());
+                    (paths, true, Some(content))
                 }
                 Err(e) => {
                     eprintln!("Error reading stdin: {}", e);
@@ -69,7 +79,7 @@ fn main() {
             // Auto-detect piped stdin (no file arg and stdin is not a terminal)
             match read_stdin_to_temp() {
                 Ok((path, content)) => {
-                    (Some(path.to_string_lossy().to_string()), true, Some(content))
+                    (vec![path.to_string_lossy().to_string()], true, Some(content))
                 }
                 Err(e) => {
                     eprintln!("Error reading stdin: {}", e);
@@ -77,13 +87,14 @@ fn main() {
                 }
             }
         }
-        _ => (file_arg, false, None),
+        _ => (file_args, false, None),
     };
 
     // Web server mode
     #[cfg(feature = "web")]
     if web_mode {
-        run_web_mode(file_path, silent, json_output, stdin_mode, original_content, port, tunnel_enabled, auto_open, subdomain);
+        let primary = file_paths.first().cloned();
+        run_web_mode(primary, silent, json_output, stdin_mode, original_content, port, tunnel_enabled, auto_open, subdomain);
         return;
     }
 
@@ -94,7 +105,39 @@ fn main() {
     }
 
     // Tauri native mode
-    file_review_lib::run(file_path, silent, json_output, stdin_mode, original_content)
+    file_review_lib::run(file_paths, silent, json_output, stdin_mode, original_content)
+}
+
+/// Resolve a CLI file argument so relative paths work in `tauri dev`.
+///
+/// In production builds the binary's CWD is the user's shell CWD, so
+/// `./foo.md` works as-is. In `tauri dev`, cargo invokes the binary with
+/// CWD = `<project>/src-tauri/`, breaking the user's intuition of "open
+/// the file at this relative path from the directory I ran the command".
+///
+/// Strategy: keep absolute paths and `-` (stdin) as-is. For relative
+/// paths, canonicalize against CWD; if that fails, try CWD parent
+/// (handles dev-mode CWD = src-tauri/). Fall back to the original string
+/// if neither resolves so JS-side error reporting still surfaces.
+fn resolve_cli_path(arg: String) -> String {
+    if arg == "-" {
+        return arg;
+    }
+    let path = std::path::Path::new(&arg);
+    if path.is_absolute() {
+        return arg;
+    }
+    if let Ok(canonical) = std::fs::canonicalize(path) {
+        return canonical.to_string_lossy().into_owned();
+    }
+    if let Ok(cwd) = std::env::current_dir() {
+        if let Some(parent) = cwd.parent() {
+            if let Ok(canonical) = std::fs::canonicalize(parent.join(path)) {
+                return canonical.to_string_lossy().into_owned();
+            }
+        }
+    }
+    arg
 }
 
 #[cfg(feature = "web")]
@@ -116,9 +159,13 @@ fn run_web_mode(
     let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
 
     rt.block_on(async {
-        // Create app state
+        // Create app state. Web mode is single-file today (multi-file UX is
+        // Tauri-only for step-2); `initial_files` mirrors `current_file`.
         let app_state = Arc::new(AppState {
             current_file: Mutex::new(file_path.as_ref().map(PathBuf::from)),
+            initial_files: Mutex::new(
+                file_path.as_ref().map(|p| vec![PathBuf::from(p)]).unwrap_or_default(),
+            ),
             silent,
             json_output,
             stdin_mode,

@@ -72,6 +72,7 @@ function commandToEndpoint(cmd: string): string {
   const mapping: Record<string, string> = {
     get_version: "/api/version",
     get_current_file: "/api/current-file",
+    get_initial_files: "/api/initial-files",
     read_file: "/api/read-file",
     write_file: "/api/write-file",
     set_current_file: "/api/set-current-file",
@@ -100,6 +101,7 @@ async function httpInvoke<T>(
   const getCommands = [
     "get_version",
     "get_current_file",
+    "get_initial_files",
     "is_stdin_mode",
     "load_config",
   ];
@@ -164,6 +166,10 @@ export const API = {
 
   async getCurrentFile(): Promise<string | null> {
     return this.invoke<string | null>("get_current_file");
+  },
+
+  async getInitialFiles(): Promise<string[]> {
+    return this.invoke<string[]>("get_initial_files");
   },
 
   async readFile(path: string): Promise<string> {

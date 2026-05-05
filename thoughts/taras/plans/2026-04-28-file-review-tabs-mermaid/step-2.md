@@ -2,7 +2,9 @@
 id: step-2
 name: Multi-file open + switch + close
 depends_on: [step-1]
-status: ready
+status: done
+assignee:
+claimed_at:
 ---
 
 <!-- During /v-implement, `desplega:step-running` adds `assignee` and `claimed_at` while

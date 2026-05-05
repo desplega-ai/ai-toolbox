@@ -21,21 +21,30 @@ use tauri::{
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run(
-    file_path: Option<String>,
+    file_paths: Vec<String>,
     silent: bool,
     json_output: bool,
     stdin_mode: bool,
     original_content: Option<String>,
 ) {
+    let initial_files: Vec<std::path::PathBuf> =
+        file_paths.iter().map(std::path::PathBuf::from).collect();
+    let primary_file = initial_files.first().cloned();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .setup(move |app| {
-            // Store file path for frontend to retrieve
-            if let Some(ref path) = file_path {
+            // Seed AppState: current_file = first arg (single-file flows still
+            // work); initial_files = all args (JS opens a tab per path).
+            {
                 let state: tauri::State<'_, AppState> = app.state();
-                let mut current = state.current_file.lock().unwrap();
-                *current = Some(std::path::PathBuf::from(path));
+                if let Some(ref path) = primary_file {
+                    let mut current = state.current_file.lock().unwrap();
+                    *current = Some(path.clone());
+                }
+                let mut initial = state.initial_files.lock().unwrap();
+                *initial = initial_files.clone();
             }
 
             // Create menu with keyboard shortcuts
@@ -44,13 +53,30 @@ pub fn run(
                 .accelerator("CmdOrCtrl+S")
                 .build(app)?;
 
+            // Cmd+W closes the active tab (not the window). The OS-level
+            // accelerator emits `menu:close-tab` which JS handles. JS also
+            // registers a window-level keydown for the same key — whichever
+            // fires first calls `closeTab` and the other becomes a no-op.
+            let close_tab_item = MenuItemBuilder::new("Close Tab")
+                .id("close_tab")
+                .accelerator("CmdOrCtrl+W")
+                .build(app)?;
+
+            let new_tab_item = MenuItemBuilder::new("New Tab…")
+                .id("new_tab")
+                .accelerator("CmdOrCtrl+T")
+                .build(app)?;
+
             let quit_item = MenuItemBuilder::new("Quit")
                 .id("quit")
                 .accelerator("CmdOrCtrl+Q")
                 .build(app)?;
 
             let file_menu = SubmenuBuilder::new(app, "File")
+                .item(&new_tab_item)
+                .separator()
                 .item(&save_item)
+                .item(&close_tab_item)
                 .separator()
                 .item(&quit_item)
                 .build()?;
@@ -84,6 +110,16 @@ pub fn run(
                     "save" => {
                         if let Some(window) = app.get_webview_window("main") {
                             let _ = window.emit("menu:save", ());
+                        }
+                    }
+                    "close_tab" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.emit("menu:close-tab", ());
+                        }
+                    }
+                    "new_tab" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.emit("menu:new-tab", ());
                         }
                     }
                     "quit" => {
@@ -180,6 +216,7 @@ pub fn run(
         })
         .manage(AppState {
             current_file: Mutex::new(None),
+            initial_files: Mutex::new(Vec::new()),
             silent,
             json_output,
             stdin_mode,
@@ -190,6 +227,7 @@ pub fn run(
             file_ops::write_file,
             file_ops::set_current_file,
             file_ops::get_current_file,
+            file_ops::get_initial_files,
             file_ops::reveal_in_finder,
             file_ops::is_stdin_mode,
             file_ops::get_version,

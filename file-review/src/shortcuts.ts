@@ -12,7 +12,10 @@ export const shortcuts: Shortcut[] = [
   { keys: "⌘⇧Z", description: "Redo" },
   { keys: "⌘Q", description: "Quit application" },
   { keys: "⌘/", description: "Toggle shortcuts help" },
-  { keys: "⌘T", description: "Toggle theme (light/dark)" },
+  { keys: "⌘T", description: "New tab (open file)" },
+  { keys: "⌘W", description: "Close active tab" },
+  { keys: "⌘1…9", description: "Switch to Nth tab" },
+  { keys: "⌘⇧T", description: "Toggle theme (light/dark)" },
   { keys: "⌘M", description: "Toggle markdown view (raw/pretty)" },
   { keys: "⌘⇧V", description: "Toggle vim mode" },
   { keys: "⌘O", description: "Open file" },
@@ -127,7 +130,23 @@ export function hideShortcutsHelp() {
   helpModalVisible = false;
 }
 
-export function initShortcuts(handlers: Record<string, () => void>) {
+export interface ShortcutHandlers {
+  addComment?: () => void;
+  save?: () => void;
+  toggleTheme?: () => void;
+  toggleVim?: () => void;
+  toggleMarkdownView?: () => void;
+  openFile?: () => void;
+  newTab?: () => void;
+  closeTab?: () => void;
+  jumpToTab?: (n: number) => void;
+  zoomIn?: () => void;
+  zoomOut?: () => void;
+  undo?: () => void;
+  redo?: () => void;
+}
+
+export function initShortcuts(handlers: ShortcutHandlers) {
   document.addEventListener("keydown", (e) => {
     const isMeta = e.metaKey || e.ctrlKey;
     if (!isMeta) return;
@@ -147,6 +166,24 @@ export function initShortcuts(handlers: Record<string, () => void>) {
       return;
     }
 
+    // Tab management — must work even when CodeMirror has focus, so we
+    // route these BEFORE the editingText guard.
+    if (key === "w") {
+      e.preventDefault();
+      handlers.closeTab?.();
+      return;
+    }
+    if (key === "t" && !e.shiftKey) {
+      e.preventDefault();
+      handlers.newTab?.();
+      return;
+    }
+    if (/^[1-9]$/.test(e.key) && !e.shiftKey) {
+      e.preventDefault();
+      handlers.jumpToTab?.(parseInt(e.key, 10));
+      return;
+    }
+
     // In input/textarea/contenteditable, keep native text-editing shortcuts.
     if (editingText) {
       return;
@@ -158,7 +195,7 @@ export function initShortcuts(handlers: Record<string, () => void>) {
     } else if (e.key === "/") {
       e.preventDefault();
       showShortcutsHelp();
-    } else if (key === "t") {
+    } else if (key === "t" && e.shiftKey) {
       e.preventDefault();
       handlers.toggleTheme?.();
     } else if (key === "m") {
