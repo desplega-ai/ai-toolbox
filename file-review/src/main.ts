@@ -672,7 +672,13 @@ async function registerTauriCloseGuard() {
   let allowClose = false;
 
   await tauriWindow.onCloseRequested(async (event) => {
-    const anyDirty = tabManager.tabs.some((t) => t.hasUnsavedChanges);
+    const dirtyTabs = tabManager.tabs.filter((t) => t.hasUnsavedChanges);
+    const anyDirty = dirtyTabs.length > 0;
+    console.log("[close-guard]", {
+      allowClose,
+      anyDirty,
+      dirtyPaths: dirtyTabs.map((t) => t.path),
+    });
     if (allowClose || !anyDirty) {
       return;
     }
