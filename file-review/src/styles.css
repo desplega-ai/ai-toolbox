@@ -1187,6 +1187,57 @@ body {
   line-height: 1.5;
 }
 
+/* === Quit confirmation modal === */
+.quit-confirm-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3500;
+}
+
+.quit-confirm-content {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  width: 480px;
+  max-width: 90vw;
+  display: flex;
+  flex-direction: column;
+}
+
+.quit-confirm-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.quit-confirm-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.quit-confirm-body {
+  padding: 16px;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.quit-confirm-body p {
+  margin: 0;
+}
+
+.quit-confirm-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
 /* === Syntax Highlighting (dark theme - VS Code dark+) === */
 #preview-container .hljs-keyword { color: #569cd6; }
 #preview-container .hljs-string { color: #ce9178; }
