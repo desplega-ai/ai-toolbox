@@ -591,8 +591,13 @@ function escapeHtml(text: string): string {
 
 type QuitChoice = "save" | "discard" | "cancel";
 
+// Module-scoped guard so re-entrant Cmd+Q presses don't stack modals.
+let activeQuitDialog: Promise<QuitChoice> | null = null;
+
 function showQuitConfirmDialog(): Promise<QuitChoice> {
-  return new Promise((resolve) => {
+  if (activeQuitDialog) return activeQuitDialog;
+
+  activeQuitDialog = new Promise<QuitChoice>((resolve) => {
     const modal = document.createElement("div");
     modal.className = "quit-confirm-modal";
     modal.innerHTML = `
@@ -604,9 +609,9 @@ function showQuitConfirmDialog(): Promise<QuitChoice> {
           <p>You have unsaved comments or edits. What would you like to do?</p>
         </div>
         <div class="quit-confirm-footer">
-          <button class="secondary-btn" data-action="cancel">Cancel</button>
-          <button class="secondary-btn" data-action="discard">Quit anyway</button>
-          <button class="primary-btn" data-action="save">Save and quit</button>
+          <button class="secondary-btn" data-action="cancel">Cancel <kbd>Esc</kbd></button>
+          <button class="secondary-btn" data-action="discard">Quit anyway <kbd>Q</kbd></button>
+          <button class="primary-btn" data-action="save">Save and quit <kbd>S</kbd></button>
         </div>
       </div>
     `;
@@ -617,13 +622,23 @@ function showQuitConfirmDialog(): Promise<QuitChoice> {
       settled = true;
       document.removeEventListener("keydown", onKeydown);
       modal.remove();
+      activeQuitDialog = null;
       resolve(choice);
     };
 
     const onKeydown = (e: KeyboardEvent) => {
+      // Don't intercept system Cmd+Q while the dialog is open — let
+      // it fall through so the second Cmd+Q acts as Quit Anyway.
+      if (e.metaKey || e.ctrlKey) return;
       if (e.key === "Escape") {
         e.preventDefault();
         finish("cancel");
+      } else if (e.key === "q" || e.key === "Q") {
+        e.preventDefault();
+        finish("discard");
+      } else if (e.key === "s" || e.key === "S") {
+        e.preventDefault();
+        finish("save");
       }
     };
 
@@ -641,6 +656,8 @@ function showQuitConfirmDialog(): Promise<QuitChoice> {
     document.body.appendChild(modal);
     modal.querySelector<HTMLButtonElement>(".primary-btn")?.focus();
   });
+
+  return activeQuitDialog;
 }
 
 /**
@@ -669,42 +686,43 @@ async function saveAllDirtyTabs(): Promise<void> {
 async function registerTauriCloseGuard() {
   const { getCurrentWindow } = await import("@tauri-apps/api/window");
   const tauriWindow = getCurrentWindow();
-  let allowClose = false;
+  // Re-entry guard: a second Cmd+Q while the dialog is open or a save is
+  // in progress would otherwise stack handlers (and modal backdrops).
+  let resolving = false;
 
   await tauriWindow.onCloseRequested(async (event) => {
     const anyDirty = tabManager.tabs.some((t) => t.hasUnsavedChanges);
-    if (allowClose || !anyDirty) {
+    if (!anyDirty) {
       return;
     }
 
     event.preventDefault();
+    if (resolving) return;
+    resolving = true;
 
-    if (appConfig.save_on_quit) {
-      try {
+    try {
+      if (appConfig.save_on_quit) {
         await saveAllDirtyTabs();
-      } catch (error) {
-        console.error("Failed to save on quit:", error);
+        await tauriWindow.destroy();
         return;
       }
-      allowClose = true;
-      await tauriWindow.close();
-      return;
-    }
 
-    const choice = await showQuitConfirmDialog();
-    if (choice === "cancel") {
-      return;
-    }
-    if (choice === "save") {
-      try {
-        await saveAllDirtyTabs();
-      } catch (error) {
-        console.error("Failed to save before quit:", error);
+      const choice = await showQuitConfirmDialog();
+      if (choice === "cancel") {
         return;
       }
+      if (choice === "save") {
+        await saveAllDirtyTabs();
+      }
+      // Use destroy() instead of close() because we're inside the
+      // onCloseRequested handler; close() would re-enter the handler
+      // and (in some Tauri 2 webview builds) silently no-op.
+      await tauriWindow.destroy();
+    } catch (error) {
+      console.error("Failed to quit:", error);
+    } finally {
+      resolving = false;
     }
-    allowClose = true;
-    await tauriWindow.close();
   });
 }
 

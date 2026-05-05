@@ -1238,6 +1238,26 @@ body {
   border-top: 1px solid var(--border-color);
 }
 
+.quit-confirm-footer kbd {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  vertical-align: middle;
+}
+
+.quit-confirm-footer .primary-btn kbd {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(0, 0, 0, 0.25);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
 /* === Syntax Highlighting (dark theme - VS Code dark+) === */
 #preview-container .hljs-keyword { color: #569cd6; }
 #preview-container .hljs-string { color: #ce9178; }
