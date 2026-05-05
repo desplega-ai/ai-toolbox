@@ -1011,6 +1011,43 @@ function highlightCodeBlocks() {
   });
 }
 
+function addCopyButtons() {
+  if (!previewContainer) return;
+  const pres = previewContainer.querySelectorAll<HTMLPreElement>('pre');
+  pres.forEach((pre) => {
+    if (pre.classList.contains('mermaid')) return;
+    if (pre.querySelector(':scope > .code-copy-btn')) return;
+    const code = pre.querySelector('code');
+    if (!code) return;
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'code-copy-btn';
+    btn.textContent = 'Copy';
+    btn.setAttribute('aria-label', 'Copy code to clipboard');
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      try {
+        await navigator.clipboard.writeText(code.innerText);
+        btn.textContent = 'Copied';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'Copy';
+          btn.classList.remove('copied');
+        }, 1200);
+      } catch {
+        btn.textContent = 'Failed';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 1200);
+      }
+    });
+
+    if (getComputedStyle(pre).position === 'static') {
+      pre.style.position = 'relative';
+    }
+    pre.appendChild(btn);
+  });
+}
+
 // Cancel any in-flight mermaid render whenever a fresh `updatePreview` runs —
 // only the latest call's diagrams should land in the DOM.
 let activeMermaidController: AbortController | null = null;
@@ -1036,6 +1073,7 @@ export function updatePreview(content: string, comments: ReviewComment[]) {
   // hljs runs after — walkTokens already converted ```mermaid fences to html
   // tokens, so there are no `language-mermaid` blocks for hljs to mangle.
   highlightCodeBlocks();
+  addCopyButtons();
 }
 
 export function scrollPreviewToComment(commentId: string) {

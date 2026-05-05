@@ -1429,3 +1429,35 @@ body.light-theme #preview-container .mermaid {
 body.light-theme #preview-container .mermaid-error {
   background: rgba(192, 57, 43, 0.05);
 }
+
+/* Copy button on code blocks (preview pane) */
+#preview-container pre .code-copy-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-family: inherit;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+
+#preview-container pre:hover .code-copy-btn {
+  opacity: 1;
+}
+
+#preview-container pre .code-copy-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+#preview-container pre .code-copy-btn.copied {
+  opacity: 1;
+  color: #4ade80;
+  border-color: #4ade80;
+}
