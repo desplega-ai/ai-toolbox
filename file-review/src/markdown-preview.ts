@@ -12,6 +12,7 @@ import rust from 'highlight.js/lib/languages/rust';
 import sql from 'highlight.js/lib/languages/sql';
 import markdown from 'highlight.js/lib/languages/markdown';
 import type { ReviewComment } from './comments';
+import type { Tab } from './tabs';
 
 // Register languages with aliases
 hljs.registerLanguage('javascript', javascript);
@@ -42,6 +43,10 @@ let currentHoverElement: HTMLElement | null = null;
 let addCommentCallback: ((sourceStart: number, sourceEnd: number, element: HTMLElement) => void) | null = null;
 let hoverListenersAttached = false;
 let hideTimeout: ReturnType<typeof setTimeout> | null = null;
+// Reserved for step-2/3: lets the preview module read active-tab state
+// (path, comments, etc.) without re-threading them through every call. Passed
+// in once at startup via `initPreview`.
+let getActiveTab: () => Tab | null = () => null;
 
 const COMMENTABLE_SELECTORS = 'p, h1, h2, h3, h4, h5, h6, li, blockquote, pre, tr';
 const COMMENTABLE_HEADING_KINDS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
@@ -92,8 +97,17 @@ export function slugify(text: string): string {
     .replace(/\s+/g, '-');
 }
 
-export function initPreview(container: HTMLElement) {
+export function initPreview(
+  container: HTMLElement,
+  activeTabAccessor: () => Tab | null = () => null
+) {
   previewContainer = container;
+  getActiveTab = activeTabAccessor;
+}
+
+// Forward-compat hook for step-2/3.
+export function getActiveTabFromPreview(): Tab | null {
+  return getActiveTab();
 }
 
 /**

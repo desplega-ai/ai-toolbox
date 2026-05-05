@@ -2,7 +2,9 @@
 id: step-1
 name: TabManager refactor + single-tab strip
 depends_on: []
-status: ready
+status: done
+assignee:
+claimed_at:
 ---
 
 <!-- During /v-implement, `desplega:step-running` adds `assignee` and `claimed_at` while
@@ -80,10 +82,10 @@ Introduce an explicit `Tab` model and `TabManager` that owns what is today scatt
 *(Push everything you can into the first two buckets — Automated Verification + Automated QA — so the agent provides proof of work. Manual Verification is the exception, not the default.)*
 
 #### Automated Verification:
-- [ ] Typecheck passes: `cd file-review && bun run check`
-- [ ] Build passes: `cd file-review && bun run build`
-- [ ] No `any` types introduced in `tabs.ts` or `tabs-view.ts`
-- [ ] `grep -rE 'let (currentFilePath|hasUnsavedChanges|lastSavedSnapshot|isMarkdownFile|isRawMode|pendingPreviewComment)\s*[=:]' file-review/src/` returns only matches inside `tabs.ts` (i.e. all the old module-globals are gone from `main.ts`)
+- [x] Typecheck passes: `cd file-review && bun run check`
+- [x] Build passes: `cd file-review && bun run build`
+- [x] No `any` types introduced in `tabs.ts` or `tabs-view.ts`
+- [x] `grep -rE 'let (currentFilePath|hasUnsavedChanges|lastSavedSnapshot|isMarkdownFile|isRawMode|pendingPreviewComment)\s*[=:]' file-review/src/` returns only matches inside `tabs.ts` (i.e. all the old module-globals are gone from `main.ts`)
 
 #### Automated QA:
 - [ ] Sub-agent launches `bun run dev:web file-review/test-files/sample.md`, takes a screenshot, confirms: tab bar visible above editor pane with one tab labeled `sample.md`, no console errors, editor content matches the file

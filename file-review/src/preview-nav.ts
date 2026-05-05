@@ -1,3 +1,5 @@
+import type { Tab } from './tabs';
+
 const COMMENTABLE_SELECTOR = '[data-commentable="true"]';
 const DEFAULT_PAGE_SIZE = 5;
 
@@ -16,11 +18,16 @@ export class PreviewNavigator {
   constructor(
     private getPreviewContainer: () => HTMLElement | null,
     private getVimEnabled: () => boolean,
-    private onBlockActivated?: (el: HTMLElement) => void
+    private onBlockActivated?: (el: HTMLElement) => void,
+    // Reserved for step-2/3 — read active-tab state from inside the navigator.
+    // Defaults to a null accessor so existing call sites work.
+    private getActiveTab: () => Tab | null = () => null
   ) {
     this.keydownHandler = (e: KeyboardEvent) => this.handleKeydown(e);
     document.addEventListener('keydown', this.keydownHandler);
     this.wireSearchButtons();
+    // Mark `getActiveTab` as intentionally retained for forward-compat use.
+    void this.getActiveTab;
   }
 
   private isPreviewVisible(): boolean {

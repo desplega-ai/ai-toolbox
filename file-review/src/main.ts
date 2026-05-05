@@ -49,27 +49,36 @@ import {
   flashElement,
   getPreviewContainer,
 } from "./markdown-preview";
-import { extractTocEntries, renderToc } from "./toc";
+import { extractTocEntries, initToc, renderToc } from "./toc";
 import { PreviewNavigator } from "./preview-nav";
+import { TabManager, type Tab } from "./tabs";
+import { initTabStrip } from "./tabs-view";
 
-let currentFilePath: string | null = null;
-let comments: ReviewComment[] = [];
+const tabManager = new TabManager();
+
+// Global UI state — NOT per-tab. Vim mode and theme are app-wide settings.
 let currentTheme: Theme = "dark";
 let vimEnabled = false;
 let appConfig: AppConfig;
-let isMarkdownFile = false;
-let isRawMode = false; // false = pretty/rendered, true = raw CodeMirror
 let suppressCommentSync = false;
-let hasUnsavedChanges = false;
-let lastSavedSnapshot = "";
 let previewNav: PreviewNavigator | null = null;
 
-// For preview mode commenting
-let pendingPreviewComment: {
-  sourceStart: number;
-  sourceEnd: number;
-  element: HTMLElement;
-} | null = null;
+/**
+ * Read fields from the active tab. Returns null if no tab is open — callers
+ * that touch tab state must guard.
+ */
+function readActive(): Tab | null {
+  return tabManager.getActive();
+}
+
+/**
+ * Patch fields on the active tab. No-op if no tab is open.
+ */
+function writeActive(patch: Partial<Tab>): void {
+  const active = tabManager.getActive();
+  if (!active) return;
+  tabManager.update(active.id, patch);
+}
 
 // Toast notifications
 export function showToast(message: string, type: "success" | "info" = "info") {
@@ -106,31 +115,38 @@ function withSuppressedCommentSync<T>(fn: () => T): T {
 }
 
 function getSerializedContentForPersistence(content = getEditorContent()): string {
-  return serializeComments(content, comments);
+  const active = readActive();
+  return serializeComments(content, active?.comments ?? []);
 }
 
 function markSnapshotAsSaved(snapshot: string) {
-  lastSavedSnapshot = snapshot;
-  hasUnsavedChanges = false;
+  writeActive({ lastSavedSnapshot: snapshot, hasUnsavedChanges: false });
 }
 
 function syncUnsavedChangesState() {
-  if (!currentFilePath) {
-    hasUnsavedChanges = false;
+  const active = readActive();
+  if (!active || !active.path) {
+    if (active) writeActive({ hasUnsavedChanges: false });
     return;
   }
-  hasUnsavedChanges = getSerializedContentForPersistence() !== lastSavedSnapshot;
+  const dirty =
+    serializeComments(getEditorContent(), active.comments) !== active.lastSavedSnapshot;
+  if (dirty !== active.hasUnsavedChanges) {
+    writeActive({ hasUnsavedChanges: dirty });
+  }
 }
 
 function confirmDiscardUnsavedChanges(action: string): boolean {
-  if (!hasUnsavedChanges) {
+  const active = readActive();
+  if (!active?.hasUnsavedChanges) {
     return true;
   }
   return window.confirm(`You have unsaved changes. ${action}`);
 }
 
 function handleTocClick(entry: import('./toc').TocEntry) {
-  if (isRawMode) {
+  const active = readActive();
+  if (active?.isRawMode) {
     const view = getEditorView();
     view.dispatch({ selection: { anchor: entry.sourcePos } });
     scrollToPosition(entry.sourcePos);
@@ -146,14 +162,17 @@ function handleTocClick(entry: import('./toc').TocEntry) {
 }
 
 function renderCommentState() {
+  const active = readActive();
+  const comments = active?.comments ?? [];
+
   renderComments(comments);
 
   const content = getEditorContent();
-  if (isMarkdownFile && !isRawMode) {
+  if (active?.isMarkdownFile && !active.isRawMode) {
     updatePreview(content, comments);
     previewNav?.reset();
   }
-  if (isMarkdownFile) {
+  if (active?.isMarkdownFile) {
     const entries = extractTocEntries(content);
     renderToc(entries, handleTocClick);
   }
@@ -197,16 +216,33 @@ async function init() {
   updateVimButton();
 
   // Initialize sidebar handlers
-  initSidebar(handleDeleteComment, handleCommentClick, handleCommentSubmit, handleEditComment);
+  initSidebar(
+    handleDeleteComment,
+    handleCommentClick,
+    handleCommentSubmit,
+    handleEditComment,
+    readActive
+  );
   setupCommentInput();
 
   // Initialize markdown preview
-  initPreview(document.getElementById("preview-container")!);
+  initPreview(document.getElementById("preview-container")!, readActive);
+
+  // Initialize ToC (passes active-tab accessor for step-2/3 forward-compat)
+  initToc(readActive);
+
+  // Initialize tab strip
+  initTabStrip(tabManager, {
+    onActivate: (id) => tabManager.setActive(id),
+    onClose: (id) => closeTab(id),
+  });
 
   // Initialize preview navigator (vim nav + search)
   previewNav = new PreviewNavigator(
     () => getPreviewContainer(),
-    () => vimEnabled
+    () => vimEnabled,
+    undefined,
+    readActive
   );
 
   // Set up interactive preview commenting
@@ -283,19 +319,21 @@ async function init() {
       return;
     }
 
-    if (comments.length === 0) {
+    const active = readActive();
+    if (!active || active.comments.length === 0) {
       syncUnsavedChangesState();
       return;
     }
 
-    comments = mapCommentsThroughChanges(comments, (pos, assoc) =>
+    const remapped = mapCommentsThroughChanges(active.comments, (pos, assoc) =>
       changes.mapPos(pos, assoc)
     );
+    writeActive({ comments: remapped });
     renderCommentState();
   });
 
   window.addEventListener("beforeunload", (event) => {
-    if (!hasUnsavedChanges) {
+    if (!readActive()?.hasUnsavedChanges) {
       return;
     }
     event.preventDefault();
@@ -304,7 +342,8 @@ async function init() {
 
   // Listen for preview comment clicks (when clicking on highlighted text)
   window.addEventListener("preview-comment-click", ((e: CustomEvent<{ commentId: string }>) => {
-    const comment = comments.find(c => c.id === e.detail.commentId);
+    const active = readActive();
+    const comment = active?.comments.find(c => c.id === e.detail.commentId);
     if (comment) {
       // Highlight the comment card in sidebar
       const card = document.querySelector(`[data-comment-id="${comment.id}"]`);
@@ -318,7 +357,8 @@ async function init() {
 
   // Listen for preview element clicks (when clicking on commentable element with a comment)
   window.addEventListener("preview-element-click", ((e: CustomEvent<{ commentId: string; element: HTMLElement }>) => {
-    const comment = comments.find(c => c.id === e.detail.commentId);
+    const active = readActive();
+    const comment = active?.comments.find(c => c.id === e.detail.commentId);
     if (comment) {
       // Scroll and highlight the comment card in sidebar
       const card = document.querySelector(`[data-comment-id="${comment.id}"]`);
@@ -544,22 +584,28 @@ async function zoomOut() {
 }
 
 async function toggleMarkdownView() {
-  if (!isMarkdownFile) return;
+  const active = readActive();
+  if (!active?.isMarkdownFile) return;
 
-  isRawMode = !isRawMode;
-  appConfig.markdown_raw = isRawMode;
+  const newRawMode = !active.isRawMode;
+  writeActive({ isRawMode: newRawMode });
+  appConfig.markdown_raw = newRawMode;
   await saveConfig(appConfig);
 
   updateViewMode();
 }
 
 function updateViewMode() {
+  const active = readActive();
   const editorContainer = document.getElementById("editor-container")!;
   const previewWrapper = document.getElementById("preview-wrapper")!;
   const toggleBtn = document.getElementById("markdown-toggle");
   const tocPanel = document.getElementById("sidebar-toc-panel");
 
-  if (isRawMode) {
+  const isMarkdown = active?.isMarkdownFile ?? false;
+  const isRaw = active?.isRawMode ?? false;
+
+  if (isRaw) {
     editorContainer.style.display = "block";
     previewWrapper.style.display = "none";
     toggleBtn?.classList.remove("active");
@@ -567,21 +613,22 @@ function updateViewMode() {
     editorContainer.style.display = "none";
     previewWrapper.style.display = "flex";
     toggleBtn?.classList.add("active");
-    updatePreview(getEditorContent(), comments);
+    updatePreview(getEditorContent(), active?.comments ?? []);
     previewNav?.reset();
   }
 
   // ToC is always visible for markdown files regardless of mode
-  if (tocPanel) tocPanel.style.display = isMarkdownFile ? "flex" : "none";
-  if (isMarkdownFile) {
+  if (tocPanel) tocPanel.style.display = isMarkdown ? "flex" : "none";
+  if (isMarkdown) {
     const entries = extractTocEntries(getEditorContent());
     renderToc(entries, handleTocClick);
   }
 }
 
 function handleAddCommentShortcut() {
+  const active = readActive();
   // In preview mode, use the active block from preview navigation
-  if (!isRawMode && isMarkdownFile) {
+  if (active && !active.isRawMode && active.isMarkdownFile) {
     const previewContainer = getPreviewContainer();
     const activeEl = previewContainer?.querySelector<HTMLElement>('.preview-active');
     if (activeEl) {
@@ -621,8 +668,8 @@ function handlePreviewAddComment(
   sourceEnd: number,
   element: HTMLElement
 ) {
-  // Store pending preview comment info
-  pendingPreviewComment = { sourceStart, sourceEnd, element };
+  // Store pending preview comment info on the active tab
+  writeActive({ pendingPreviewComment: { sourceStart, sourceEnd, element } });
 
   // Show comment input in sidebar with element type label
   const tagName = element.tagName.toLowerCase();
@@ -638,12 +685,20 @@ function handlePreviewAddComment(
 }
 
 async function handleCommentSubmit(text: string, _lineNumber: number) {
-  // Handle preview mode comment
-  if (pendingPreviewComment) {
-    const { sourceStart, sourceEnd, element } = pendingPreviewComment;
-    pendingPreviewComment = null;
+  const active = readActive();
+  if (!active) {
+    hideCommentInput();
+    return;
+  }
 
-    comments = addComment(comments, createComment("line", sourceStart, sourceEnd, text));
+  // Handle preview mode comment
+  if (active.pendingPreviewComment) {
+    const { sourceStart, sourceEnd, element } = active.pendingPreviewComment;
+    const next = addComment(
+      active.comments,
+      createComment("line", sourceStart, sourceEnd, text)
+    );
+    writeActive({ comments: next, pendingPreviewComment: null });
     renderCommentState();
 
     // Flash the element for visual feedback
@@ -669,18 +724,20 @@ async function handleCommentSubmit(text: string, _lineNumber: number) {
   const isFullLineSelection =
     selection.from === startLine.from && selection.to === startLine.to;
 
+  let next: ReviewComment[];
   if (isMultiLine || isFullLineSelection) {
     // For multi-line or full-line selections, use line-based comments.
     const lineStart = startLine.from;
     const lineEnd = endLine.to;
-    comments = addComment(comments, createComment("line", lineStart, lineEnd, text));
+    next = addComment(active.comments, createComment("line", lineStart, lineEnd, text));
   } else {
-    comments = addComment(
-      comments,
+    next = addComment(
+      active.comments,
       createComment("inline", selection.from, selection.to, text)
     );
   }
 
+  writeActive({ comments: next });
   renderCommentState();
   showToast("Comment added", "success");
   focusEditor();
@@ -690,10 +747,37 @@ async function loadFile(path: string) {
   try {
     const fileContent = await API.readFile(path);
     const parsed = parseAndStripComments(fileContent);
-    currentFilePath = path;
     await API.setCurrentFile(path);
-    comments = parsed.comments;
-    markSnapshotAsSaved(serializeComments(parsed.cleanContent, parsed.comments));
+
+    const isMarkdownFile = path.endsWith(".md") || path.endsWith(".markdown");
+    const initialRawMode = isMarkdownFile ? (appConfig.markdown_raw ?? false) : false;
+    const snapshot = serializeComments(parsed.cleanContent, parsed.comments);
+
+    // Step-1: replace-in-active-tab semantics. Step-2 will append a new tab.
+    if (tabManager.tabs.length === 0) {
+      tabManager.add({
+        path,
+        comments: parsed.comments,
+        isMarkdownFile,
+        isRawMode: initialRawMode,
+        hasUnsavedChanges: false,
+        lastSavedSnapshot: snapshot,
+        pendingPreviewComment: null,
+      });
+    } else {
+      const active = tabManager.getActive();
+      if (active) {
+        tabManager.update(active.id, {
+          path,
+          comments: parsed.comments,
+          isMarkdownFile,
+          isRawMode: initialRawMode,
+          hasUnsavedChanges: false,
+          lastSavedSnapshot: snapshot,
+          pendingPreviewComment: null,
+        });
+      }
+    }
 
     withSuppressedCommentSync(() => {
       setEditorContent(parsed.cleanContent);
@@ -703,8 +787,6 @@ async function loadFile(path: string) {
     const isStdin = await API.isStdinMode();
     updateFileNameDisplay(path, isStdin);
 
-    // Check if this is a markdown file
-    isMarkdownFile = path.endsWith(".md") || path.endsWith(".markdown");
     const toggleBtn = document.getElementById("markdown-toggle");
     if (toggleBtn) {
       toggleBtn.style.display = isMarkdownFile ? "flex" : "none";
@@ -719,7 +801,6 @@ async function loadFile(path: string) {
 
     // Set up view mode for markdown files
     if (isMarkdownFile) {
-      isRawMode = appConfig.markdown_raw ?? false;
       updateViewMode();
     } else {
       // For non-markdown files, ensure editor is visible and hide ToC
@@ -732,7 +813,7 @@ async function loadFile(path: string) {
     }
 
     // Focus editor (only if in raw mode or not a markdown file)
-    if (isRawMode || !isMarkdownFile) {
+    if (initialRawMode || !isMarkdownFile) {
       focusEditor();
     }
   } catch (error) {
@@ -782,11 +863,12 @@ async function revealInFinder(path: string) {
 }
 
 async function saveFile() {
-  if (!currentFilePath) return;
+  const active = readActive();
+  if (!active?.path) return;
 
   try {
     const contentWithComments = getSerializedContentForPersistence();
-    await API.writeFile(currentFilePath, contentWithComments);
+    await API.writeFile(active.path, contentWithComments);
     markSnapshotAsSaved(contentWithComments);
     showToast("File saved", "success");
   } catch (error) {
@@ -795,24 +877,67 @@ async function saveFile() {
 }
 
 function handleDeleteComment(commentId: string) {
-  comments = comments.filter((comment) => comment.id !== commentId);
+  const active = readActive();
+  if (!active) return;
+  writeActive({ comments: active.comments.filter((c) => c.id !== commentId) });
   renderCommentState();
   showToast("Comment removed", "info");
 }
 
 function handleEditComment(commentId: string, newText: string) {
-  const comment = comments.find((c) => c.id === commentId);
-  if (!comment) return;
-  comment.text = newText;
+  const active = readActive();
+  if (!active) return;
+  // Mutate the comment in place, then re-set the array so subscribers fire.
+  const next = active.comments.map((c) =>
+    c.id === commentId ? { ...c, text: newText } : c
+  );
+  writeActive({ comments: next });
   renderCommentState();
   showToast("Comment updated", "success");
 }
 
 function handleCommentClick(comment: ReviewComment) {
-  if (isMarkdownFile && !isRawMode) {
+  const active = readActive();
+  if (active?.isMarkdownFile && !active.isRawMode) {
     scrollPreviewToComment(comment.id);
   } else {
     scrollToPosition(comment.highlight_start);
+  }
+}
+
+/**
+ * Close a tab by id. In step-1 only the active tab can be closed (single-tab
+ * semantics); step-2 will allow closing any tab.
+ */
+function closeTab(id: string) {
+  const tab = tabManager.tabs.find((t) => t.id === id);
+  if (!tab) return;
+  if (tab.hasUnsavedChanges) {
+    if (!window.confirm("You have unsaved changes. Close this tab and discard them?")) {
+      return;
+    }
+  }
+  tabManager.remove(id);
+
+  const remaining = tabManager.getActive();
+  if (!remaining) {
+    // No tabs left — return to empty state
+    withSuppressedCommentSync(() => {
+      setEditorContent("");
+    });
+    showEmptyState();
+    // Hide file-bound UI elements that loadFile() showed
+    const fileNameEl = document.getElementById("file-name");
+    if (fileNameEl) fileNameEl.style.display = "none";
+    const openBtn = document.getElementById("open-file-btn");
+    if (openBtn) openBtn.style.display = "";
+    const commentBtn = document.getElementById("add-comment-btn");
+    if (commentBtn) commentBtn.style.display = "none";
+    const toggleBtn = document.getElementById("markdown-toggle");
+    if (toggleBtn) toggleBtn.style.display = "none";
+    const tocPanel = document.getElementById("sidebar-toc-panel");
+    if (tocPanel) tocPanel.style.display = "none";
+    renderComments([]);
   }
 }
 

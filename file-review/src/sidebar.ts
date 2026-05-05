@@ -1,27 +1,39 @@
 import type { ReviewComment } from "./comments";
 import { getEditorView } from "./editor";
+import type { Tab } from "./tabs";
 
 type CommentDeleteHandler = (commentId: string) => void;
 type CommentClickHandler = (comment: ReviewComment) => void;
 type CommentSubmitHandler = (text: string, lineNumber: number) => void;
 type CommentEditHandler = (commentId: string, newText: string) => void;
+type GetActiveTab = () => Tab | null;
 
 let deleteHandler: CommentDeleteHandler | null = null;
 let clickHandler: CommentClickHandler | null = null;
 let submitHandler: CommentSubmitHandler | null = null;
 let editHandler: CommentEditHandler | null = null;
+// Reserved for step-2/3 use; passed in at init for forward compatibility.
+let getActiveTab: GetActiveTab = () => null;
 let pendingLineNumber: number | null = null;
 
 export function initSidebar(
   onDelete: CommentDeleteHandler,
   onClick: CommentClickHandler,
   onSubmit: CommentSubmitHandler,
-  onEdit: CommentEditHandler
+  onEdit: CommentEditHandler,
+  activeTabAccessor: GetActiveTab
 ) {
   deleteHandler = onDelete;
   clickHandler = onClick;
   submitHandler = onSubmit;
   editHandler = onEdit;
+  getActiveTab = activeTabAccessor;
+}
+
+// Exported so step-2/3 can read active-tab state from sidebar internals if
+// needed; today this is a forward-compat hook.
+export function getActiveTabFromSidebar(): Tab | null {
+  return getActiveTab();
 }
 
 export function showCommentInput(lineNumber: number, label?: string) {
