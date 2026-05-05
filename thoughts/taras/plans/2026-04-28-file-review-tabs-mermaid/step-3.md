@@ -2,7 +2,9 @@
 id: step-3
 name: Per-tab state preservation + multi-file export
 depends_on: [step-2]
-status: ready
+status: done
+assignee:
+claimed_at:
 ---
 
 <!-- During /v-implement, `desplega:step-running` adds `assignee` and `claimed_at` while

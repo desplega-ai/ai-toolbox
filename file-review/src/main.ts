@@ -4,6 +4,8 @@ import {
   getEditorContent,
   setEditorContent,
   getEditorView,
+  getEditorState,
+  setEditorState,
   getSelection,
   scrollToPosition,
   updateTheme,
@@ -290,6 +292,10 @@ async function init() {
     else clearActiveDisplay();
   });
 
+  // Keep Rust's `open_tabs` in sync with JS state. Debounced so we don't
+  // spam Tauri IPC on every comment-remap-through-keystroke.
+  tabManager.subscribe(schedulePushTabStates);
+
   // Get file paths from Rust state (set from CLI args). Open one tab per
   // path; the first becomes active. `getInitialFiles` returns [] if no
   // args were passed.
@@ -393,6 +399,12 @@ async function init() {
   });
 
   window.addEventListener("beforeunload", (event) => {
+    // Fire-and-forget — push every tab's in-memory state to Rust so the
+    // close-window handler dumps comments from ALL files, not just the
+    // active one. Tauri's CloseRequested fires after `beforeunload`
+    // returns, giving this just enough time to land.
+    void pushTabStatesToRust();
+
     if (!readActive()?.hasUnsavedChanges) {
       return;
     }
@@ -878,6 +890,10 @@ function activateTabUI(tab: Tab) {
     setEditorContent(tab.doc);
   });
 
+  // Restore cursor + scroll from the tab's snapshot (no-ops on first
+  // activation when both are unset).
+  setEditorState({ cursor: tab.cursor, scrollTop: tab.scrollTop });
+
   // Show toolbar/file-name UI
   void (async () => {
     const isStdin = tab.path ? await API.isStdinMode() : false;
@@ -910,13 +926,19 @@ function activateTabUI(tab: Tab) {
 }
 
 /**
- * Snapshot the outgoing tab's editor doc into TabManager state before a
- * tab swap. Cursor/scroll preservation is step-3.
+ * Snapshot the outgoing tab's editor doc + cursor + scroll into the
+ * TabManager state before a tab swap. Caller invokes this from the
+ * `subscribeActiveChange` hook with the outgoing tab's id.
  */
 function snapshotActiveDocFor(tabId: string) {
   const tab = tabManager.tabs.find((t) => t.id === tabId);
   if (!tab) return;
-  tabManager.update(tab.id, { doc: getEditorContent() });
+  const editorState = getEditorState();
+  tabManager.update(tab.id, {
+    doc: getEditorContent(),
+    cursor: editorState.cursor,
+    scrollTop: editorState.scrollTop,
+  });
 }
 
 /** Lookup the tab by id and hydrate the UI from it. */
@@ -925,6 +947,51 @@ function activateTab(tabId: string) {
   if (!tab) return;
   void API.setCurrentFile(tab.path ?? "");
   activateTabUI(tab);
+}
+
+/**
+ * Debounced trigger for `pushTabStatesToRust`. Hooked into every
+ * `tabManager` mutation so `open_tabs` in Rust is always fresh by the
+ * time the user closes the window. Without this, the Rust
+ * `CloseRequested` handler would fire before the async push from
+ * `beforeunload` completes and would fall back to a single-file disk
+ * read, missing comments from inactive tabs.
+ */
+let pushTabStatesTimer: number | null = null;
+function schedulePushTabStates() {
+  if (pushTabStatesTimer !== null) {
+    clearTimeout(pushTabStatesTimer);
+  }
+  pushTabStatesTimer = window.setTimeout(() => {
+    pushTabStatesTimer = null;
+    void pushTabStatesToRust();
+  }, 150);
+}
+
+/**
+ * Push every open tab's in-memory state to Rust so the close-window
+ * comment-export flow has fresh content for ALL tabs, not just the active
+ * one. Snapshots the active tab first so its uncommitted edits land too.
+ *
+ * Called from a debounced subscriber on every `tabManager` mutation, plus
+ * synchronously on tab-close and `beforeunload` for closing-window safety.
+ */
+async function pushTabStatesToRust(): Promise<void> {
+  const active = tabManager.getActive();
+  if (active) {
+    tabManager.update(active.id, { doc: getEditorContent() });
+  }
+  const states = tabManager.tabs
+    .filter((t) => t.path !== null)
+    .map((t) => ({
+      path: t.path!,
+      content: serializeComments(t.doc, t.comments),
+    }));
+  try {
+    await API.submitTabStates(states);
+  } catch (error) {
+    console.error("Failed to push tab states:", error);
+  }
 }
 
 /** Reset UI to empty-state visuals (no tab open). */
@@ -1038,6 +1105,7 @@ function closeTab(id: string) {
     }
   }
   tabManager.remove(id);
+  void pushTabStatesToRust();
 
   const remaining = tabManager.getActive();
   if (!remaining) {

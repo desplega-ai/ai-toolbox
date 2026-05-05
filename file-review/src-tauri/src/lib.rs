@@ -157,13 +157,32 @@ pub fn run(
                             // Output comments if not silent
                             let state: tauri::State<'_, AppState> = app_handle.state();
                             if !state.silent {
-                                if let Some(file_path) = state.current_file.lock().ok().and_then(|f| f.clone()) {
-                                    if let Ok(content) = std::fs::read_to_string(&file_path) {
-                                        let comments = parse_comments_for_output(&content);
+                                let tab_snapshot: Vec<file_ops::TabState> = state
+                                    .open_tabs
+                                    .lock()
+                                    .ok()
+                                    .map(|t| t.clone())
+                                    .unwrap_or_default();
 
-                                        if state.stdin_mode {
-                                            // In stdin mode, always output file + content + comments
-                                            let file_path_str = file_path.to_string_lossy().to_string();
+                                if state.stdin_mode {
+                                    // Stdin mode is single-file by construction. Prefer the
+                                    // pushed in-memory tab content over a disk read so unsaved
+                                    // edits survive; fall back to disk if no tab was pushed.
+                                    if let Some(file_path) = state
+                                        .current_file
+                                        .lock()
+                                        .ok()
+                                        .and_then(|f| f.clone())
+                                    {
+                                        let file_path_str = file_path.to_string_lossy().to_string();
+                                        let content = tab_snapshot
+                                            .iter()
+                                            .find(|t| t.path == file_path_str)
+                                            .map(|t| t.content.clone())
+                                            .or_else(|| std::fs::read_to_string(&file_path).ok());
+
+                                        if let Some(content) = content {
+                                            let comments = parse_comments_for_output(&content);
                                             let modified = state
                                                 .original_content
                                                 .lock()
@@ -194,14 +213,77 @@ pub fn run(
                                                     )
                                                 );
                                             }
-                                        } else {
-                                            // Normal file mode - only output comments
-                                            if !comments.is_empty() {
-                                                if state.json_output {
-                                                    println!("{}", format_comments_json(&comments));
-                                                } else {
-                                                    println!("{}", format_comments_readable(&comments));
+                                        }
+                                    }
+                                } else if !tab_snapshot.is_empty() {
+                                    // Multi-tab mode: dump comments grouped per file. Single-tab
+                                    // sessions keep the existing flat output for backward compat
+                                    // with shell consumers that don't expect `## <path>` headers.
+                                    let single_tab = tab_snapshot.len() == 1;
+                                    if state.json_output {
+                                        let groups: Vec<serde_json::Value> = tab_snapshot
+                                            .iter()
+                                            .map(|t| {
+                                                let comments = parse_comments_for_output(&t.content);
+                                                serde_json::json!({
+                                                    "path": t.path,
+                                                    "comments": comments,
+                                                })
+                                            })
+                                            .filter(|g| {
+                                                g.get("comments")
+                                                    .and_then(|c| c.as_array())
+                                                    .map(|a| !a.is_empty())
+                                                    .unwrap_or(false)
+                                            })
+                                            .collect();
+
+                                        if single_tab {
+                                            if let Some(g) = groups.first() {
+                                                if let Some(comments) = g.get("comments") {
+                                                    println!("{}", comments);
                                                 }
+                                            }
+                                        } else if !groups.is_empty() {
+                                            println!(
+                                                "{}",
+                                                serde_json::to_string_pretty(&groups)
+                                                    .unwrap_or_default()
+                                            );
+                                        }
+                                    } else {
+                                        let mut sections: Vec<String> = Vec::new();
+                                        for tab in &tab_snapshot {
+                                            let comments = parse_comments_for_output(&tab.content);
+                                            if comments.is_empty() {
+                                                continue;
+                                            }
+                                            let body = format_comments_readable(&comments);
+                                            if single_tab {
+                                                sections.push(body);
+                                            } else {
+                                                sections.push(format!("## {}\n\n{}", tab.path, body));
+                                            }
+                                        }
+                                        if !sections.is_empty() {
+                                            println!("{}", sections.join("\n\n"));
+                                        }
+                                    }
+                                } else if let Some(file_path) = state
+                                    .current_file
+                                    .lock()
+                                    .ok()
+                                    .and_then(|f| f.clone())
+                                {
+                                    // Fallback: no tab snapshot was pushed (web mode, or JS
+                                    // crashed before pushing). Read active file from disk.
+                                    if let Ok(content) = std::fs::read_to_string(&file_path) {
+                                        let comments = parse_comments_for_output(&content);
+                                        if !comments.is_empty() {
+                                            if state.json_output {
+                                                println!("{}", format_comments_json(&comments));
+                                            } else {
+                                                println!("{}", format_comments_readable(&comments));
                                             }
                                         }
                                     }
@@ -217,6 +299,7 @@ pub fn run(
         .manage(AppState {
             current_file: Mutex::new(None),
             initial_files: Mutex::new(Vec::new()),
+            open_tabs: Mutex::new(Vec::new()),
             silent,
             json_output,
             stdin_mode,
@@ -228,6 +311,7 @@ pub fn run(
             file_ops::set_current_file,
             file_ops::get_current_file,
             file_ops::get_initial_files,
+            file_ops::submit_tab_states,
             file_ops::reveal_in_finder,
             file_ops::is_stdin_mode,
             file_ops::get_version,

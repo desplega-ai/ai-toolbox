@@ -3,13 +3,26 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::State;
 
+/// Snapshot of one open tab pushed from JS via `submit_tab_states`. Used
+/// by the close-window flow to dump comments from every open tab without
+/// re-reading from disk (which would miss unsaved buffer state).
+#[derive(Clone, Debug, serde::Deserialize)]
+pub struct TabState {
+    pub path: String,
+    /// Editor content with comment markers inlined — i.e., what
+    /// `serializeComments(tab.doc, tab.comments)` produced on the JS side.
+    pub content: String,
+}
+
 pub struct AppState {
     pub current_file: Mutex<Option<PathBuf>>,
     /// All file paths supplied on the CLI (in order). Used by JS at startup
-    /// to open one tab per path. `current_file` mirrors the first path so the
-    /// existing single-file close-export flow keeps working until step-3
-    /// promotes it to multi-file. Empty if no file args were passed.
+    /// to open one tab per path.
     pub initial_files: Mutex<Vec<PathBuf>>,
+    /// Snapshot of every currently-open tab pushed by JS. Source of truth
+    /// for the close-window comment-export flow when non-empty; falls
+    /// back to the single-file disk read when empty (e.g., web mode).
+    pub open_tabs: Mutex<Vec<TabState>>,
     pub silent: bool,
     pub json_output: bool,
     pub stdin_mode: bool,
@@ -49,6 +62,16 @@ pub fn get_initial_files(state: State<'_, AppState>) -> Vec<String> {
         .ok()
         .map(|v| v.iter().map(|p| p.to_string_lossy().to_string()).collect())
         .unwrap_or_default()
+}
+
+/// Replace the in-memory snapshot of open tabs. JS calls this on tab-close
+/// and window-close so the close-window handler can dump comments from
+/// every open tab.
+#[tauri::command]
+pub fn submit_tab_states(states: Vec<TabState>, state: State<'_, AppState>) {
+    if let Ok(mut open) = state.open_tabs.lock() {
+        *open = states;
+    }
 }
 
 #[tauri::command]

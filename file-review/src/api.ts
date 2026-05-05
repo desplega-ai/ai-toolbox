@@ -172,6 +172,10 @@ export const API = {
     return this.invoke<string[]>("get_initial_files");
   },
 
+  async submitTabStates(states: Array<{ path: string; content: string }>): Promise<void> {
+    return this.invoke<void>("submit_tab_states", { states });
+  },
+
   async readFile(path: string): Promise<string> {
     return this.invoke<string>("read_file", { path });
   },

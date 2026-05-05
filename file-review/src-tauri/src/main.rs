@@ -166,6 +166,7 @@ fn run_web_mode(
             initial_files: Mutex::new(
                 file_path.as_ref().map(|p| vec![PathBuf::from(p)]).unwrap_or_default(),
             ),
+            open_tabs: Mutex::new(Vec::new()),
             silent,
             json_output,
             stdin_mode,
