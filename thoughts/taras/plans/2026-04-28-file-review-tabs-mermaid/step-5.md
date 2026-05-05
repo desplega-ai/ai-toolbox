@@ -2,7 +2,9 @@
 id: step-5
 name: Integration + cross-cutting QA
 depends_on: [step-3, step-4]
-status: ready
+status: done
+assignee:
+claimed_at:
 ---
 
 <!-- During /v-implement, `desplega:step-running` adds `assignee` and `claimed_at` while
