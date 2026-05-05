@@ -76,6 +76,124 @@ function readActive(): Tab | null {
 }
 
 /**
+ * Saved-and-closed tabs that should still appear in the final close-window
+ * comment-export summary. Discarded closes never land here. Each entry's
+ * `content` is the on-disk serialization at close time.
+ */
+interface ClosedFileEntry {
+  path: string;
+  content: string;
+}
+const closedFiles: ClosedFileEntry[] = [];
+const closedFilesSubscribers: Array<() => void> = [];
+function notifyClosedFilesChange() {
+  for (const fn of closedFilesSubscribers) fn();
+}
+function addClosedFile(entry: ClosedFileEntry) {
+  // De-dupe by path: if already remembered, replace with newer content.
+  const existing = closedFiles.findIndex((f) => f.path === entry.path);
+  if (existing >= 0) closedFiles[existing] = entry;
+  else closedFiles.push(entry);
+  notifyClosedFilesChange();
+}
+function removeClosedFile(path: string) {
+  const idx = closedFiles.findIndex((f) => f.path === path);
+  if (idx >= 0) {
+    closedFiles.splice(idx, 1);
+    notifyClosedFilesChange();
+  }
+}
+
+function setupClosedFilesIndicator() {
+  const btn = document.getElementById("closed-files-btn") as HTMLButtonElement | null;
+  const count = document.getElementById("closed-files-count");
+  const popover = document.getElementById("closed-files-popover");
+  if (!btn || !count || !popover) return;
+
+  const renderIndicator = () => {
+    const n = closedFiles.length;
+    if (n === 0) {
+      btn.hidden = true;
+      popover.hidden = true;
+      return;
+    }
+    btn.hidden = false;
+    count.textContent = String(n);
+  };
+
+  const renderPopover = () => {
+    if (closedFiles.length === 0) {
+      popover.hidden = true;
+      return;
+    }
+    const items = closedFiles
+      .map((f) => {
+        const basename = f.path.split("/").pop() || f.path;
+        return `
+          <div class="closed-files-popover-item" data-path="${escapeHtml(f.path)}">
+            <span class="closed-files-popover-path" title="${escapeHtml(f.path)}">${escapeHtml(basename)}</span>
+            <button class="closed-files-popover-remove" type="button" aria-label="Remove from review session">×</button>
+          </div>`;
+      })
+      .join("");
+    popover.innerHTML = `
+      <div class="closed-files-popover-header">In this review session</div>
+      ${items}
+    `;
+    popover.querySelectorAll<HTMLButtonElement>(".closed-files-popover-remove").forEach((rm) => {
+      rm.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const item = (e.currentTarget as HTMLElement).closest<HTMLElement>(
+          ".closed-files-popover-item"
+        );
+        const path = item?.dataset.path;
+        if (path) {
+          removeClosedFile(path);
+          void pushTabStatesToRust();
+        }
+      });
+    });
+  };
+
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (popover.hidden) {
+      renderPopover();
+      popover.hidden = false;
+    } else {
+      popover.hidden = true;
+    }
+  });
+  document.addEventListener("click", (e) => {
+    if (popover.hidden) return;
+    const target = e.target as Node;
+    if (popover.contains(target) || btn.contains(target)) return;
+    popover.hidden = true;
+  });
+
+  closedFilesSubscribers.push(() => {
+    renderIndicator();
+    if (!popover.hidden) renderPopover();
+  });
+  renderIndicator();
+}
+
+/**
+ * Cycle the active tab forward (+1) or backward (-1) with wrap-around.
+ * No-op if fewer than 2 tabs exist.
+ */
+function rotateActiveTab(direction: 1 | -1) {
+  if (tabManager.tabs.length < 2) return;
+  const activeIdx = tabManager.tabs.findIndex(
+    (t) => t.id === tabManager.activeId
+  );
+  if (activeIdx < 0) return;
+  const len = tabManager.tabs.length;
+  const nextIdx = (activeIdx + direction + len) % len;
+  tabManager.setActive(tabManager.tabs[nextIdx].id);
+}
+
+/**
  * Patch fields on the active tab. No-op if no tab is open.
  */
 function writeActive(patch: Partial<Tab>): void {
@@ -272,6 +390,8 @@ async function init() {
       const target = tabManager.tabs[n - 1];
       if (target) tabManager.setActive(target.id);
     },
+    nextTab: () => rotateActiveTab(1),
+    prevTab: () => rotateActiveTab(-1),
     zoomIn,
     zoomOut,
     undo: editorUndo,
@@ -364,6 +484,11 @@ async function init() {
   document
     .getElementById("open-file-btn")
     ?.addEventListener("click", showFilePickerAndLoad);
+
+  // Closed-files indicator: button + popover. Visible only when at least
+  // one tab has been closed-with-save during this session. Lets the user
+  // remove an entry (drops it from the final stdout summary).
+  setupClosedFilesIndicator();
 
   // Set up toolbar buttons
   document
@@ -1152,14 +1277,21 @@ async function pushTabStatesToRust(): Promise<void> {
   if (active) {
     tabManager.update(active.id, { doc: getEditorContent() });
   }
-  const states = tabManager.tabs
+  const openStates = tabManager.tabs
     .filter((t) => t.path !== null)
     .map((t) => ({
       path: t.path!,
       content: serializeComments(t.doc, t.comments),
     }));
+  // Append closed-but-remembered files so the final stdout summary
+  // includes them too. De-dupe paths in favour of the open tab (a path
+  // can't be both open and closed simultaneously, but defensive).
+  const openPaths = new Set(openStates.map((s) => s.path));
+  const closedStates = closedFiles
+    .filter((f) => !openPaths.has(f.path))
+    .map((f) => ({ path: f.path, content: f.content }));
   try {
-    await API.submitTabStates(states);
+    await API.submitTabStates([...openStates, ...closedStates]);
   } catch (error) {
     console.error("Failed to push tab states:", error);
   }
@@ -1271,10 +1403,12 @@ function handleCommentClick(comment: ReviewComment) {
 async function closeTab(id: string) {
   const tab = tabManager.tabs.find((t) => t.id === id);
   if (!tab) return;
+  let discarded = false;
   if (tab.hasUnsavedChanges) {
     const label = tab.path ? tab.path.split("/").pop() || tab.path : "this tab";
     const choice = await showCloseTabConfirmDialog(label);
     if (choice === "cancel") return;
+    if (choice === "discard") discarded = true;
     if (choice === "save") {
       try {
         // Snapshot active editor content into the tab if this is the active
@@ -1297,6 +1431,21 @@ async function closeTab(id: string) {
       }
     }
   }
+
+  // Remember non-discarded closes so the final window-close summary
+  // still lists their comments. The captured `content` is what's on
+  // disk after any pending save: the in-memory editor doc combined
+  // with the comment markers.
+  const fresh = tabManager.tabs.find((t) => t.id === id);
+  if (fresh && fresh.path && !discarded) {
+    const docToCapture =
+      tabManager.activeId === id ? getEditorContent() : fresh.doc;
+    addClosedFile({
+      path: fresh.path,
+      content: serializeComments(docToCapture, fresh.comments),
+    });
+  }
+
   tabManager.remove(id);
   void pushTabStatesToRust();
 

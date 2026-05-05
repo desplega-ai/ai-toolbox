@@ -15,6 +15,7 @@ export const shortcuts: Shortcut[] = [
   { keys: "⌘T", description: "New tab (open file)" },
   { keys: "⌘W", description: "Close active tab" },
   { keys: "⌘1…9", description: "Switch to Nth tab" },
+  { keys: "⌘N / ⌘P", description: "Next / previous tab" },
   { keys: "⌘⇧T", description: "Toggle theme (light/dark)" },
   { keys: "⌘M", description: "Toggle markdown view (raw/pretty)" },
   { keys: "⌘⇧V", description: "Toggle vim mode" },
@@ -140,6 +141,8 @@ export interface ShortcutHandlers {
   newTab?: () => void;
   closeTab?: () => void;
   jumpToTab?: (n: number) => void;
+  nextTab?: () => void;
+  prevTab?: () => void;
   zoomIn?: () => void;
   zoomOut?: () => void;
   undo?: () => void;
@@ -181,6 +184,16 @@ export function initShortcuts(handlers: ShortcutHandlers) {
     if (/^[1-9]$/.test(e.key) && !e.shiftKey) {
       e.preventDefault();
       handlers.jumpToTab?.(parseInt(e.key, 10));
+      return;
+    }
+    if (key === "n" && !e.shiftKey) {
+      e.preventDefault();
+      handlers.nextTab?.();
+      return;
+    }
+    if (key === "p" && !e.shiftKey) {
+      e.preventDefault();
+      handlers.prevTab?.();
       return;
     }
 
