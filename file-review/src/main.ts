@@ -591,27 +591,37 @@ function escapeHtml(text: string): string {
 
 type QuitChoice = "save" | "discard" | "cancel";
 
-// Module-scoped guard so re-entrant Cmd+Q presses don't stack modals.
-let activeQuitDialog: Promise<QuitChoice> | null = null;
+interface UnsavedDialogOpts {
+  title: string;
+  body: string;
+  saveLabel: string;
+  discardLabel: string;
+  /** Single-letter (lowercase) shortcut key for the discard action. */
+  discardKey: string;
+}
 
-function showQuitConfirmDialog(): Promise<QuitChoice> {
-  if (activeQuitDialog) return activeQuitDialog;
+// Module-scoped guard so re-entrant triggers (Cmd+Q spam, Cmd+W spam)
+// don't stack dialog backdrops.
+let activeUnsavedDialog: Promise<QuitChoice> | null = null;
 
-  activeQuitDialog = new Promise<QuitChoice>((resolve) => {
+function showUnsavedChangesDialog(opts: UnsavedDialogOpts): Promise<QuitChoice> {
+  if (activeUnsavedDialog) return activeUnsavedDialog;
+
+  activeUnsavedDialog = new Promise<QuitChoice>((resolve) => {
     const modal = document.createElement("div");
     modal.className = "quit-confirm-modal";
     modal.innerHTML = `
       <div class="quit-confirm-content">
         <div class="quit-confirm-header">
-          <h3>Unsaved review progress</h3>
+          <h3>${escapeHtml(opts.title)}</h3>
         </div>
         <div class="quit-confirm-body">
-          <p>You have unsaved comments or edits. What would you like to do?</p>
+          <p>${escapeHtml(opts.body)}</p>
         </div>
         <div class="quit-confirm-footer">
           <button class="secondary-btn" data-action="cancel">Cancel <kbd>Esc</kbd></button>
-          <button class="secondary-btn" data-action="discard">Quit anyway <kbd>Q</kbd></button>
-          <button class="primary-btn" data-action="save">Save and quit <kbd>S</kbd></button>
+          <button class="secondary-btn" data-action="discard">${escapeHtml(opts.discardLabel)} <kbd>${opts.discardKey.toUpperCase()}</kbd></button>
+          <button class="primary-btn" data-action="save">${escapeHtml(opts.saveLabel)} <kbd>S</kbd></button>
         </div>
       </div>
     `;
@@ -622,18 +632,18 @@ function showQuitConfirmDialog(): Promise<QuitChoice> {
       settled = true;
       document.removeEventListener("keydown", onKeydown);
       modal.remove();
-      activeQuitDialog = null;
+      activeUnsavedDialog = null;
       resolve(choice);
     };
 
     const onKeydown = (e: KeyboardEvent) => {
-      // Don't intercept system Cmd+Q while the dialog is open — let
-      // it fall through so the second Cmd+Q acts as Quit Anyway.
+      // Don't intercept system Cmd+Q / Cmd+W while the dialog is open —
+      // a second press should fall through to the OS / menu accelerator.
       if (e.metaKey || e.ctrlKey) return;
       if (e.key === "Escape") {
         e.preventDefault();
         finish("cancel");
-      } else if (e.key === "q" || e.key === "Q") {
+      } else if (e.key.toLowerCase() === opts.discardKey) {
         e.preventDefault();
         finish("discard");
       } else if (e.key === "s" || e.key === "S") {
@@ -657,7 +667,27 @@ function showQuitConfirmDialog(): Promise<QuitChoice> {
     modal.querySelector<HTMLButtonElement>(".primary-btn")?.focus();
   });
 
-  return activeQuitDialog;
+  return activeUnsavedDialog;
+}
+
+function showQuitConfirmDialog(): Promise<QuitChoice> {
+  return showUnsavedChangesDialog({
+    title: "Unsaved review progress",
+    body: "You have unsaved comments or edits. What would you like to do?",
+    saveLabel: "Save and quit",
+    discardLabel: "Quit anyway",
+    discardKey: "q",
+  });
+}
+
+function showCloseTabConfirmDialog(label: string): Promise<QuitChoice> {
+  return showUnsavedChangesDialog({
+    title: `Close ${label}?`,
+    body: `${label} has unsaved comments or edits. What would you like to do?`,
+    saveLabel: "Save and close",
+    discardLabel: "Close anyway",
+    discardKey: "c",
+  });
 }
 
 /**
@@ -1234,15 +1264,37 @@ function handleCommentClick(comment: ReviewComment) {
 }
 
 /**
- * Close a tab by id. In step-1 only the active tab can be closed (single-tab
- * semantics); step-2 will allow closing any tab.
+ * Close a tab by id. If the tab has unsaved changes, prompts via the same
+ * 3-button dialog the close-window flow uses (Cancel / Close anyway /
+ * Save and close). Save persists the tab to disk before removing it.
  */
-function closeTab(id: string) {
+async function closeTab(id: string) {
   const tab = tabManager.tabs.find((t) => t.id === id);
   if (!tab) return;
   if (tab.hasUnsavedChanges) {
-    if (!window.confirm("You have unsaved changes. Close this tab and discard them?")) {
-      return;
+    const label = tab.path ? tab.path.split("/").pop() || tab.path : "this tab";
+    const choice = await showCloseTabConfirmDialog(label);
+    if (choice === "cancel") return;
+    if (choice === "save") {
+      try {
+        // Snapshot active editor content into the tab if this is the active
+        // tab (so we save the latest in-memory edits, not a stale doc).
+        if (tabManager.activeId === id) {
+          tabManager.update(id, { doc: getEditorContent() });
+        }
+        const fresh = tabManager.tabs.find((t) => t.id === id);
+        if (fresh && fresh.path) {
+          const serialized = serializeComments(fresh.doc, fresh.comments);
+          await API.writeFile(fresh.path, serialized);
+          tabManager.update(id, {
+            hasUnsavedChanges: false,
+            lastSavedSnapshot: serialized,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to save tab before close:", error);
+        return;
+      }
     }
   }
   tabManager.remove(id);
