@@ -539,6 +539,15 @@ body {
   margin-bottom: 0;
 }
 
+/* Per-line wrappers inside list items, blockquotes, and code blocks. Each
+ * source line becomes its own commentable target, so display them block-level
+ * inside their parent so the visual layout matches the source line breaks. */
+#preview-container .li-line,
+#preview-container .bq-line,
+#preview-container .code-line {
+  display: block;
+}
+
 #preview-container code {
   background: var(--bg-secondary);
   padding: 0.2em 0.4em;
@@ -549,15 +558,50 @@ body {
 
 #preview-container pre {
   background: var(--bg-secondary);
-  padding: 1em;
+  padding: 28px 1em 1em;
   border-radius: 6px;
   overflow-x: auto;
   margin-bottom: 1em;
+  position: relative;
 }
 
 #preview-container pre code {
   background: none;
   padding: 0;
+  /* Override prose line-height (1.6) so per-line code spans pack tightly. */
+  line-height: 1.5;
+  font-size: 0.9em;
+}
+
+#preview-container .code-line {
+  /* Each line is its own commentable row but should sit flush against the
+   * next without extra gap. `display: block` is what creates the line break;
+   * no <br> / no \n between spans. */
+  margin: 0;
+}
+
+/* Blank source lines emit an empty <span class="code-line">. `display: block`
+ * collapses empty content to zero height; inject a zero-width space via a
+ * pseudo-element so blanks visually take a full code line, just like in the
+ * source. The ZWS doesn't affect copy/paste. */
+#preview-container .code-line:empty::before {
+  content: '\200B';
+}
+
+/* Language badge in the top-left corner of fenced code blocks. */
+#preview-container pre .code-lang {
+  position: absolute;
+  top: 6px;
+  left: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  font-family: 'SF Mono', Monaco, Consolas, monospace;
+  user-select: none;
+  pointer-events: none;
+  opacity: 0.65;
 }
 
 #preview-container ul,

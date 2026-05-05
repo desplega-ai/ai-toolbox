@@ -166,7 +166,7 @@ export class PreviewNavigator {
     this.setActiveBlock(elements, clamped);
   }
 
-  private setActiveBlock(elements: HTMLElement[], index: number) {
+  private setActiveBlock(elements: HTMLElement[], index: number, opts: { scroll?: boolean } = {}) {
     // Remove old highlight
     if (this.activeIndex >= 0 && this.activeIndex < elements.length) {
       elements[this.activeIndex].classList.remove('preview-active');
@@ -178,7 +178,9 @@ export class PreviewNavigator {
     this.activeIndex = index;
     const el = elements[index];
     el.classList.add('preview-active');
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (opts.scroll !== false) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
     this.onBlockActivated?.(el);
   }
 
@@ -344,7 +346,25 @@ export class PreviewNavigator {
     if (!mark) return;
     mark.classList.add('current');
     mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    this.promoteContainerToActive(mark);
     this.updateSearchCount();
+  }
+
+  /**
+   * When the user steps onto a search match, set the enclosing commentable
+   * row as the active block so j/k continues from there and the row gets the
+   * selection outline.
+   */
+  private promoteContainerToActive(mark: HTMLElement) {
+    const container = mark.closest('[data-commentable="true"]') as HTMLElement | null;
+    if (!container) return;
+    const elements = this.getCommentableElements();
+    const idx = elements.indexOf(container);
+    if (idx < 0) return;
+    if (idx === this.activeIndex) return;
+    // Don't re-scroll — the mark itself already scrolled into view; centering
+    // the row on top would yank the viewport away from the highlighted hit.
+    this.setActiveBlock(elements, idx, { scroll: false });
   }
 
   private updateSearchCount() {

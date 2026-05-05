@@ -11,6 +11,18 @@ import yaml from 'highlight.js/lib/languages/yaml';
 import rust from 'highlight.js/lib/languages/rust';
 import sql from 'highlight.js/lib/languages/sql';
 import markdown from 'highlight.js/lib/languages/markdown';
+import ruby from 'highlight.js/lib/languages/ruby';
+import go from 'highlight.js/lib/languages/go';
+import java from 'highlight.js/lib/languages/java';
+import c from 'highlight.js/lib/languages/c';
+import cpp from 'highlight.js/lib/languages/cpp';
+import diff from 'highlight.js/lib/languages/diff';
+import dockerfile from 'highlight.js/lib/languages/dockerfile';
+import ini from 'highlight.js/lib/languages/ini';
+import kotlin from 'highlight.js/lib/languages/kotlin';
+import swift from 'highlight.js/lib/languages/swift';
+import php from 'highlight.js/lib/languages/php';
+import plaintext from 'highlight.js/lib/languages/plaintext';
 import type { ReviewComment } from './comments';
 import type { Tab } from './tabs';
 import { renderMermaidBlocks, resetMermaidProcessed } from './mermaid';
@@ -27,6 +39,18 @@ hljs.registerLanguage('yaml', yaml);
 hljs.registerLanguage('rust', rust);
 hljs.registerLanguage('sql', sql);
 hljs.registerLanguage('markdown', markdown);
+hljs.registerLanguage('ruby', ruby);
+hljs.registerLanguage('go', go);
+hljs.registerLanguage('java', java);
+hljs.registerLanguage('c', c);
+hljs.registerLanguage('cpp', cpp);
+hljs.registerLanguage('diff', diff);
+hljs.registerLanguage('dockerfile', dockerfile);
+hljs.registerLanguage('ini', ini);
+hljs.registerLanguage('kotlin', kotlin);
+hljs.registerLanguage('swift', swift);
+hljs.registerLanguage('php', php);
+hljs.registerLanguage('plaintext', plaintext);
 
 // Register common aliases
 hljs.registerAliases(['js', 'jsx'], { languageName: 'javascript' });
@@ -37,34 +61,55 @@ hljs.registerAliases(['html', 'htm', 'svg'], { languageName: 'xml' });
 hljs.registerAliases(['yml'], { languageName: 'yaml' });
 hljs.registerAliases(['md'], { languageName: 'markdown' });
 hljs.registerAliases(['rs'], { languageName: 'rust' });
+hljs.registerAliases(['rb'], { languageName: 'ruby' });
+hljs.registerAliases(['golang'], { languageName: 'go' });
+hljs.registerAliases(['c++', 'cc', 'h', 'hpp'], { languageName: 'cpp' });
+hljs.registerAliases(['patch'], { languageName: 'diff' });
+hljs.registerAliases(['docker'], { languageName: 'dockerfile' });
+hljs.registerAliases(['toml', 'conf', 'cfg', 'properties'], { languageName: 'ini' });
+hljs.registerAliases(['kt', 'kts'], { languageName: 'kotlin' });
+hljs.registerAliases(['text', 'txt'], { languageName: 'plaintext' });
 
 // Mermaid integration: rewrite ` ```mermaid ` code tokens into `html` tokens
-// at parse time so marked's default code renderer (and downstream hljs) never
-// sees them. The original source is stashed in `data-src` (URI-encoded) so
-// theme switches can restore + re-render the diagrams.
+// so marked's default code renderer (and downstream hljs) never sees them.
+// The original source is stashed in `data-src` (URI-encoded) so theme switches
+// can restore + re-render the diagrams.
 //
-// MUST be registered exactly once at module scope. `marked.use()` inside a
-// render call recurses and corrupts state.
-marked.use({
-  walkTokens(token) {
-    if (token.type === 'code' && (token as Tokens.Code).lang === 'mermaid') {
-      const codeToken = token as Tokens.Code;
-      const source = codeToken.text ?? '';
-      // Mutating the in-place token: change `type` to 'html' and set `text` to
-      // the desired HTML. marked treats `html` tokens as raw passthrough.
-      const mutable = codeToken as unknown as {
-        type: string;
-        pre: boolean;
-        text: string;
-        block?: boolean;
-      };
-      mutable.type = 'html';
-      mutable.pre = false;
-      mutable.block = true;
-      mutable.text = `<pre class="mermaid" data-src="${encodeURIComponent(source)}">${escapeHtml(source)}</pre>`;
+// We can't use `marked.use({ walkTokens })` here because we render via
+// `marked.lexer` + `marked.parser`, and `marked.parser(tokens, opts)` does NOT
+// invoke registered walkTokens (only `marked.parse` does). Instead we walk the
+// tokens manually in `preprocessTokens` between lex and parse.
+function mutateMermaidToken(token: Token): void {
+  if (token.type === 'code' && (token as Tokens.Code).lang === 'mermaid') {
+    const codeToken = token as Tokens.Code;
+    const source = codeToken.text ?? '';
+    const mutable = codeToken as unknown as {
+      type: string;
+      pre: boolean;
+      text: string;
+      block?: boolean;
+    };
+    mutable.type = 'html';
+    mutable.pre = false;
+    mutable.block = true;
+    mutable.text = `<pre class="mermaid" data-src="${encodeURIComponent(source)}">${escapeHtml(source)}</pre>`;
+  }
+}
+
+function walkAllTokens(tokens: Token[], visit: (t: Token) => void): void {
+  for (const t of tokens) {
+    visit(t);
+    // Recurse into nested token containers so mermaid blocks nested inside
+    // list items / blockquotes also get mutated.
+    const anyT = t as unknown as { tokens?: Token[]; items?: Tokens.ListItem[] };
+    if (anyT.tokens) walkAllTokens(anyT.tokens, visit);
+    if (anyT.items) {
+      for (const item of anyT.items) {
+        walkAllTokens(item.tokens, visit);
+      }
     }
-  },
-});
+  }
+}
 
 let previewContainer: HTMLElement | null = null;
 let hoverButton: HTMLElement | null = null;
@@ -91,7 +136,11 @@ export type CommentableKind =
   | 'li'
   | 'blockquote'
   | 'pre'
-  | 'tr';
+  | 'tr'
+  | 'p-line'
+  | 'li-line'
+  | 'bq-line'
+  | 'code-line';
 
 export interface CommentableRange {
   start: number;
@@ -486,7 +535,11 @@ function isCommentableKind(tagName: string): tagName is CommentableKind {
     tagName === 'li' ||
     tagName === 'blockquote' ||
     tagName === 'pre' ||
-    tagName === 'tr'
+    tagName === 'tr' ||
+    tagName === 'p-line' ||
+    tagName === 'li-line' ||
+    tagName === 'bq-line' ||
+    tagName === 'code-line'
   );
 }
 
@@ -508,7 +561,133 @@ function splitRawLines(raw: string): Array<{ text: string; start: number; end: n
   return lines;
 }
 
-function splitAtTopLevelBreak(html: string): string[] {
+interface LineCollectOpts {
+  // For ```code``` — drop opening/closing fence lines from the emitted ranges.
+  skipFenceLines?: boolean;
+  // For blockquotes — strip the leading "> " (or ">") from each line so the
+  // emitted range starts at user-meaningful content.
+  stripBlockquoteMarker?: boolean;
+  // For loose-list paragraphs / list-item content — strip the list marker
+  // ("- ", "* ", "1. ", …) on the line that contains it.
+  stripListMarker?: boolean;
+  // For list items — strip leading whitespace on continuation lines so the
+  // range starts at visible content (the indent is structural in markdown).
+  // Code blocks should NOT use this since indentation is meaningful.
+  stripLeadingWhitespace?: boolean;
+  // For code blocks — emit a (zero-length) range for blank source lines too,
+  // so wrapCodeLines's parts/ranges counts stay aligned across the entire
+  // block. Without this, a code block with internal blank lines would skip
+  // wrapping and become uncommentable.
+  keepEmptyLines?: boolean;
+  // Skip lines whose source position falls inside any of these spans (offsets
+  // are relative to `raw`). Used to exclude nested-list lines from a list
+  // item's per-line ranges since they're emitted via recursion.
+  skipSpans?: ReadonlyArray<readonly [number, number]>;
+}
+
+function isInsideAnySpan(
+  spans: ReadonlyArray<readonly [number, number]> | undefined,
+  start: number,
+  end: number
+): boolean {
+  if (!spans || spans.length === 0) return false;
+  for (const [s, e] of spans) {
+    if (start >= s && end <= e) return true;
+  }
+  return false;
+}
+
+function stripLeadingListMarker(text: string): { stripped: string; consumed: number } {
+  const m = text.match(/^(\s*(?:[-*+]|\d+[.)])\s+)/);
+  if (!m) return { stripped: text, consumed: 0 };
+  return { stripped: text.slice(m[0].length), consumed: m[0].length };
+}
+
+function stripBlockquoteMarker(text: string): { stripped: string; consumed: number } {
+  // Tolerate leading list-item indent ("  > ...") so this works for both
+  // top-level and nested-inside-li blockquotes.
+  const m = text.match(/^[ \t]*>[ \t]?/);
+  if (!m) return { stripped: text, consumed: 0 };
+  return { stripped: text.slice(m[0].length), consumed: m[0].length };
+}
+
+function isFenceLine(text: string): boolean {
+  const trimmed = text.trim();
+  return /^```/.test(trimmed) || /^~~~/.test(trimmed);
+}
+
+function collectLineRanges(
+  blockStart: number,
+  raw: string,
+  kind: CommentableKind,
+  opts: LineCollectOpts = {}
+): CommentableRange[] {
+  const out: CommentableRange[] = [];
+  const lines = splitRawLines(raw);
+  let markerStripped = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    if (opts.skipFenceLines && (i === 0 || i === lines.length - 1) && isFenceLine(line.text)) {
+      continue;
+    }
+
+    if (isInsideAnySpan(opts.skipSpans, line.start, line.end)) {
+      continue;
+    }
+
+    let inner = line.text;
+    let innerOffset = 0;
+
+    if (opts.stripBlockquoteMarker) {
+      const r = stripBlockquoteMarker(inner);
+      inner = r.stripped;
+      innerOffset += r.consumed;
+    }
+
+    if (opts.stripListMarker && !markerStripped) {
+      const r = stripLeadingListMarker(inner);
+      if (r.consumed > 0) {
+        inner = r.stripped;
+        innerOffset += r.consumed;
+        markerStripped = true;
+      }
+    }
+
+    if (opts.stripLeadingWhitespace && markerStripped) {
+      // After the list marker is stripped (on this or a prior line), drop any
+      // structural indent on continuation lines so the range starts at
+      // visible content.
+      const leading = inner.match(/^[ \t]+/);
+      if (leading) {
+        inner = inner.slice(leading[0].length);
+        innerOffset += leading[0].length;
+      }
+    }
+
+    if (inner.trim().length === 0) {
+      // For code blocks we still need a per-line range so wrapCodeLines can
+      // pair each rendered line (including blanks) with a source offset.
+      if (opts.keepEmptyLines) {
+        const at = blockStart + line.start + innerOffset;
+        out.push({ start: at, end: at, kind });
+      }
+      continue;
+    }
+
+    const trimmedEnd = inner.trimEnd().length;
+    const start = blockStart + line.start + innerOffset;
+    const end = start + trimmedEnd;
+    if (end > start) {
+      out.push({ start, end, kind });
+    }
+  }
+
+  return out;
+}
+
+export function splitAtTopLevelBreak(html: string): string[] {
   const parts: string[] = [];
   let depth = 0;
   let lastSplit = 0;
@@ -574,77 +753,6 @@ function splitAtTopLevelBreak(html: string): string[] {
   return parts;
 }
 
-function hasMultiLineInlineFormatting(raw: string): boolean {
-  let i = 0;
-  const len = raw.length;
-  let openStar = 0;
-  let openUnder = 0;
-  let inCode = false;
-  let codeTickLen = 0;
-
-  while (i < len) {
-    const ch = raw[i];
-
-    if (ch === '\\' && !inCode && i + 1 < len) {
-      i += 2;
-      continue;
-    }
-
-    if (ch === '`') {
-      let run = 0;
-      while (i + run < len && raw[i + run] === '`') run++;
-      if (!inCode) {
-        inCode = true;
-        codeTickLen = run;
-      } else if (run === codeTickLen) {
-        inCode = false;
-      }
-      i += run;
-      continue;
-    }
-
-    if (inCode) {
-      if (ch === '\n') return true;
-      i++;
-      continue;
-    }
-
-    if (ch === '\n') {
-      if (openStar > 0 || openUnder > 0) return true;
-      i++;
-      continue;
-    }
-
-    if (ch === '*') {
-      let run = 0;
-      while (i + run < len && raw[i + run] === '*') run++;
-      if (openStar === 0) {
-        openStar = run;
-      } else if (run >= openStar) {
-        openStar = 0;
-      }
-      i += run;
-      continue;
-    }
-
-    if (ch === '_') {
-      let run = 0;
-      while (i + run < len && raw[i + run] === '_') run++;
-      if (openUnder === 0) {
-        openUnder = run;
-      } else if (run >= openUnder) {
-        openUnder = 0;
-      }
-      i += run;
-      continue;
-    }
-
-    i++;
-  }
-
-  return false;
-}
-
 function collectParagraphLineRanges(
   tokenStart: number,
   raw: string,
@@ -652,14 +760,26 @@ function collectParagraphLineRanges(
 ) {
   const lines = splitRawLines(raw).filter((line) => line.text.trim().length > 0);
 
-  if (lines.length <= 1 || hasMultiLineInlineFormatting(raw)) {
+  if (lines.length <= 1) {
+    // Single-line paragraph → kind 'p'. The renderer emits a bare <p> and
+    // setCommentableAttributes maps it via the legacy 1:1 path.
     addRangeFromRaw(ranges, tokenStart, raw, 'p');
     return;
   }
 
+  // Multi-line paragraph → kind 'p-line' per source line. The renderer emits
+  // a <p class="preview-line"> per line with data-commentable already stamped,
+  // so these ranges are intentionally OUTSIDE the legacy-mapped kinds — they
+  // would otherwise collide with single-line <p> ranges in setCommentableAttributes.
+  // Cross-line bold/italic renders as literal `**` per line (documented trade-off).
   for (const line of lines) {
     const trimmedEnd = line.text.trimEnd().length;
-    addRangeFromBounds(ranges, tokenStart + line.start, tokenStart + line.start + trimmedEnd, 'p');
+    addRangeFromBounds(
+      ranges,
+      tokenStart + line.start,
+      tokenStart + line.start + trimmedEnd,
+      'p-line'
+    );
   }
 }
 
@@ -682,6 +802,77 @@ function collectTableRowRanges(
   }
 }
 
+function isBlockChildToken(t: Token): boolean {
+  return (
+    t.type === 'list' ||
+    t.type === 'code' ||
+    t.type === 'blockquote' ||
+    t.type === 'table' ||
+    t.type === 'html' ||
+    t.type === 'hr'
+  );
+}
+
+/**
+ * Locate a block-level child token's source span inside its parent list-item
+ * `raw`. marked dedents nested code/blockquote/list raws relative to the parent
+ * indent, so a literal `indexOf(child.raw)` fails for fenced code blocks. We
+ * fall back to matching the child's first line as a suffix of an itemRaw line
+ * (allowing arbitrary leading whitespace), then walk forward by the child's
+ * newline count to find the span's end.
+ */
+function findBlockChildSpan(
+  itemRaw: string,
+  child: Token,
+  fromIdx: number
+): { lineStart: number; rawStart: number; rawEnd: number } | null {
+  const childRaw = (child as { raw?: string }).raw ?? '';
+  if (!childRaw) return null;
+
+  // Fast path: exact substring match (works for tokens whose raw preserves the
+  // parent's indentation — e.g. some text tokens, certain table tokens).
+  const exact = itemRaw.indexOf(childRaw, fromIdx);
+  if (exact >= 0) {
+    const lineStart = itemRaw.lastIndexOf('\n', exact - 1) + 1;
+    return { lineStart, rawStart: exact, rawEnd: exact + childRaw.length };
+  }
+
+  // Fuzzy path: find a line in itemRaw whose trim-start matches childRaw's
+  // first line.
+  const firstLine = childRaw.split('\n', 1)[0] ?? '';
+  if (!firstLine) return null;
+  const newlineCount = (childRaw.match(/\n/g) ?? []).length;
+  const trailingNewline = childRaw.endsWith('\n');
+
+  let i = fromIdx;
+  while (i < itemRaw.length) {
+    const lineStart = i;
+    const nlIdx = itemRaw.indexOf('\n', i);
+    const lineEnd = nlIdx < 0 ? itemRaw.length : nlIdx;
+    const line = itemRaw.slice(lineStart, lineEnd);
+    const trimIdx = line.search(/\S/);
+    if (trimIdx >= 0 && line.slice(trimIdx) === firstLine) {
+      const rawStart = lineStart + trimIdx;
+      // Advance newlineCount newlines to find the end.
+      let cursor = lineStart;
+      for (let n = 0; n < newlineCount; n++) {
+        const nl = itemRaw.indexOf('\n', cursor);
+        if (nl < 0) { cursor = itemRaw.length; break; }
+        cursor = nl + 1;
+      }
+      let rawEnd = cursor;
+      if (!trailingNewline) {
+        // Extend to end of the (newlineCount+1)th line, no trailing \n.
+        const nl = itemRaw.indexOf('\n', rawEnd);
+        rawEnd = nl < 0 ? itemRaw.length : nl;
+      }
+      return { lineStart, rawStart, rawEnd };
+    }
+    i = nlIdx < 0 ? itemRaw.length : nlIdx + 1;
+  }
+  return null;
+}
+
 function collectListItemRanges(listToken: Tokens.List, listStart: number, ranges: CommentableRange[]) {
   let searchFrom = 0;
 
@@ -693,23 +884,48 @@ function collectListItemRanges(listToken: Tokens.List, listStart: number, ranges
     }
 
     const itemStart = listStart + itemOffset;
-    addRangeFromRaw(ranges, itemStart, itemRaw, 'li');
     searchFrom = itemOffset + itemRaw.length;
 
-    const nestedLists = item.tokens.filter(isListToken);
-    if (nestedLists.length === 0) {
-      continue;
+    // Find every block-level child token (nested list, code block, blockquote,
+    // table, raw HTML, hr) inside this item. Track each one's line-aligned
+    // span so per-line `li-line` ranges skip those lines, AND its `raw`-aligned
+    // offset so we can recurse and emit nested ranges of the right kind.
+    type ChildSpan = { token: Token; lineStart: number; rawStart: number; rawEnd: number };
+    const childSpans: ChildSpan[] = [];
+    let childSearchFrom = 0;
+    for (const child of item.tokens) {
+      if (!isBlockChildToken(child)) continue;
+      const span = findBlockChildSpan(itemRaw, child, childSearchFrom);
+      if (!span) continue;
+      childSpans.push({ token: child, ...span });
+      childSearchFrom = span.rawEnd;
     }
 
-    let nestedSearchFrom = 0;
-    for (const nestedList of nestedLists) {
-      const nestedOffset = itemRaw.indexOf(nestedList.raw, nestedSearchFrom);
-      if (nestedOffset < 0) {
-        continue;
-      }
+    const skipSpans = childSpans.map((c) => [c.lineStart, c.rawEnd] as const);
+    const lineRanges = collectLineRanges(itemStart, itemRaw, 'li-line', {
+      stripListMarker: true,
+      stripLeadingWhitespace: true,
+      skipSpans,
+    });
+    ranges.push(...lineRanges);
 
-      collectListItemRanges(nestedList, itemStart + nestedOffset, ranges);
-      nestedSearchFrom = nestedOffset + nestedList.raw.length;
+    // Recurse to emit ranges for each block-level child. Use the ORIGINAL
+    // (still-indented) source slice from itemRaw so child line offsets match
+    // real source positions — `child.raw` is dedented by marked.
+    for (const c of childSpans) {
+      const blockStart = itemStart + c.rawStart;
+      const sourceText = itemRaw.slice(c.rawStart, c.rawEnd);
+      if (c.token.type === 'list') {
+        collectListItemRanges(c.token as Tokens.List, blockStart, ranges);
+      } else if (c.token.type === 'code') {
+        ranges.push(
+          ...collectLineRanges(blockStart, sourceText, 'code-line', { skipFenceLines: true, keepEmptyLines: true })
+        );
+      } else if (c.token.type === 'blockquote') {
+        // stripBlockquoteMarker tolerates leading list-item indent.
+        ranges.push(...collectLineRanges(blockStart, sourceText, 'bq-line', { stripBlockquoteMarker: true }));
+      }
+      // table/html/hr have no per-line ranges in the top-level collector either.
     }
   }
 }
@@ -729,9 +945,11 @@ export function collectCommentableRanges(content: string): CommentableRange[] {
     } else if (token.type === 'paragraph') {
       collectParagraphLineRanges(tokenStart, raw, ranges);
     } else if (token.type === 'blockquote') {
-      addRangeFromRaw(ranges, tokenStart, raw, 'blockquote');
+      ranges.push(...collectLineRanges(tokenStart, raw, 'bq-line', { stripBlockquoteMarker: true }));
     } else if (token.type === 'code') {
-      addRangeFromRaw(ranges, tokenStart, raw, 'pre');
+      ranges.push(
+        ...collectLineRanges(tokenStart, raw, 'code-line', { skipFenceLines: true, keepEmptyLines: true })
+      );
     } else if (isListToken(token)) {
       collectListItemRanges(token, tokenStart, ranges);
     } else if (isTableToken(token)) {
@@ -744,26 +962,35 @@ export function collectCommentableRanges(content: string): CommentableRange[] {
   return ranges;
 }
 
+// Tags we still post-render-map via setCommentableAttributes. li/blockquote/pre
+// are excluded because their content is now broken into per-line spans
+// (li-line / bq-line / code-line) which are stamped by the renderers directly.
+const LEGACY_MAPPED_TAGS = new Set(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'tr']);
+const LEGACY_MAPPED_KINDS = new Set<CommentableKind>([
+  'p',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'tr',
+]);
+
 function getCommentableElements(root: ParentNode): HTMLElement[] {
   return Array.from(root.querySelectorAll<HTMLElement>(COMMENTABLE_SELECTORS)).filter((el) => {
+    // Renderer-stamped spans (preview-line, li-line, bq-line, code-line)
+    // already carry the right offsets — don't re-map them.
+    if (el.getAttribute('data-commentable') === 'true') return false;
+
     const tag = el.tagName.toLowerCase();
+    if (!LEGACY_MAPPED_TAGS.has(tag)) return false;
 
-    // Per-line paragraph elements are always commentable
-    if (tag === 'p' && el.classList.contains('preview-line')) {
-      return true;
-    }
-
-    // Skip nested paragraph/heading/pre nodes that don't have deterministic source ranges yet.
-    if ((tag === 'p' || tag === 'pre' || COMMENTABLE_HEADING_KINDS.has(tag))
-      && (el.parentElement?.closest('blockquote') || el.parentElement?.closest('li'))) {
-      return false;
-    }
-
-    // Skip nested blockquotes for now to avoid incorrect offset assignment.
-    if (
-      tag === 'blockquote' &&
-      (el.parentElement?.closest('blockquote') || el.parentElement?.closest('li'))
-    ) {
+    // A bare <p> or heading nested inside a list/quote isn't represented in
+    // the legacy ranges array (the per-line spans cover its content), so leave
+    // it alone to avoid spurious mismatches.
+    if ((tag === 'p' || COMMENTABLE_HEADING_KINDS.has(tag)) &&
+        (el.parentElement?.closest('blockquote') || el.parentElement?.closest('li'))) {
       return false;
     }
 
@@ -802,19 +1029,22 @@ function setCommentableAttributes(
   sourceContent?: string
 ) {
   const elements = getCommentableElements(root);
+  // Drop renderer-stamped kinds — those elements were filtered out above and
+  // already carry data-source-* attributes set during rendering.
+  const legacyRanges = ranges.filter((r) => LEGACY_MAPPED_KINDS.has(r.kind));
 
   // Fast path: 1:1 count and kind match
-  if (elements.length === ranges.length) {
+  if (elements.length === legacyRanges.length) {
     let allMatch = true;
     for (let i = 0; i < elements.length; i++) {
-      if (elements[i].tagName.toLowerCase() !== ranges[i].kind) {
+      if (elements[i].tagName.toLowerCase() !== legacyRanges[i].kind) {
         allMatch = false;
         break;
       }
     }
     if (allMatch) {
       for (let i = 0; i < elements.length; i++) {
-        assignCommentable(elements[i], ranges[i]);
+        assignCommentable(elements[i], legacyRanges[i]);
       }
       return;
     }
@@ -822,7 +1052,7 @@ function setCommentableAttributes(
 
   // Resilient path: greedy kind-based matching with optional text validation
   console.warn(
-    `[preview] Commentable mapping mismatch (elements=${elements.length}, ranges=${ranges.length}). ` +
+    `[preview] Commentable mapping mismatch (elements=${elements.length}, ranges=${legacyRanges.length}). ` +
     'Using resilient matching.'
   );
 
@@ -833,12 +1063,12 @@ function setCommentableAttributes(
 
     // Scan forward for next range with matching kind
     let matchIdx = rangeIdx;
-    while (matchIdx < ranges.length && ranges[matchIdx].kind !== tag) {
+    while (matchIdx < legacyRanges.length && legacyRanges[matchIdx].kind !== tag) {
       matchIdx++;
     }
-    if (matchIdx >= ranges.length) continue;
+    if (matchIdx >= legacyRanges.length) continue;
 
-    const range = ranges[matchIdx];
+    const range = legacyRanges[matchIdx];
     // Text validation when sourceContent is available
     if (sourceContent && !textContentMatches(el, sourceContent, range)) {
       continue;
@@ -884,6 +1114,65 @@ function applyCommentHighlights(root: ParentNode, comments: ReviewComment[]) {
 }
 
 /**
+ * Walk the lexed token tree and stash `_sourceStart` (offset into the
+ * ORIGINAL source, including any frontmatter `baseOffset`) on each block-level
+ * token. Renderers read this to stamp `data-source-start/end` directly onto
+ * per-line wrapper elements without a post-render mapping pass.
+ */
+function annotateSourceStart(tokens: Token[], baseOffset: number): void {
+  let cursor = baseOffset;
+  for (const t of tokens) {
+    (t as unknown as { _sourceStart: number })._sourceStart = cursor;
+
+    if (isListToken(t)) {
+      let searchFrom = 0;
+      for (const item of t.items) {
+        const off = t.raw.indexOf(item.raw, searchFrom);
+        if (off < 0) continue;
+        const itemStart = cursor + off;
+        (item as unknown as { _sourceStart: number })._sourceStart = itemStart;
+        searchFrom = off + item.raw.length;
+
+        // Annotate every block-level child token of this list item so the
+        // renderers we dispatch to (code, blockquote, list) can read their
+        // own offsets when invoked via `parser.parse([child])`. Use the
+        // dedent-tolerant span finder since marked normalizes nested raws.
+        let childSearch = 0;
+        for (const child of item.tokens) {
+          if (!isBlockChildToken(child)) continue;
+          const span = findBlockChildSpan(item.raw, child, childSearch);
+          if (!span) continue;
+          // Stash the original-indent slice so the renderer/collector can
+          // compute correct per-line source offsets for dedented child raws.
+          (child as unknown as { _sourceText: string })._sourceText =
+            item.raw.slice(span.rawStart, span.rawEnd);
+          annotateSourceStart([child], itemStart + span.rawStart);
+          childSearch = span.rawEnd;
+        }
+      }
+    }
+
+    cursor += (t.raw ?? '').length;
+  }
+}
+
+function getTokenSourceStart(token: object): number | undefined {
+  const v = (token as { _sourceStart?: unknown })._sourceStart;
+  return typeof v === 'number' ? v : undefined;
+}
+
+/**
+ * For tokens nested inside a list item, marked dedents `child.raw` relative
+ * to the parent indent. The renderer needs the ORIGINAL (still-indented)
+ * source slice to compute correct per-line offsets, so we stash it on the
+ * token at annotation time. Top-level tokens always have `_sourceText === raw`.
+ */
+function getTokenSourceText(token: object, fallback: string): string {
+  const v = (token as { _sourceText?: unknown })._sourceText;
+  return typeof v === 'string' ? v : fallback;
+}
+
+/**
  * Render markdown with highlights
  */
 export function renderMarkdown(content: string, comments: ReviewComment[]): RenderPreviewResult {
@@ -898,7 +1187,7 @@ export function renderMarkdown(content: string, comments: ReviewComment[]): Rend
     frontmatter.consumedChars
   );
 
-  // Step 3: Parse markdown with custom heading renderer for IDs.
+  // Step 3: Lex → annotate source offsets → render with custom renderers.
   const slugCounts = new Map<string, number>();
   const renderer = new marked.Renderer();
   renderer.heading = function ({ tokens, depth }: Tokens.Heading) {
@@ -910,30 +1199,184 @@ export function renderMarkdown(content: string, comments: ReviewComment[]): Rend
     return `<h${depth} id="${slug}">${text}</h${depth}>\n`;
   };
 
-  renderer.paragraph = function ({ tokens }: Tokens.Paragraph) {
-    const text = this.parser.parseInline(tokens);
-    if (!text.includes('\n') && !/<br\s*\/?>/i.test(text)) {
-      return `<p>${text}</p>\n`;
+  renderer.blockquote = function (token: Tokens.Blockquote): string {
+    const blockStart = getTokenSourceStart(token);
+
+    if (blockStart === undefined) {
+      const body = this.parser.parse(token.tokens);
+      return `<blockquote>${body}</blockquote>\n`;
     }
 
-    const parts = splitAtTopLevelBreak(text);
-    if (parts.length <= 1) {
-      return `<p>${text}</p>\n`;
+    const sourceText = getTokenSourceText(token, token.raw ?? '');
+    const lines = splitRawLines(sourceText);
+    const out: string[] = [];
+    for (const line of lines) {
+      const t = line.text.trim();
+      if (!t || /^[ \t]*>+\s*$/.test(line.text)) continue;
+      const m = stripBlockquoteMarker(line.text);
+      const stripped = m.stripped.trimEnd();
+      if (!stripped) continue;
+      const html = marked.parseInline(stripped, { gfm: true, breaks: true });
+      const start = blockStart + line.start + m.consumed;
+      const end = start + stripped.length;
+      out.push(
+        `<span class="bq-line" data-commentable="true" data-source-start="${start}" data-source-end="${end}">${html}</span>`
+      );
     }
 
-    const lines = parts
-      .filter(p => p.trim())
-      .map(p => `<p class="preview-line">${p}</p>`)
-      .join('\n');
-    return `<div class="preview-paragraph">${lines}</div>\n`;
+    return `<blockquote>${out.join('')}</blockquote>\n`;
   };
 
-  const markdownHtml = marked.parse(contentWithSpans, {
-    async: false,
+  renderer.listitem = function (item: Tokens.ListItem): string {
+    const itemStart = getTokenSourceStart(item);
+    const raw = item.raw;
+
+    if (itemStart === undefined) {
+      // Fall back to a default-ish rendering if annotation is missing.
+      const body = this.parser.parse(item.tokens);
+      return `<li>${body}</li>\n`;
+    }
+
+    // Block-level child tokens of THIS list item are rendered via the default
+    // parser pipeline so their lines don't end up as literal text. Nested
+    // lists, fenced code blocks, blockquotes, tables, raw HTML, and hrs all
+    // qualify. The dedent-tolerant span finder handles marked's normalized
+    // child raws (where parent indentation is stripped).
+    type ChildBlock = { token: Token; start: number; end: number };
+    const childBlocks: ChildBlock[] = [];
+    let childSearchFrom = 0;
+    for (const child of item.tokens) {
+      if (!isBlockChildToken(child)) continue;
+      const span = findBlockChildSpan(raw, child, childSearchFrom);
+      if (!span) continue;
+      childBlocks.push({ token: child, start: span.lineStart, end: span.rawEnd });
+      childSearchFrom = span.rawEnd;
+    }
+
+    const out: string[] = [];
+    const rendered = new Set<ChildBlock>();
+    let markerStripped = false;
+    let firstContentLine = true;
+
+    const lines = splitRawLines(raw);
+    for (const line of lines) {
+      const matching = childBlocks.find((s) => line.start >= s.start && line.end <= s.end);
+      if (matching) {
+        if (!rendered.has(matching)) {
+          out.push(this.parser.parse([matching.token]));
+          rendered.add(matching);
+        }
+        continue;
+      }
+
+      let inner = line.text;
+      let innerOffset = 0;
+
+      if (!markerStripped) {
+        const m = stripLeadingListMarker(inner);
+        if (m.consumed > 0) {
+          inner = m.stripped;
+          innerOffset += m.consumed;
+          markerStripped = true;
+        }
+      } else {
+        const leading = inner.match(/^[ \t]+/);
+        if (leading) {
+          inner = inner.slice(leading[0].length);
+          innerOffset += leading[0].length;
+        }
+      }
+
+      if (inner.trim().length === 0) continue;
+
+      let prefix = '';
+      if (item.task && firstContentLine) {
+        const taskMatch = inner.match(/^\[([ xX])\]\s+/);
+        if (taskMatch) {
+          const checked = taskMatch[1] === 'x' || taskMatch[1] === 'X';
+          prefix = `<input disabled type="checkbox"${checked ? ' checked' : ''}> `;
+          inner = inner.slice(taskMatch[0].length);
+          innerOffset += taskMatch[0].length;
+        }
+      }
+
+      const content = inner.trimEnd();
+      if (!content) continue;
+      const html = marked.parseInline(content, { gfm: true, breaks: true });
+      const start = itemStart + line.start + innerOffset;
+      const end = start + content.length;
+      out.push(
+        `<span class="li-line" data-commentable="true" data-source-start="${start}" data-source-end="${end}">${prefix}${html}</span>`
+      );
+      firstContentLine = false;
+    }
+
+    return `<li>${out.join('')}</li>\n`;
+  };
+
+  renderer.code = function (token: Tokens.Code): string {
+    const blockStart = getTokenSourceStart(token);
+    const langClass = token.lang ? ` class="language-${escapeHtml(token.lang)}"` : '';
+    const langBadge = token.lang
+      ? `<span class="code-lang" aria-hidden="true">${escapeHtml(token.lang)}</span>`
+      : '';
+    const inner = (token.escaped ? token.text : escapeHtml(token.text)) + '\n';
+
+    if (blockStart === undefined) {
+      return `<pre>${langBadge}<code${langClass}>${inner}</code></pre>\n`;
+    }
+
+    // For nested code blocks, marked dedents `token.raw`; use the original
+    // source slice (with indent intact) so per-line offsets match real source
+    // positions. The visible <span class="code-line"> still shows dedented
+    // content (because hljs decorates `code.text`), but the source range
+    // covers the indented line so comments anchor correctly in the file.
+    const sourceText = getTokenSourceText(token, token.raw);
+    const lineRanges = collectLineRanges(blockStart, sourceText, 'code-line', {
+      skipFenceLines: true,
+      keepEmptyLines: true,
+    });
+    const json = encodeURIComponent(JSON.stringify(lineRanges));
+    return `<pre data-code-line-ranges="${json}">${langBadge}<code${langClass}>${inner}</code></pre>\n`;
+  };
+
+  renderer.paragraph = function (token: Tokens.Paragraph) {
+    const raw = token.raw ?? '';
+    const tokenStart = getTokenSourceStart(token);
+    const lines = splitRawLines(raw).filter((line) => line.text.trim().length > 0);
+
+    if (lines.length <= 1 || tokenStart === undefined) {
+      const text = this.parser.parseInline(token.tokens);
+      return `<p>${text}</p>\n`;
+    }
+
+    // Pre-split source lines and parseInline each independently. Cross-line
+    // bold/italic renders as literal `**` / `*` per line — accepted trade-off
+    // for per-line commenting + j/k navigation on every visible line.
+    const inner = lines
+      .map((line) => {
+        const lineText = line.text.trimEnd();
+        const html = marked.parseInline(lineText, { gfm: true, breaks: true });
+        const start = tokenStart + line.start;
+        const end = start + lineText.length;
+        return `<p class="preview-line" data-commentable="true" data-source-start="${start}" data-source-end="${end}">${html}</p>`;
+      })
+      .join('\n');
+    return `<div class="preview-paragraph">${inner}</div>\n`;
+  };
+
+  const tokens = marked.lexer(contentWithSpans, { gfm: true, breaks: true });
+  // Manual walker pass — `marked.parser(tokens, opts)` does NOT invoke any
+  // registered `walkTokens`, so we mutate mermaid tokens here. Running this
+  // BEFORE `annotateSourceStart` keeps offsets aligned: type changes don't
+  // affect `raw.length`.
+  walkAllTokens(tokens, mutateMermaidToken);
+  annotateSourceStart(tokens, frontmatter.consumedChars);
+  const markdownHtml = marked.parser(tokens, {
     gfm: true,
     breaks: true,
     renderer,
-  }) as string;
+  }) as unknown as string;
 
   const html = renderFrontmatterHtml(frontmatter.entries) + markdownHtml;
 
@@ -1011,6 +1454,66 @@ function highlightCodeBlocks() {
   });
 }
 
+/**
+ * After hljs has decorated each `<pre><code>` with syntax-highlight spans,
+ * split the highlighted HTML on top-level `\n` boundaries and wrap each line
+ * in a `<span class="code-line" data-commentable="true" data-source-*>` so
+ * each visible code line is individually navigable and commentable.
+ *
+ * Reads the per-line source ranges from `pre[data-code-line-ranges]` (set by
+ * renderer.code). If hljs spans straddle a newline (e.g. multi-line strings),
+ * `splitAtTopLevelBreak` returns the original HTML unsplit; we log a warning
+ * and skip wrapping for that block.
+ */
+export function wrapCodeLines(container: ParentNode): void {
+  const pres = container.querySelectorAll<HTMLPreElement>('pre[data-code-line-ranges]');
+  pres.forEach((pre) => {
+    if (pre.classList.contains('mermaid')) return;
+    const code = pre.querySelector('code');
+    if (!code) return;
+
+    let lineRanges: CommentableRange[];
+    try {
+      const json = decodeURIComponent(pre.getAttribute('data-code-line-ranges') ?? '');
+      lineRanges = JSON.parse(json) as CommentableRange[];
+    } catch {
+      pre.removeAttribute('data-code-line-ranges');
+      return;
+    }
+
+    const inner = code.innerHTML;
+    const parts = splitAtTopLevelBreak(inner);
+
+    // marked appends a trailing `\n` inside `<code>`, so an N-line code block
+    // produces N+1 parts with the last one empty. Trim it so part counts match.
+    while (parts.length > 0 && parts[parts.length - 1].trim() === '' && parts.length > lineRanges.length) {
+      parts.pop();
+    }
+
+    if (parts.length !== lineRanges.length) {
+      console.warn(
+        `[preview] code-block line count mismatch (parts=${parts.length}, ranges=${lineRanges.length}). ` +
+          'Skipping per-line wrap for this block.'
+      );
+      pre.removeAttribute('data-code-line-ranges');
+      return;
+    }
+
+    // Join spans with NO separator — each .code-line is `display: block`, so
+    // adding a `\n` between them inside `<pre>` (which preserves whitespace)
+    // would compound into a double line break and stretch the code block out.
+    const wrapped = parts
+      .map((part, i) => {
+        const r = lineRanges[i];
+        return `<span class="code-line" data-commentable="true" data-source-start="${r.start}" data-source-end="${r.end}">${part}</span>`;
+      })
+      .join('');
+
+    code.innerHTML = wrapped;
+    pre.removeAttribute('data-code-line-ranges');
+  });
+}
+
 function addCopyButtons() {
   if (!previewContainer) return;
   const pres = previewContainer.querySelectorAll<HTMLPreElement>('pre');
@@ -1058,6 +1561,14 @@ export function updatePreview(content: string, comments: ReviewComment[]) {
   const { html, ranges } = renderMarkdown(content, comments);
   previewContainer.innerHTML = html;
   setCommentableAttributes(previewContainer, ranges, content);
+
+  // hljs decorates `<pre><code>` first; `wrapCodeLines` then wraps each
+  // highlighted line in a commentable span. Highlights are applied AFTER the
+  // wrap so existing comments overlap the new per-line spans.
+  // walkTokens already converted ```mermaid fences to html tokens, so there
+  // are no `language-mermaid` blocks for hljs to mangle.
+  highlightCodeBlocks();
+  wrapCodeLines(previewContainer);
   applyCommentHighlights(previewContainer, comments);
 
   setupElementClickHandlers();
@@ -1070,9 +1581,6 @@ export function updatePreview(content: string, comments: ReviewComment[]) {
   activeMermaidController = new AbortController();
   void renderMermaidBlocks(previewContainer, activeMermaidController.signal);
 
-  // hljs runs after — walkTokens already converted ```mermaid fences to html
-  // tokens, so there are no `language-mermaid` blocks for hljs to mangle.
-  highlightCodeBlocks();
   addCopyButtons();
 }
 
