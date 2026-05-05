@@ -1387,3 +1387,45 @@ body.light-theme #preview-container .hljs-operator { color: #1e1e1e; }
   font-weight: 600;
   margin-right: 8px;
 }
+
+/* Mermaid diagram blocks (rendered inline by mermaid.run from a `<pre class="mermaid">` placeholder).
+   Theme-aware backgrounds; SVG is centered horizontally. */
+#preview-container .mermaid {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: var(--bg-secondary, #1e1e1e);
+  border: 1px solid var(--border-color, #3c3c3c);
+  border-radius: 6px;
+  padding: 16px;
+  margin: 16px 0;
+  overflow-x: auto;
+  font-family: inherit;
+}
+
+#preview-container .mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+body.light-theme #preview-container .mermaid {
+  background: #fafafa;
+  border-color: #e0e0e0;
+}
+
+/* Mermaid load/parse error UI — rendered when the library fails to load. */
+#preview-container .mermaid-error {
+  border: 1px solid #c0392b;
+  background: rgba(192, 57, 43, 0.08);
+  color: #c0392b;
+  font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  padding: 12px 16px;
+  margin: 16px 0;
+  border-radius: 6px;
+  white-space: pre-wrap;
+}
+
+body.light-theme #preview-container .mermaid-error {
+  background: rgba(192, 57, 43, 0.05);
+}

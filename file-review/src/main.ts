@@ -48,7 +48,9 @@ import {
   initInteractiveCommenting,
   flashElement,
   getPreviewContainer,
+  refreshMermaidForTheme,
 } from "./markdown-preview";
+import { initMermaid } from "./mermaid";
 import { extractTocEntries, initToc, renderToc } from "./toc";
 import { PreviewNavigator } from "./preview-nav";
 import { TabManager, type Tab } from "./tabs";
@@ -227,6 +229,7 @@ async function init() {
 
   // Initialize markdown preview
   initPreview(document.getElementById("preview-container")!, readActive);
+  initMermaid(() => currentTheme);
 
   // Initialize ToC (passes active-tab accessor for step-2/3 forward-compat)
   initToc(readActive);
@@ -546,6 +549,7 @@ async function toggleTheme() {
   document.body.classList.toggle("light-theme", currentTheme === "light");
   updateTheme(currentTheme);
   updateThemeButton();
+  refreshMermaidForTheme();
 }
 
 function updateThemeButton() {

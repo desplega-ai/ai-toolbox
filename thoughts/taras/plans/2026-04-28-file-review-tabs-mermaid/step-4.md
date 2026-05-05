@@ -2,7 +2,9 @@
 id: step-4
 name: Mermaid rendering in preview
 depends_on: []
-status: ready
+status: done
+assignee:
+claimed_at:
 ---
 
 <!-- During /v-implement, `desplega:step-running` adds `assignee` and `claimed_at` while
@@ -107,10 +109,10 @@ Render ` ```mermaid ` fenced code blocks as inline SVG diagrams in the markdown 
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] Typecheck passes: `cd file-review && bun run check`
-- [ ] Build passes: `cd file-review && bun run build`
-- [ ] Bundle inspection: `ls -la file-review/dist/assets/ | grep mermaid` shows mermaid is split into its own chunk (dynamic-imported, not inlined into main bundle)
-- [ ] Tauri config validates: `cd file-review/src-tauri && cargo build` (catches CSP issues)
+- [x] Typecheck passes: `cd file-review && bun run check`
+- [x] Build passes: `cd file-review && bun run build`
+- [x] Bundle inspection: `ls -la file-review/dist/assets/ | grep mermaid` shows mermaid is split into its own chunk (dynamic-imported, not inlined into main bundle)
+- [x] Tauri config validates: `cd file-review/src-tauri && cargo build` (catches CSP issues)
 
 #### Automated QA:
 - [ ] Sub-agent launches `bun run dev:web file-review/test-files/with-mermaid.md`, screenshots the preview, confirms: SVG diagrams visible (not raw mermaid source), TypeScript fence still hljs-styled, broken mermaid block shows the `mermaid-error` div with a parseable error message

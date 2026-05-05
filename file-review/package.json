@@ -28,7 +28,8 @@
     "@tauri-apps/plugin-fs": "^2.4.5",
     "codemirror": "^6.0.1",
     "highlight.js": "^11.11.1",
-    "marked": "^17.0.1"
+    "marked": "^17.0.1",
+    "mermaid": "^11"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
