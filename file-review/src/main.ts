@@ -4,6 +4,8 @@ import {
   getEditorContent,
   setEditorContent,
   getEditorView,
+  getEditorState,
+  setEditorState,
   getSelection,
   scrollToPosition,
   updateTheme,
@@ -48,28 +50,39 @@ import {
   initInteractiveCommenting,
   flashElement,
   getPreviewContainer,
+  refreshMermaidForTheme,
 } from "./markdown-preview";
-import { extractTocEntries, renderToc } from "./toc";
+import { initMermaid } from "./mermaid";
+import { extractTocEntries, initToc, renderToc } from "./toc";
 import { PreviewNavigator } from "./preview-nav";
+import { TabManager, type Tab } from "./tabs";
+import { initTabStrip } from "./tabs-view";
 
-let currentFilePath: string | null = null;
-let comments: ReviewComment[] = [];
+const tabManager = new TabManager();
+
+// Global UI state — NOT per-tab. Vim mode and theme are app-wide settings.
 let currentTheme: Theme = "dark";
 let vimEnabled = false;
 let appConfig: AppConfig;
-let isMarkdownFile = false;
-let isRawMode = false; // false = pretty/rendered, true = raw CodeMirror
 let suppressCommentSync = false;
-let hasUnsavedChanges = false;
-let lastSavedSnapshot = "";
 let previewNav: PreviewNavigator | null = null;
 
-// For preview mode commenting
-let pendingPreviewComment: {
-  sourceStart: number;
-  sourceEnd: number;
-  element: HTMLElement;
-} | null = null;
+/**
+ * Read fields from the active tab. Returns null if no tab is open — callers
+ * that touch tab state must guard.
+ */
+function readActive(): Tab | null {
+  return tabManager.getActive();
+}
+
+/**
+ * Patch fields on the active tab. No-op if no tab is open.
+ */
+function writeActive(patch: Partial<Tab>): void {
+  const active = tabManager.getActive();
+  if (!active) return;
+  tabManager.update(active.id, patch);
+}
 
 // Toast notifications
 export function showToast(message: string, type: "success" | "info" = "info") {
@@ -106,31 +119,38 @@ function withSuppressedCommentSync<T>(fn: () => T): T {
 }
 
 function getSerializedContentForPersistence(content = getEditorContent()): string {
-  return serializeComments(content, comments);
+  const active = readActive();
+  return serializeComments(content, active?.comments ?? []);
 }
 
 function markSnapshotAsSaved(snapshot: string) {
-  lastSavedSnapshot = snapshot;
-  hasUnsavedChanges = false;
+  writeActive({ lastSavedSnapshot: snapshot, hasUnsavedChanges: false });
 }
 
 function syncUnsavedChangesState() {
-  if (!currentFilePath) {
-    hasUnsavedChanges = false;
+  const active = readActive();
+  if (!active || !active.path) {
+    if (active) writeActive({ hasUnsavedChanges: false });
     return;
   }
-  hasUnsavedChanges = getSerializedContentForPersistence() !== lastSavedSnapshot;
+  const dirty =
+    serializeComments(getEditorContent(), active.comments) !== active.lastSavedSnapshot;
+  if (dirty !== active.hasUnsavedChanges) {
+    writeActive({ hasUnsavedChanges: dirty });
+  }
 }
 
 function confirmDiscardUnsavedChanges(action: string): boolean {
-  if (!hasUnsavedChanges) {
+  const active = readActive();
+  if (!active?.hasUnsavedChanges) {
     return true;
   }
   return window.confirm(`You have unsaved changes. ${action}`);
 }
 
 function handleTocClick(entry: import('./toc').TocEntry) {
-  if (isRawMode) {
+  const active = readActive();
+  if (active?.isRawMode) {
     const view = getEditorView();
     view.dispatch({ selection: { anchor: entry.sourcePos } });
     scrollToPosition(entry.sourcePos);
@@ -146,14 +166,17 @@ function handleTocClick(entry: import('./toc').TocEntry) {
 }
 
 function renderCommentState() {
+  const active = readActive();
+  const comments = active?.comments ?? [];
+
   renderComments(comments);
 
   const content = getEditorContent();
-  if (isMarkdownFile && !isRawMode) {
+  if (active?.isMarkdownFile && !active.isRawMode) {
     updatePreview(content, comments);
     previewNav?.reset();
   }
-  if (isMarkdownFile) {
+  if (active?.isMarkdownFile) {
     const entries = extractTocEntries(content);
     renderToc(entries, handleTocClick);
   }
@@ -197,16 +220,34 @@ async function init() {
   updateVimButton();
 
   // Initialize sidebar handlers
-  initSidebar(handleDeleteComment, handleCommentClick, handleCommentSubmit, handleEditComment);
+  initSidebar(
+    handleDeleteComment,
+    handleCommentClick,
+    handleCommentSubmit,
+    handleEditComment,
+    readActive
+  );
   setupCommentInput();
 
   // Initialize markdown preview
-  initPreview(document.getElementById("preview-container")!);
+  initPreview(document.getElementById("preview-container")!, readActive);
+  initMermaid(() => currentTheme);
+
+  // Initialize ToC (passes active-tab accessor for step-2/3 forward-compat)
+  initToc(readActive);
+
+  // Initialize tab strip
+  initTabStrip(tabManager, {
+    onActivate: (id) => tabManager.setActive(id),
+    onClose: (id) => closeTab(id),
+  });
 
   // Initialize preview navigator (vim nav + search)
   previewNav = new PreviewNavigator(
     () => getPreviewContainer(),
-    () => vimEnabled
+    () => vimEnabled,
+    undefined,
+    readActive
   );
 
   // Set up interactive preview commenting
@@ -222,6 +263,15 @@ async function init() {
     toggleVim,
     toggleMarkdownView,
     openFile: showFilePickerAndLoad,
+    newTab: showFilePickerAndLoad,
+    closeTab: () => {
+      const active = tabManager.activeId;
+      if (active) closeTab(active);
+    },
+    jumpToTab: (n: number) => {
+      const target = tabManager.tabs[n - 1];
+      if (target) tabManager.setActive(target.id);
+    },
     zoomIn,
     zoomOut,
     undo: editorUndo,
@@ -233,22 +283,74 @@ async function init() {
   const versionBadge = document.getElementById("version-badge");
   if (versionBadge) versionBadge.textContent = `v${version}`;
 
-  // Get file path from Rust state (set from CLI args)
-  const filePath = await API.getCurrentFile();
+  // Wire active-tab swap: snapshot outgoing tab's editor doc, then load
+  // the incoming tab's content. `subscribeActiveChange` fires synchronously
+  // BEFORE the regular subscribe() listeners (tab-strip render).
+  tabManager.subscribeActiveChange((from, to) => {
+    if (from) snapshotActiveDocFor(from);
+    if (to) activateTab(to);
+    else clearActiveDisplay();
+  });
 
-  if (filePath) {
-    await loadFile(filePath);
-    hideEmptyState();
+  // Keep Rust's `open_tabs` in sync with JS state. Debounced so we don't
+  // spam Tauri IPC on every comment-remap-through-keystroke.
+  tabManager.subscribe(schedulePushTabStates);
+
+  // Get file paths from Rust state (set from CLI args). Open one tab per
+  // path; the first becomes active. `getInitialFiles` returns [] if no
+  // args were passed.
+  const initialFiles = await API.getInitialFiles();
+  if (initialFiles.length > 0) {
+    let opened = 0;
+    for (const path of initialFiles) {
+      try {
+        await loadFile(path, "append");
+        opened++;
+      } catch (error) {
+        console.error("Failed to load CLI arg:", path, error);
+      }
+    }
+    if (opened > 0) {
+      hideEmptyState();
+    } else {
+      showEmptyState();
+    }
   } else {
     showEmptyState();
   }
 
-  // Listen for save command from menu (Tauri only)
+  // Listen for menu commands from Tauri menu (Tauri only).
   if (isTauri()) {
     const { listen } = await import("@tauri-apps/api/event");
     await listen("menu:save", async () => {
       await saveFile();
     });
+    await listen("menu:close-tab", () => {
+      const active = tabManager.activeId;
+      if (active) closeTab(active);
+    });
+    await listen("menu:new-tab", () => {
+      void showFilePickerAndLoad();
+    });
+
+    // Drag-drop: append every dropped file as a tab.
+    try {
+      const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+      await getCurrentWebview().onDragDropEvent(async (event) => {
+        if (event.payload.type === "drop") {
+          for (const path of event.payload.paths) {
+            try {
+              await loadFile(path, "append");
+            } catch (error) {
+              console.error("Failed to load dropped file:", path, error);
+            }
+          }
+          if (tabManager.tabs.length > 0) hideEmptyState();
+        }
+      });
+    } catch (err) {
+      console.warn("Drag-drop not available:", err);
+    }
 
     // Guard the window close so unsaved review progress isn't dropped silently.
     // Default: prompt the user. With `save_on_quit: true` in config: save silently.
@@ -287,19 +389,27 @@ async function init() {
       return;
     }
 
-    if (comments.length === 0) {
+    const active = readActive();
+    if (!active || active.comments.length === 0) {
       syncUnsavedChangesState();
       return;
     }
 
-    comments = mapCommentsThroughChanges(comments, (pos, assoc) =>
+    const remapped = mapCommentsThroughChanges(active.comments, (pos, assoc) =>
       changes.mapPos(pos, assoc)
     );
+    writeActive({ comments: remapped });
     renderCommentState();
   });
 
   window.addEventListener("beforeunload", (event) => {
-    if (!hasUnsavedChanges) {
+    // Fire-and-forget — push every tab's in-memory state to Rust so the
+    // close-window handler dumps comments from ALL files, not just the
+    // active one. Tauri's CloseRequested fires after `beforeunload`
+    // returns, giving this just enough time to land.
+    void pushTabStatesToRust();
+
+    if (!readActive()?.hasUnsavedChanges) {
       return;
     }
     event.preventDefault();
@@ -308,7 +418,8 @@ async function init() {
 
   // Listen for preview comment clicks (when clicking on highlighted text)
   window.addEventListener("preview-comment-click", ((e: CustomEvent<{ commentId: string }>) => {
-    const comment = comments.find(c => c.id === e.detail.commentId);
+    const active = readActive();
+    const comment = active?.comments.find(c => c.id === e.detail.commentId);
     if (comment) {
       // Highlight the comment card in sidebar
       const card = document.querySelector(`[data-comment-id="${comment.id}"]`);
@@ -322,7 +433,8 @@ async function init() {
 
   // Listen for preview element clicks (when clicking on commentable element with a comment)
   window.addEventListener("preview-element-click", ((e: CustomEvent<{ commentId: string; element: HTMLElement }>) => {
-    const comment = comments.find(c => c.id === e.detail.commentId);
+    const active = readActive();
+    const comment = active?.comments.find(c => c.id === e.detail.commentId);
     if (comment) {
       // Scroll and highlight the comment card in sidebar
       const card = document.querySelector(`[data-comment-id="${comment.id}"]`);
@@ -531,13 +643,37 @@ function showQuitConfirmDialog(): Promise<QuitChoice> {
   });
 }
 
+/**
+ * Save every tab that has unsaved changes. For the active tab, the editor
+ * doc is the source of truth; for inactive tabs, `tab.doc` (snapshotted on
+ * the last switch) is used. Used by the close-guard "Save and quit" path.
+ */
+async function saveAllDirtyTabs(): Promise<void> {
+  const active = tabManager.getActive();
+  // Snapshot active tab's current editor content into its tab.doc so the
+  // serializer below sees the latest in-memory edits.
+  if (active) {
+    tabManager.update(active.id, { doc: getEditorContent() });
+  }
+  for (const tab of tabManager.tabs) {
+    if (!tab.hasUnsavedChanges || !tab.path) continue;
+    const serialized = serializeComments(tab.doc, tab.comments);
+    await API.writeFile(tab.path, serialized);
+    tabManager.update(tab.id, {
+      hasUnsavedChanges: false,
+      lastSavedSnapshot: serialized,
+    });
+  }
+}
+
 async function registerTauriCloseGuard() {
   const { getCurrentWindow } = await import("@tauri-apps/api/window");
   const tauriWindow = getCurrentWindow();
   let allowClose = false;
 
   await tauriWindow.onCloseRequested(async (event) => {
-    if (allowClose || !hasUnsavedChanges) {
+    const anyDirty = tabManager.tabs.some((t) => t.hasUnsavedChanges);
+    if (allowClose || !anyDirty) {
       return;
     }
 
@@ -545,7 +681,7 @@ async function registerTauriCloseGuard() {
 
     if (appConfig.save_on_quit) {
       try {
-        await saveFile();
+        await saveAllDirtyTabs();
       } catch (error) {
         console.error("Failed to save on quit:", error);
         return;
@@ -561,7 +697,7 @@ async function registerTauriCloseGuard() {
     }
     if (choice === "save") {
       try {
-        await saveFile();
+        await saveAllDirtyTabs();
       } catch (error) {
         console.error("Failed to save before quit:", error);
         return;
@@ -587,15 +723,19 @@ function hideEmptyState() {
 }
 
 async function showFilePickerAndLoad() {
-  if (!confirmDiscardUnsavedChanges("Open another file and discard them?")) {
-    return;
-  }
+  const paths = await showFilePicker();
+  if (paths.length === 0) return;
 
-  const filePath = await showFilePicker();
-  if (filePath) {
-    await loadFile(filePath);
-    hideEmptyState();
+  let opened = 0;
+  for (const path of paths) {
+    try {
+      await loadFile(path, "append");
+      opened++;
+    } catch (error) {
+      console.error("Failed to load picked file:", path, error);
+    }
   }
+  if (opened > 0) hideEmptyState();
 }
 
 async function toggleTheme() {
@@ -605,6 +745,7 @@ async function toggleTheme() {
   document.body.classList.toggle("light-theme", currentTheme === "light");
   updateTheme(currentTheme);
   updateThemeButton();
+  refreshMermaidForTheme();
 }
 
 function updateThemeButton() {
@@ -643,22 +784,28 @@ async function zoomOut() {
 }
 
 async function toggleMarkdownView() {
-  if (!isMarkdownFile) return;
+  const active = readActive();
+  if (!active?.isMarkdownFile) return;
 
-  isRawMode = !isRawMode;
-  appConfig.markdown_raw = isRawMode;
+  const newRawMode = !active.isRawMode;
+  writeActive({ isRawMode: newRawMode });
+  appConfig.markdown_raw = newRawMode;
   await saveConfig(appConfig);
 
   updateViewMode();
 }
 
 function updateViewMode() {
+  const active = readActive();
   const editorContainer = document.getElementById("editor-container")!;
   const previewWrapper = document.getElementById("preview-wrapper")!;
   const toggleBtn = document.getElementById("markdown-toggle");
   const tocPanel = document.getElementById("sidebar-toc-panel");
 
-  if (isRawMode) {
+  const isMarkdown = active?.isMarkdownFile ?? false;
+  const isRaw = active?.isRawMode ?? false;
+
+  if (isRaw) {
     editorContainer.style.display = "block";
     previewWrapper.style.display = "none";
     toggleBtn?.classList.remove("active");
@@ -666,21 +813,22 @@ function updateViewMode() {
     editorContainer.style.display = "none";
     previewWrapper.style.display = "flex";
     toggleBtn?.classList.add("active");
-    updatePreview(getEditorContent(), comments);
+    updatePreview(getEditorContent(), active?.comments ?? []);
     previewNav?.reset();
   }
 
   // ToC is always visible for markdown files regardless of mode
-  if (tocPanel) tocPanel.style.display = isMarkdownFile ? "flex" : "none";
-  if (isMarkdownFile) {
+  if (tocPanel) tocPanel.style.display = isMarkdown ? "flex" : "none";
+  if (isMarkdown) {
     const entries = extractTocEntries(getEditorContent());
     renderToc(entries, handleTocClick);
   }
 }
 
 function handleAddCommentShortcut() {
+  const active = readActive();
   // In preview mode, use the active block from preview navigation
-  if (!isRawMode && isMarkdownFile) {
+  if (active && !active.isRawMode && active.isMarkdownFile) {
     const previewContainer = getPreviewContainer();
     const activeEl = previewContainer?.querySelector<HTMLElement>('.preview-active');
     if (activeEl) {
@@ -720,8 +868,8 @@ function handlePreviewAddComment(
   sourceEnd: number,
   element: HTMLElement
 ) {
-  // Store pending preview comment info
-  pendingPreviewComment = { sourceStart, sourceEnd, element };
+  // Store pending preview comment info on the active tab
+  writeActive({ pendingPreviewComment: { sourceStart, sourceEnd, element } });
 
   // Show comment input in sidebar with element type label
   const tagName = element.tagName.toLowerCase();
@@ -737,12 +885,20 @@ function handlePreviewAddComment(
 }
 
 async function handleCommentSubmit(text: string, _lineNumber: number) {
-  // Handle preview mode comment
-  if (pendingPreviewComment) {
-    const { sourceStart, sourceEnd, element } = pendingPreviewComment;
-    pendingPreviewComment = null;
+  const active = readActive();
+  if (!active) {
+    hideCommentInput();
+    return;
+  }
 
-    comments = addComment(comments, createComment("line", sourceStart, sourceEnd, text));
+  // Handle preview mode comment
+  if (active.pendingPreviewComment) {
+    const { sourceStart, sourceEnd, element } = active.pendingPreviewComment;
+    const next = addComment(
+      active.comments,
+      createComment("line", sourceStart, sourceEnd, text)
+    );
+    writeActive({ comments: next, pendingPreviewComment: null });
     renderCommentState();
 
     // Flash the element for visual feedback
@@ -768,75 +924,211 @@ async function handleCommentSubmit(text: string, _lineNumber: number) {
   const isFullLineSelection =
     selection.from === startLine.from && selection.to === startLine.to;
 
+  let next: ReviewComment[];
   if (isMultiLine || isFullLineSelection) {
     // For multi-line or full-line selections, use line-based comments.
     const lineStart = startLine.from;
     const lineEnd = endLine.to;
-    comments = addComment(comments, createComment("line", lineStart, lineEnd, text));
+    next = addComment(active.comments, createComment("line", lineStart, lineEnd, text));
   } else {
-    comments = addComment(
-      comments,
+    next = addComment(
+      active.comments,
       createComment("inline", selection.from, selection.to, text)
     );
   }
 
+  writeActive({ comments: next });
   renderCommentState();
   showToast("Comment added", "success");
   focusEditor();
 }
 
-async function loadFile(path: string) {
-  try {
-    const fileContent = await API.readFile(path);
-    const parsed = parseAndStripComments(fileContent);
-    currentFilePath = path;
-    await API.setCurrentFile(path);
-    comments = parsed.comments;
-    markSnapshotAsSaved(serializeComments(parsed.cleanContent, parsed.comments));
+type LoadFileMode = "replace" | "append";
 
-    withSuppressedCommentSync(() => {
-      setEditorContent(parsed.cleanContent);
-    });
-
-    // Check if stdin mode for UI adjustments
-    const isStdin = await API.isStdinMode();
-    updateFileNameDisplay(path, isStdin);
-
-    // Check if this is a markdown file
-    isMarkdownFile = path.endsWith(".md") || path.endsWith(".markdown");
-    const toggleBtn = document.getElementById("markdown-toggle");
-    if (toggleBtn) {
-      toggleBtn.style.display = isMarkdownFile ? "flex" : "none";
-    }
-
-    // Show comment button
-    const commentBtn = document.getElementById("add-comment-btn");
-    if (commentBtn) commentBtn.style.display = "flex";
-
-    // Render existing comments/highlights from in-memory state
-    renderCommentState();
-
-    // Set up view mode for markdown files
-    if (isMarkdownFile) {
-      isRawMode = appConfig.markdown_raw ?? false;
-      updateViewMode();
-    } else {
-      // For non-markdown files, ensure editor is visible and hide ToC
-      const editorContainer = document.getElementById("editor-container")!;
-      const previewWrapper = document.getElementById("preview-wrapper")!;
-      const tocPanel = document.getElementById("sidebar-toc-panel");
-      editorContainer.style.display = "block";
-      previewWrapper.style.display = "none";
-      if (tocPanel) tocPanel.style.display = "none";
-    }
-
-    // Focus editor (only if in raw mode or not a markdown file)
-    if (isRawMode || !isMarkdownFile) {
-      focusEditor();
-    }
-  } catch (error) {
-    console.error("Failed to load file:", error);
+/**
+ * Open `path` as a tab.
+ *
+ * - `append` (default): if a tab already has this path, switch to it; else
+ *   create a new tab and make it active. Used by CLI args, drag-drop,
+ *   `Cmd+T`, the toolbar Open button, and the empty-state Open button.
+ * - `replace`: load into the active tab (creating one if none exists).
+ *   Reserved for future "reopen in current tab" affordances.
+ *
+ * Throws on file-read failure so callers can decide whether to surface
+ * (e.g. CLI args at startup → bail to empty state on full failure).
+ */
+async function loadFile(path: string, mode: LoadFileMode = "append"): Promise<void> {
+  // De-dupe: if the file is already open, just activate its tab.
+  const existing = tabManager.findByPath(path);
+  if (existing && mode === "append") {
+    tabManager.setActive(existing.id);
+    return;
   }
+
+  const fileContent = await API.readFile(path);
+  const parsed = parseAndStripComments(fileContent);
+  await API.setCurrentFile(path);
+
+  const isMarkdownFile = path.endsWith(".md") || path.endsWith(".markdown");
+  const initialRawMode = isMarkdownFile ? (appConfig.markdown_raw ?? false) : false;
+  const snapshot = serializeComments(parsed.cleanContent, parsed.comments);
+  const tabFields = {
+    path,
+    doc: parsed.cleanContent,
+    comments: parsed.comments,
+    isMarkdownFile,
+    isRawMode: initialRawMode,
+    hasUnsavedChanges: false,
+    lastSavedSnapshot: snapshot,
+    pendingPreviewComment: null,
+  };
+
+  if (mode === "replace") {
+    const active = tabManager.getActive();
+    if (active) {
+      tabManager.update(active.id, tabFields);
+    } else {
+      tabManager.add(tabFields);
+    }
+  } else {
+    // append: always create a new tab (we already de-duped above).
+    tabManager.add(tabFields);
+  }
+
+  // The activeChange subscriber handles editor + preview hydration. For
+  // the very first tab where `from` was null and we're already on `to`,
+  // we still need to render — call activateTab explicitly to be safe.
+  const active = tabManager.getActive();
+  if (active && active.path === path) {
+    activateTabUI(active);
+  }
+}
+
+/**
+ * Hydrate the singleton editor/preview/sidebar/toolbar from a tab's
+ * in-memory state. Called by the active-change subscriber.
+ */
+function activateTabUI(tab: Tab) {
+  withSuppressedCommentSync(() => {
+    setEditorContent(tab.doc);
+  });
+
+  // Restore cursor + scroll from the tab's snapshot (no-ops on first
+  // activation when both are unset).
+  setEditorState({ cursor: tab.cursor, scrollTop: tab.scrollTop });
+
+  // Show toolbar/file-name UI
+  void (async () => {
+    const isStdin = tab.path ? await API.isStdinMode() : false;
+    if (tab.path) updateFileNameDisplay(tab.path, isStdin);
+  })();
+
+  const toggleBtn = document.getElementById("markdown-toggle");
+  if (toggleBtn) {
+    toggleBtn.style.display = tab.isMarkdownFile ? "flex" : "none";
+  }
+  const commentBtn = document.getElementById("add-comment-btn");
+  if (commentBtn) commentBtn.style.display = "flex";
+
+  renderCommentState();
+
+  if (tab.isMarkdownFile) {
+    updateViewMode();
+  } else {
+    const editorContainer = document.getElementById("editor-container")!;
+    const previewWrapper = document.getElementById("preview-wrapper")!;
+    const tocPanel = document.getElementById("sidebar-toc-panel");
+    editorContainer.style.display = "block";
+    previewWrapper.style.display = "none";
+    if (tocPanel) tocPanel.style.display = "none";
+  }
+
+  if (tab.isRawMode || !tab.isMarkdownFile) {
+    focusEditor();
+  }
+}
+
+/**
+ * Snapshot the outgoing tab's editor doc + cursor + scroll into the
+ * TabManager state before a tab swap. Caller invokes this from the
+ * `subscribeActiveChange` hook with the outgoing tab's id.
+ */
+function snapshotActiveDocFor(tabId: string) {
+  const tab = tabManager.tabs.find((t) => t.id === tabId);
+  if (!tab) return;
+  const editorState = getEditorState();
+  tabManager.update(tab.id, {
+    doc: getEditorContent(),
+    cursor: editorState.cursor,
+    scrollTop: editorState.scrollTop,
+  });
+}
+
+/** Lookup the tab by id and hydrate the UI from it. */
+function activateTab(tabId: string) {
+  const tab = tabManager.tabs.find((t) => t.id === tabId);
+  if (!tab) return;
+  void API.setCurrentFile(tab.path ?? "");
+  activateTabUI(tab);
+}
+
+/**
+ * Debounced trigger for `pushTabStatesToRust`. Hooked into every
+ * `tabManager` mutation so `open_tabs` in Rust is always fresh by the
+ * time the user closes the window. Without this, the Rust
+ * `CloseRequested` handler would fire before the async push from
+ * `beforeunload` completes and would fall back to a single-file disk
+ * read, missing comments from inactive tabs.
+ */
+let pushTabStatesTimer: number | null = null;
+function schedulePushTabStates() {
+  if (pushTabStatesTimer !== null) {
+    clearTimeout(pushTabStatesTimer);
+  }
+  pushTabStatesTimer = window.setTimeout(() => {
+    pushTabStatesTimer = null;
+    void pushTabStatesToRust();
+  }, 150);
+}
+
+/**
+ * Push every open tab's in-memory state to Rust so the close-window
+ * comment-export flow has fresh content for ALL tabs, not just the active
+ * one. Snapshots the active tab first so its uncommitted edits land too.
+ *
+ * Called from a debounced subscriber on every `tabManager` mutation, plus
+ * synchronously on tab-close and `beforeunload` for closing-window safety.
+ */
+async function pushTabStatesToRust(): Promise<void> {
+  const active = tabManager.getActive();
+  if (active) {
+    tabManager.update(active.id, { doc: getEditorContent() });
+  }
+  const states = tabManager.tabs
+    .filter((t) => t.path !== null)
+    .map((t) => ({
+      path: t.path!,
+      content: serializeComments(t.doc, t.comments),
+    }));
+  try {
+    await API.submitTabStates(states);
+  } catch (error) {
+    console.error("Failed to push tab states:", error);
+  }
+}
+
+/** Reset UI to empty-state visuals (no tab open). */
+function clearActiveDisplay() {
+  withSuppressedCommentSync(() => setEditorContent(""));
+  const toggleBtn = document.getElementById("markdown-toggle");
+  if (toggleBtn) toggleBtn.style.display = "none";
+  const commentBtn = document.getElementById("add-comment-btn");
+  if (commentBtn) commentBtn.style.display = "none";
+  const fileNameEl = document.getElementById("file-name");
+  if (fileNameEl) fileNameEl.style.display = "none";
+  const openBtn = document.getElementById("open-file-btn");
+  if (openBtn) openBtn.style.display = "flex";
+  showEmptyState();
 }
 
 function updateFileNameDisplay(path: string, isStdin = false) {
@@ -881,11 +1173,12 @@ async function revealInFinder(path: string) {
 }
 
 async function saveFile() {
-  if (!currentFilePath) return;
+  const active = readActive();
+  if (!active?.path) return;
 
   try {
     const contentWithComments = getSerializedContentForPersistence();
-    await API.writeFile(currentFilePath, contentWithComments);
+    await API.writeFile(active.path, contentWithComments);
     markSnapshotAsSaved(contentWithComments);
     showToast("File saved", "success");
   } catch (error) {
@@ -894,24 +1187,68 @@ async function saveFile() {
 }
 
 function handleDeleteComment(commentId: string) {
-  comments = comments.filter((comment) => comment.id !== commentId);
+  const active = readActive();
+  if (!active) return;
+  writeActive({ comments: active.comments.filter((c) => c.id !== commentId) });
   renderCommentState();
   showToast("Comment removed", "info");
 }
 
 function handleEditComment(commentId: string, newText: string) {
-  const comment = comments.find((c) => c.id === commentId);
-  if (!comment) return;
-  comment.text = newText;
+  const active = readActive();
+  if (!active) return;
+  // Mutate the comment in place, then re-set the array so subscribers fire.
+  const next = active.comments.map((c) =>
+    c.id === commentId ? { ...c, text: newText } : c
+  );
+  writeActive({ comments: next });
   renderCommentState();
   showToast("Comment updated", "success");
 }
 
 function handleCommentClick(comment: ReviewComment) {
-  if (isMarkdownFile && !isRawMode) {
+  const active = readActive();
+  if (active?.isMarkdownFile && !active.isRawMode) {
     scrollPreviewToComment(comment.id);
   } else {
     scrollToPosition(comment.highlight_start);
+  }
+}
+
+/**
+ * Close a tab by id. In step-1 only the active tab can be closed (single-tab
+ * semantics); step-2 will allow closing any tab.
+ */
+function closeTab(id: string) {
+  const tab = tabManager.tabs.find((t) => t.id === id);
+  if (!tab) return;
+  if (tab.hasUnsavedChanges) {
+    if (!window.confirm("You have unsaved changes. Close this tab and discard them?")) {
+      return;
+    }
+  }
+  tabManager.remove(id);
+  void pushTabStatesToRust();
+
+  const remaining = tabManager.getActive();
+  if (!remaining) {
+    // No tabs left — return to empty state
+    withSuppressedCommentSync(() => {
+      setEditorContent("");
+    });
+    showEmptyState();
+    // Hide file-bound UI elements that loadFile() showed
+    const fileNameEl = document.getElementById("file-name");
+    if (fileNameEl) fileNameEl.style.display = "none";
+    const openBtn = document.getElementById("open-file-btn");
+    if (openBtn) openBtn.style.display = "";
+    const commentBtn = document.getElementById("add-comment-btn");
+    if (commentBtn) commentBtn.style.display = "none";
+    const toggleBtn = document.getElementById("markdown-toggle");
+    if (toggleBtn) toggleBtn.style.display = "none";
+    const tocPanel = document.getElementById("sidebar-toc-panel");
+    if (tocPanel) tocPanel.style.display = "none";
+    renderComments([]);
   }
 }
 

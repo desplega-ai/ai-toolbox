@@ -150,3 +150,38 @@ export function onSelectionChange(callback: (hasSelection: boolean) => void) {
 export function onDocumentChange(callback: (changes: ChangeDesc) => void) {
   docChangeCallbacks.push(callback);
 }
+
+/**
+ * Snapshot the editor's per-tab state (cursor + scroll). Used in step-3 when
+ * activating a different tab — the outgoing tab's state is saved so we can
+ * restore it on next activation.
+ *
+ * The editor itself remains a single `EditorView` instance whose content is
+ * always "the active tab's content".
+ */
+export function getEditorState(): { cursor: { from: number; to: number }; scrollTop: number } {
+  const { from, to } = editorView.state.selection.main;
+  return {
+    cursor: { from, to },
+    scrollTop: editorView.scrollDOM.scrollTop,
+  };
+}
+
+/**
+ * Restore previously snapshotted editor state. Both `cursor` and `scrollTop`
+ * are optional so a freshly-loaded tab can hydrate just one side.
+ */
+export function setEditorState(state: {
+  cursor?: { from: number; to: number };
+  scrollTop?: number;
+}) {
+  if (state.cursor) {
+    const docLen = editorView.state.doc.length;
+    const from = Math.min(state.cursor.from, docLen);
+    const to = Math.min(state.cursor.to, docLen);
+    editorView.dispatch({ selection: { anchor: from, head: to } });
+  }
+  if (typeof state.scrollTop === "number") {
+    editorView.scrollDOM.scrollTop = state.scrollTop;
+  }
+}

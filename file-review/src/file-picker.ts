@@ -1,23 +1,31 @@
 import { isTauri } from "./api";
 
-export async function showFilePicker(): Promise<string | null> {
+/**
+ * Open the OS file picker, allowing multiple files. Returns an array of
+ * absolute paths (possibly empty) — never null. In web mode, returns [].
+ */
+export async function showFilePicker(): Promise<string[]> {
   // File picker is not available in web mode
   if (!isTauri()) {
-    return null;
+    return [];
   }
 
   // Dynamically import Tauri dialog plugin only when in Tauri mode
   const { open } = await import("@tauri-apps/plugin-dialog");
   const selected = await open({
-    multiple: false,
+    multiple: true,
     filters: [
       { name: "Markdown", extensions: ["md", "markdown"] },
       { name: "All Files", extensions: ["*"] },
     ],
   });
 
-  if (typeof selected === "string") {
+  if (Array.isArray(selected)) {
     return selected;
   }
-  return null;
+  // Fallback: shouldn't happen with multiple:true, but keep defensive.
+  if (typeof selected === "string") {
+    return [selected];
+  }
+  return [];
 }

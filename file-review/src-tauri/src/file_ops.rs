@@ -3,8 +3,26 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::State;
 
+/// Snapshot of one open tab pushed from JS via `submit_tab_states`. Used
+/// by the close-window flow to dump comments from every open tab without
+/// re-reading from disk (which would miss unsaved buffer state).
+#[derive(Clone, Debug, serde::Deserialize)]
+pub struct TabState {
+    pub path: String,
+    /// Editor content with comment markers inlined — i.e., what
+    /// `serializeComments(tab.doc, tab.comments)` produced on the JS side.
+    pub content: String,
+}
+
 pub struct AppState {
     pub current_file: Mutex<Option<PathBuf>>,
+    /// All file paths supplied on the CLI (in order). Used by JS at startup
+    /// to open one tab per path.
+    pub initial_files: Mutex<Vec<PathBuf>>,
+    /// Snapshot of every currently-open tab pushed by JS. Source of truth
+    /// for the close-window comment-export flow when non-empty; falls
+    /// back to the single-file disk read when empty (e.g., web mode).
+    pub open_tabs: Mutex<Vec<TabState>>,
     pub silent: bool,
     pub json_output: bool,
     pub stdin_mode: bool,
@@ -32,6 +50,28 @@ pub fn set_current_file(path: String, state: State<'_, AppState>) -> Result<(), 
 pub fn get_current_file(state: State<'_, AppState>) -> Option<String> {
     let current = state.current_file.lock().ok()?;
     current.as_ref().map(|p| p.to_string_lossy().to_string())
+}
+
+/// Return all file paths that were passed on the CLI. JS calls this at
+/// startup to open one tab per path. Empty if no file args.
+#[tauri::command]
+pub fn get_initial_files(state: State<'_, AppState>) -> Vec<String> {
+    state
+        .initial_files
+        .lock()
+        .ok()
+        .map(|v| v.iter().map(|p| p.to_string_lossy().to_string()).collect())
+        .unwrap_or_default()
+}
+
+/// Replace the in-memory snapshot of open tabs. JS calls this on tab-close
+/// and window-close so the close-window handler can dump comments from
+/// every open tab.
+#[tauri::command]
+pub fn submit_tab_states(states: Vec<TabState>, state: State<'_, AppState>) {
+    if let Ok(mut open) = state.open_tabs.lock() {
+        *open = states;
+    }
 }
 
 #[tauri::command]

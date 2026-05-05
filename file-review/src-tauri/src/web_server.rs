@@ -115,6 +115,7 @@ pub fn create_router(state: Arc<WebState>) -> Router {
         // API endpoints
         .route("/api/version", get(get_version))
         .route("/api/current-file", get(get_current_file))
+        .route("/api/initial-files", get(get_initial_files))
         .route("/api/read-file", post(read_file))
         .route("/api/write-file", post(write_file))
         .route("/api/set-current-file", post(set_current_file))
@@ -178,6 +179,18 @@ async fn get_current_file(Extension(state): Extension<Arc<WebState>>) -> impl In
     let current = state.app_state.current_file.lock().ok();
     let path = current.and_then(|f| f.as_ref().map(|p| p.to_string_lossy().to_string()));
     Json(path)
+}
+
+/// GET /api/initial-files
+async fn get_initial_files(Extension(state): Extension<Arc<WebState>>) -> impl IntoResponse {
+    let files: Vec<String> = state
+        .app_state
+        .initial_files
+        .lock()
+        .ok()
+        .map(|v| v.iter().map(|p| p.to_string_lossy().to_string()).collect())
+        .unwrap_or_default();
+    Json(files)
 }
 
 /// POST /api/read-file

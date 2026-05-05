@@ -1,11 +1,26 @@
 import { marked } from 'marked';
 import { slugify } from './markdown-preview';
+import type { Tab } from './tabs';
 
 export interface TocEntry {
   text: string;
   depth: number;
   id: string;
   sourcePos: number;
+}
+
+// Reserved for step-2/3: ToC currently re-renders from `main.ts`-supplied
+// entries. The accessor is passed in at startup so future per-tab ToC caching
+// can read `path`/`comments` directly.
+let getActiveTab: () => Tab | null = () => null;
+
+export function initToc(activeTabAccessor: () => Tab | null) {
+  getActiveTab = activeTabAccessor;
+}
+
+// Forward-compat hook for step-2/3.
+export function getActiveTabFromToc(): Tab | null {
+  return getActiveTab();
 }
 
 export function extractTocEntries(content: string): TocEntry[] {

@@ -12,6 +12,8 @@ import rust from 'highlight.js/lib/languages/rust';
 import sql from 'highlight.js/lib/languages/sql';
 import markdown from 'highlight.js/lib/languages/markdown';
 import type { ReviewComment } from './comments';
+import type { Tab } from './tabs';
+import { renderMermaidBlocks, resetMermaidProcessed } from './mermaid';
 
 // Register languages with aliases
 hljs.registerLanguage('javascript', javascript);
@@ -36,12 +38,44 @@ hljs.registerAliases(['yml'], { languageName: 'yaml' });
 hljs.registerAliases(['md'], { languageName: 'markdown' });
 hljs.registerAliases(['rs'], { languageName: 'rust' });
 
+// Mermaid integration: rewrite ` ```mermaid ` code tokens into `html` tokens
+// at parse time so marked's default code renderer (and downstream hljs) never
+// sees them. The original source is stashed in `data-src` (URI-encoded) so
+// theme switches can restore + re-render the diagrams.
+//
+// MUST be registered exactly once at module scope. `marked.use()` inside a
+// render call recurses and corrupts state.
+marked.use({
+  walkTokens(token) {
+    if (token.type === 'code' && (token as Tokens.Code).lang === 'mermaid') {
+      const codeToken = token as Tokens.Code;
+      const source = codeToken.text ?? '';
+      // Mutating the in-place token: change `type` to 'html' and set `text` to
+      // the desired HTML. marked treats `html` tokens as raw passthrough.
+      const mutable = codeToken as unknown as {
+        type: string;
+        pre: boolean;
+        text: string;
+        block?: boolean;
+      };
+      mutable.type = 'html';
+      mutable.pre = false;
+      mutable.block = true;
+      mutable.text = `<pre class="mermaid" data-src="${encodeURIComponent(source)}">${escapeHtml(source)}</pre>`;
+    }
+  },
+});
+
 let previewContainer: HTMLElement | null = null;
 let hoverButton: HTMLElement | null = null;
 let currentHoverElement: HTMLElement | null = null;
 let addCommentCallback: ((sourceStart: number, sourceEnd: number, element: HTMLElement) => void) | null = null;
 let hoverListenersAttached = false;
 let hideTimeout: ReturnType<typeof setTimeout> | null = null;
+// Reserved for step-2/3: lets the preview module read active-tab state
+// (path, comments, etc.) without re-threading them through every call. Passed
+// in once at startup via `initPreview`.
+let getActiveTab: () => Tab | null = () => null;
 
 const COMMENTABLE_SELECTORS = 'p, h1, h2, h3, h4, h5, h6, li, blockquote, pre, tr';
 const COMMENTABLE_HEADING_KINDS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
@@ -92,8 +126,17 @@ export function slugify(text: string): string {
     .replace(/\s+/g, '-');
 }
 
-export function initPreview(container: HTMLElement) {
+export function initPreview(
+  container: HTMLElement,
+  activeTabAccessor: () => Tab | null = () => null
+) {
   previewContainer = container;
+  getActiveTab = activeTabAccessor;
+}
+
+// Forward-compat hook for step-2/3.
+export function getActiveTabFromPreview(): Tab | null {
+  return getActiveTab();
 }
 
 /**
@@ -968,6 +1011,47 @@ function highlightCodeBlocks() {
   });
 }
 
+function addCopyButtons() {
+  if (!previewContainer) return;
+  const pres = previewContainer.querySelectorAll<HTMLPreElement>('pre');
+  pres.forEach((pre) => {
+    if (pre.classList.contains('mermaid')) return;
+    if (pre.querySelector(':scope > .code-copy-btn')) return;
+    const code = pre.querySelector('code');
+    if (!code) return;
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'code-copy-btn';
+    btn.textContent = 'Copy';
+    btn.setAttribute('aria-label', 'Copy code to clipboard');
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      try {
+        await navigator.clipboard.writeText(code.innerText);
+        btn.textContent = 'Copied';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'Copy';
+          btn.classList.remove('copied');
+        }, 1200);
+      } catch {
+        btn.textContent = 'Failed';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 1200);
+      }
+    });
+
+    if (getComputedStyle(pre).position === 'static') {
+      pre.style.position = 'relative';
+    }
+    pre.appendChild(btn);
+  });
+}
+
+// Cancel any in-flight mermaid render whenever a fresh `updatePreview` runs —
+// only the latest call's diagrams should land in the DOM.
+let activeMermaidController: AbortController | null = null;
+
 export function updatePreview(content: string, comments: ReviewComment[]) {
   if (!previewContainer) return;
 
@@ -978,7 +1062,18 @@ export function updatePreview(content: string, comments: ReviewComment[]) {
 
   setupElementClickHandlers();
   setupHoverHandlers();
+
+  // Mermaid renders out-of-band so `updatePreview` stays synchronous and
+  // never blocks keystroke updates. The previous render (if any) is aborted
+  // so its DOM mutations can't clobber the latest content.
+  activeMermaidController?.abort();
+  activeMermaidController = new AbortController();
+  void renderMermaidBlocks(previewContainer, activeMermaidController.signal);
+
+  // hljs runs after — walkTokens already converted ```mermaid fences to html
+  // tokens, so there are no `language-mermaid` blocks for hljs to mangle.
   highlightCodeBlocks();
+  addCopyButtons();
 }
 
 export function scrollPreviewToComment(commentId: string) {
@@ -990,4 +1085,16 @@ export function scrollPreviewToComment(commentId: string) {
 
 export function getPreviewContainer(): HTMLElement | null {
   return previewContainer;
+}
+
+/**
+ * Re-render every mermaid diagram in the preview with the latest theme.
+ * Call from the theme toggle handler in main.ts.
+ */
+export function refreshMermaidForTheme(): void {
+  if (!previewContainer) return;
+  resetMermaidProcessed(previewContainer);
+  activeMermaidController?.abort();
+  activeMermaidController = new AbortController();
+  void renderMermaidBlocks(previewContainer, activeMermaidController.signal);
 }
