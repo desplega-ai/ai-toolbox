@@ -134,6 +134,11 @@ body {
   border-bottom: 1px solid var(--border-color);
 }
 
+.tab-strip-row > .tab-strip {
+  flex: 1;
+  min-width: 0;
+}
+
 .tab-strip-row:has(.tab-strip:empty):has(.closed-files-btn[hidden]) {
   display: none;
 }
@@ -222,6 +227,17 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+  background: transparent;
+  border: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+  font-size: inherit;
+}
+
+.closed-files-popover-path:hover {
+  color: var(--accent-color);
 }
 
 .closed-files-popover-remove {

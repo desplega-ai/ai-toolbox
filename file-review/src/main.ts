@@ -131,8 +131,8 @@ function setupClosedFilesIndicator() {
         const basename = f.path.split("/").pop() || f.path;
         return `
           <div class="closed-files-popover-item" data-path="${escapeHtml(f.path)}">
-            <span class="closed-files-popover-path" title="${escapeHtml(f.path)}">${escapeHtml(basename)}</span>
-            <button class="closed-files-popover-remove" type="button" aria-label="Remove from review session">×</button>
+            <button class="closed-files-popover-path" type="button" title="Click to reopen — ${escapeHtml(f.path)}">${escapeHtml(basename)}</button>
+            <button class="closed-files-popover-remove" type="button" aria-label="Remove from review session" title="Remove from review session">×</button>
           </div>`;
       })
       .join("");
@@ -150,6 +150,26 @@ function setupClosedFilesIndicator() {
         if (path) {
           removeClosedFile(path);
           void pushTabStatesToRust();
+        }
+      });
+    });
+    popover.querySelectorAll<HTMLButtonElement>(".closed-files-popover-path").forEach((p) => {
+      p.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const item = (e.currentTarget as HTMLElement).closest<HTMLElement>(
+          ".closed-files-popover-item"
+        );
+        const path = item?.dataset.path;
+        if (!path) return;
+        popover.hidden = true;
+        try {
+          await loadFile(path, "append");
+          hideEmptyState();
+          // Re-opening replaces "remembered" with "live" — drop from closed list.
+          removeClosedFile(path);
+          void pushTabStatesToRust();
+        } catch (error) {
+          console.error("Failed to reopen closed file:", path, error);
         }
       });
     });
