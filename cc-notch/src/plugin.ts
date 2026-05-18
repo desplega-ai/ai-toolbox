@@ -12,7 +12,8 @@
 import { $ } from "bun";
 
 interface DailyEntry {
-	date: string;
+	date?: string;
+	period?: string;
 	inputTokens: number;
 	outputTokens: number;
 	cacheCreationTokens: number;
@@ -33,6 +34,7 @@ interface DailyResponse {
 
 interface SessionData {
 	sessionId: string;
+	projectPath?: string;
 	inputTokens: number;
 	outputTokens: number;
 	cacheCreationTokens: number;
@@ -46,6 +48,11 @@ interface SessionData {
 
 interface SessionResponse {
 	sessions: SessionData[];
+}
+
+interface ProjectSessionCost {
+	totalCost: number;
+	modelBreakdowns: Map<string, number>;
 }
 
 interface ActiveProject {
@@ -75,11 +82,12 @@ function getCostColor(cost: number): string {
 	return "#4CAF50"; // green - good usage
 }
 
-async function runCcusage(
-	command: string,
-): Promise<{ stdout: string; success: boolean }> {
+async function runCcusageClaudeDaily(): Promise<{
+	stdout: string;
+	success: boolean;
+}> {
 	try {
-		const result = await $`npx ccusage --json ${command}`.quiet();
+		const result = await $`npx ccusage claude daily --json`.quiet();
 		return { stdout: result.stdout.toString(), success: true };
 	} catch {
 		return { stdout: "", success: false };
@@ -144,35 +152,50 @@ async function getRecentlyActiveProjects(
 	}
 }
 
-async function getSessionCosts(): Promise<Map<string, SessionData>> {
+async function getSessionCostsByProject(): Promise<
+	Map<string, ProjectSessionCost>
+> {
 	const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-	const sessionMap = new Map<string, SessionData>();
+	const projectMap = new Map<string, ProjectSessionCost>();
 
 	try {
-		// Use npx to avoid bunx caching issues
 		const result =
-			await $`npx ccusage session --json --since ${today}`.quiet();
+			await $`npx ccusage claude session --json --since ${today}`.quiet();
 		const stdout = result.stdout.toString();
 		const parsed = JSON.parse(stdout) as SessionResponse;
 		if (parsed.sessions) {
 			for (const session of parsed.sessions) {
-				sessionMap.set(session.sessionId, session);
+				const key = session.projectPath;
+				if (!key) continue;
+				const existing = projectMap.get(key) ?? {
+					totalCost: 0,
+					modelBreakdowns: new Map<string, number>(),
+				};
+				existing.totalCost += session.totalCost;
+				for (const breakdown of session.modelBreakdowns ?? []) {
+					existing.modelBreakdowns.set(
+						breakdown.modelName,
+						(existing.modelBreakdowns.get(breakdown.modelName) ?? 0) +
+							breakdown.cost,
+					);
+				}
+				projectMap.set(key, existing);
 			}
 		}
 	} catch {
 		// Return empty map on error
 	}
 
-	return sessionMap;
+	return projectMap;
 }
 
 async function main() {
 	try {
 		// Fetch all data in parallel
 		const [dailyResult, activeProjects, sessionCosts] = await Promise.all([
-			runCcusage("daily"),
+			runCcusageClaudeDaily(),
 			getRecentlyActiveProjects(30),
-			getSessionCosts(),
+			getSessionCostsByProject(),
 		]);
 
 		let todayCost = 0;
@@ -189,7 +212,7 @@ async function main() {
 			// Calculate current calendar month total from daily data
 			const currentMonth = new Date().toISOString().slice(0, 7); // "2026-01"
 			monthCost = dailyData
-				.filter((day) => day.date.startsWith(currentMonth))
+				.filter((day) => (day.date ?? day.period ?? "").startsWith(currentMonth))
 				.reduce((sum, day) => sum + day.totalCost, 0);
 		}
 
@@ -209,19 +232,18 @@ async function main() {
 		if (activeCount > 0) {
 			console.log(`Active (${activeCount}): | size=14`);
 			for (const project of activeProjects) {
-				const sessionData = sessionCosts.get(project.projectKey);
-				const cost = sessionData?.totalCost ?? 0;
+				const projectCost = sessionCosts.get(project.projectKey);
+				const cost = projectCost?.totalCost ?? 0;
 				console.log(
 					`--${project.projectName}: ${formatCost(cost)} | color=#888888`,
 				);
-				// Model breakdown for this session
-				if (sessionData?.modelBreakdowns) {
-					for (const breakdown of sessionData.modelBreakdowns) {
-						const shortModel = breakdown.modelName
+				if (projectCost?.modelBreakdowns) {
+					for (const [modelName, modelCost] of projectCost.modelBreakdowns) {
+						const shortModel = modelName
 							.replace("claude-", "")
 							.replace("-20", " ");
 						console.log(
-							`----${shortModel}: ${formatCost(breakdown.cost)} | color=#666666 size=11`,
+							`----${shortModel}: ${formatCost(modelCost)} | color=#666666 size=11`,
 						);
 					}
 				}
