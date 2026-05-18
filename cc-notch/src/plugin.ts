@@ -1,53 +1,111 @@
 #!/usr/bin/env bun
 
-// <xbar.title>Claude Code Cost Tracker</xbar.title>
+// <xbar.title>Coding Agent Cost Tracker</xbar.title>
 // <xbar.version>v1.0</xbar.version>
 // <xbar.author>Taras</xbar.author>
-// <xbar.desc>Display Claude Code usage costs in menu bar</xbar.desc>
+// <xbar.desc>Display coding agent usage costs in menu bar</xbar.desc>
 // <xbar.dependencies>bun,ccusage</xbar.dependencies>
 
 // <swiftbar.hideRunInTerminal>true</swiftbar.hideRunInTerminal>
 // <swiftbar.hideLastUpdated>false</swiftbar.hideLastUpdated>
 
-import { $ } from "bun";
-
 interface DailyEntry {
 	date?: string;
 	period?: string;
+	agent?: string;
+	source?: string;
+	provider?: string;
 	inputTokens: number;
 	outputTokens: number;
 	cacheCreationTokens: number;
 	cacheReadTokens: number;
+	totalTokens?: number;
 	totalCost: number;
+	costUSD?: number;
 	modelsUsed: string[];
+	models?: string[] | Record<string, unknown>;
 	modelBreakdowns: Array<{
 		modelName: string;
 		inputTokens: number;
 		outputTokens: number;
 		cost: number;
+		costUSD?: number;
 	}>;
+	breakdown?: Record<
+		string,
+		{
+			inputTokens: number;
+			outputTokens: number;
+			cacheCreationTokens?: number;
+			cacheReadTokens?: number;
+			totalTokens?: number;
+			costUSD?: number;
+			totalCost?: number;
+			cost?: number;
+		}
+	>;
 }
 
+const CCUSAGE_TIMEOUT_MS = 20_000;
+const PACKAGE_DIR = new URL("..", import.meta.url).pathname;
+const CCUSAGE_BIN = new URL(
+	"../node_modules/ccusage/dist/index.js",
+	import.meta.url,
+).pathname;
+const CCUSAGE_SOURCES = ["claude", "codex", "opencode", "amp", "pi"] as const;
+
 interface DailyResponse {
-	daily: DailyEntry[];
+	daily?: DailyEntry[];
+	data?: DailyEntry[];
+	totals?: UsageTotals;
+	summary?: UsageTotals;
 }
 
 interface SessionData {
 	sessionId: string;
+	session?: string;
 	projectPath?: string;
+	project?: string;
+	agent?: string;
+	source?: string;
+	provider?: string;
 	inputTokens: number;
 	outputTokens: number;
 	cacheCreationTokens: number;
 	cacheReadTokens: number;
+	totalTokens?: number;
 	totalCost: number;
+	costUSD?: number;
+	lastActivity?: string;
+	models?: string[];
+	modelsUsed?: string[];
 	modelBreakdowns: Array<{
 		modelName: string;
 		cost: number;
+		costUSD?: number;
 	}>;
+	breakdown?: DailyEntry["breakdown"];
 }
 
 interface SessionResponse {
-	sessions: SessionData[];
+	sessions?: SessionData[];
+	data?: SessionData[];
+	totals?: UsageTotals;
+	summary?: UsageTotals;
+}
+
+interface UsageTotals {
+	inputTokens?: number;
+	outputTokens?: number;
+	cacheCreationTokens?: number;
+	cacheReadTokens?: number;
+	totalInputTokens?: number;
+	totalOutputTokens?: number;
+	totalCacheCreationTokens?: number;
+	totalCacheReadTokens?: number;
+	totalTokens?: number;
+	totalCost?: number;
+	totalCostUSD?: number;
 }
 
 interface ProjectSessionCost {
@@ -60,6 +118,16 @@ interface ActiveProject {
 	projectKey: string;
 	projectName: string;
 	lastActivity: number;
+}
+
+interface AgentUsage {
+	agent: string;
+	totalCost: number;
+	inputTokens: number;
+	outputTokens: number;
+	cacheCreationTokens: number;
+	cacheReadTokens: number;
+	modelBreakdowns: Map<string, number>;
 }
 
 function formatCost(cost: number): string {
@@ -82,16 +150,59 @@ function getCostColor(cost: number): string {
 	return "#4CAF50"; // green - good usage
 }
 
-async function runCcusageClaudeDaily(): Promise<{
+async function runCcusageDaily(): Promise<{
 	stdout: string;
 	success: boolean;
 }> {
-	try {
-		const result = await $`npx ccusage claude daily --json`.quiet();
-		return { stdout: result.stdout.toString(), success: true };
-	} catch {
-		return { stdout: "", success: false };
+	const since = getCurrentMonthStart();
+	const focusedResults = await Promise.all(
+		CCUSAGE_SOURCES.map(async (source) => {
+			const result = await runCcusage([
+				source,
+				"daily",
+				"--json",
+				"--offline",
+				"--since",
+				since,
+			]);
+			if (!result.success || !result.stdout) return [];
+
+			try {
+				const parsed = JSON.parse(result.stdout) as DailyResponse;
+				return getDailyEntries(parsed).map((entry) => ({
+					...entry,
+					agent: source,
+				}));
+			} catch {
+				return [];
+			}
+		}),
+	);
+	const focusedEntries = focusedResults.flat();
+	if (focusedEntries.length > 0) {
+		return {
+			stdout: JSON.stringify({ daily: focusedEntries }),
+			success: true,
+		};
 	}
+
+	return runCcusage([
+		"daily",
+		"--json",
+		"--breakdown",
+		"--offline",
+		"--since",
+		since,
+	]);
+}
+
+function getCurrentMonthStart(): string {
+	const now = new Date();
+	return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}01`;
+}
+
+function getTodayDate(): string {
+	return new Date().toISOString().slice(0, 10);
 }
 
 function pathToProjectKey(projectPath: string): string {
@@ -159,23 +270,30 @@ async function getSessionCostsByProject(): Promise<
 	const projectMap = new Map<string, ProjectSessionCost>();
 
 	try {
-		const result =
-			await $`npx ccusage claude session --json --since ${today}`.quiet();
-		const stdout = result.stdout.toString();
+		const sessionResult = await runCcusage([
+			"session",
+			"--json",
+			"--since",
+			today,
+			"--offline",
+		]);
+		if (!sessionResult.success) return projectMap;
+		const stdout = sessionResult.stdout;
 		const parsed = JSON.parse(stdout) as SessionResponse;
-		if (parsed.sessions) {
-			for (const session of parsed.sessions) {
-				const key = session.projectPath;
+		const sessions = getSessionEntries(parsed);
+		if (sessions.length > 0) {
+			for (const session of sessions) {
+				const key = session.projectPath ?? session.project;
 				if (!key) continue;
 				const existing = projectMap.get(key) ?? {
 					totalCost: 0,
 					modelBreakdowns: new Map<string, number>(),
 				};
-				existing.totalCost += session.totalCost;
-				for (const breakdown of session.modelBreakdowns ?? []) {
+				existing.totalCost += getEntryCost(session);
+				for (const breakdown of getModelCosts(session)) {
 					existing.modelBreakdowns.set(
-						breakdown.modelName,
-						(existing.modelBreakdowns.get(breakdown.modelName) ?? 0) +
+						breakdown.model,
+						(existing.modelBreakdowns.get(breakdown.model) ?? 0) +
 							breakdown.cost,
 					);
 				}
@@ -189,31 +307,169 @@ async function getSessionCostsByProject(): Promise<
 	return projectMap;
 }
 
+async function runCcusage(args: string[]): Promise<{
+	stdout: string;
+	success: boolean;
+}> {
+	const proc = Bun.spawn([process.execPath, CCUSAGE_BIN, ...args], {
+		cwd: PACKAGE_DIR,
+		stdout: "pipe",
+		stderr: "ignore",
+		env: {
+			...process.env,
+			CCUSAGE_BUN_AUTO_RUN: "0",
+		},
+	});
+
+	let timeout: Timer | undefined;
+	const timeoutPromise = new Promise<"timeout">((resolve) => {
+		timeout = setTimeout(() => resolve("timeout"), CCUSAGE_TIMEOUT_MS);
+	});
+
+	const exitPromise = proc.exited.then((code) =>
+		code === 0 ? "success" : "failure",
+	);
+	const result = await Promise.race([exitPromise, timeoutPromise]);
+	if (timeout) clearTimeout(timeout);
+
+	if (result === "timeout") {
+		proc.kill();
+		return { stdout: "", success: false };
+	}
+
+	const stdout = await new Response(proc.stdout).text();
+	return { stdout, success: result === "success" };
+}
+
+function getDailyEntries(response: DailyResponse): DailyEntry[] {
+	if (Array.isArray(response.daily)) return response.daily;
+	if (Array.isArray(response.data)) return response.data;
+	if (Array.isArray(response)) return response;
+	return [];
+}
+
+function getSessionEntries(response: SessionResponse): SessionData[] {
+	if (Array.isArray(response.sessions)) return response.sessions;
+	if (Array.isArray(response.data)) return response.data;
+	if (Array.isArray(response)) return response;
+	return [];
+}
+
+function getEntryCost(entry: DailyEntry | SessionData): number {
+	return entry.totalCost ?? entry.costUSD ?? 0;
+}
+
+function getEntryAgent(entry: DailyEntry | SessionData): string {
+	const raw = entry.agent ?? entry.source ?? entry.provider ?? "Claude";
+	return raw
+		.replace(/[-_]+/g, " ")
+		.replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function getEntryDate(entry: DailyEntry): string {
+	return entry.date ?? entry.period ?? "";
+}
+
+function getEntryModels(entry: DailyEntry | SessionData): string[] {
+	if (Array.isArray(entry.models)) return entry.models;
+	if (entry.models && typeof entry.models === "object") {
+		return Object.keys(entry.models);
+	}
+	return entry.modelsUsed ?? [];
+}
+
+function getModelCosts(
+	entry: DailyEntry | SessionData,
+): Array<{ model: string; cost: number }> {
+	const modelBreakdowns = entry.modelBreakdowns ?? [];
+	if (modelBreakdowns.length > 0) {
+		return modelBreakdowns.map((breakdown) => ({
+			model: breakdown.modelName,
+			cost: breakdown.cost ?? breakdown.costUSD ?? 0,
+		}));
+	}
+
+	if (entry.breakdown) {
+		return Object.entries(entry.breakdown).map(([model, breakdown]) => ({
+			model,
+			cost: breakdown.costUSD ?? breakdown.totalCost ?? breakdown.cost ?? 0,
+		}));
+	}
+
+	return getEntryModels(entry).map((model) => ({ model, cost: 0 }));
+}
+
+function summarizeByAgent(entries: DailyEntry[]): AgentUsage[] {
+	const agents = new Map<string, AgentUsage>();
+	for (const entry of entries) {
+		const agent = getEntryAgent(entry);
+		const existing = agents.get(agent) ?? {
+			agent,
+			totalCost: 0,
+			inputTokens: 0,
+			outputTokens: 0,
+			cacheCreationTokens: 0,
+			cacheReadTokens: 0,
+			modelBreakdowns: new Map<string, number>(),
+		};
+
+		existing.totalCost += getEntryCost(entry);
+		existing.inputTokens += entry.inputTokens ?? 0;
+		existing.outputTokens += entry.outputTokens ?? 0;
+		existing.cacheCreationTokens += entry.cacheCreationTokens ?? 0;
+		existing.cacheReadTokens += entry.cacheReadTokens ?? 0;
+
+		for (const breakdown of getModelCosts(entry)) {
+			existing.modelBreakdowns.set(
+				breakdown.model,
+				(existing.modelBreakdowns.get(breakdown.model) ?? 0) + breakdown.cost,
+			);
+		}
+
+		agents.set(agent, existing);
+	}
+
+	return [...agents.values()].sort((a, b) => b.totalCost - a.totalCost);
+}
+
+function formatModelName(modelName: string): string {
+	return modelName
+		.replace(/^claude-/, "")
+		.replace(/^openai\//, "")
+		.replace(/^anthropic\./, "")
+		.replace(/-20\d{6}/, "")
+		.replace("-20", " ");
+}
+
 async function main() {
 	try {
 		// Fetch all data in parallel
 		const [dailyResult, activeProjects, sessionCosts] = await Promise.all([
-			runCcusageClaudeDaily(),
+			runCcusageDaily(),
 			getRecentlyActiveProjects(30),
 			getSessionCostsByProject(),
 		]);
 
 		let todayCost = 0;
 		let monthCost = 0;
-		let today: DailyEntry | undefined;
+		let todayEntries: DailyEntry[] = [];
+		let agentUsage: AgentUsage[] = [];
 
 		if (dailyResult.success && dailyResult.stdout) {
 			const parsed = JSON.parse(dailyResult.stdout) as DailyResponse;
-			const dailyData = parsed.daily;
-			// Data is sorted oldest first, get the most recent (last) entry for today
-			today = dailyData[dailyData.length - 1];
-			todayCost = today?.totalCost ?? 0;
+			const dailyData = getDailyEntries(parsed);
+			const latestDate = getTodayDate();
+			todayEntries = dailyData.filter(
+				(day) => getEntryDate(day) === latestDate,
+			);
+			todayCost = todayEntries.reduce((sum, day) => sum + getEntryCost(day), 0);
+			agentUsage = summarizeByAgent(todayEntries);
 
 			// Calculate current calendar month total from daily data
 			const currentMonth = new Date().toISOString().slice(0, 7); // "2026-01"
 			monthCost = dailyData
-				.filter((day) => (day.date ?? day.period ?? "").startsWith(currentMonth))
-				.reduce((sum, day) => sum + day.totalCost, 0);
+				.filter((day) => getEntryDate(day).startsWith(currentMonth))
+				.reduce((sum, day) => sum + getEntryCost(day), 0);
 		}
 
 		// Menu bar display with active session count
@@ -230,7 +486,7 @@ async function main() {
 
 		// Active sessions section (if any)
 		if (activeCount > 0) {
-			console.log(`Active (${activeCount}): | size=14`);
+			console.log(`Active Claude Projects (${activeCount}): | size=14`);
 			for (const project of activeProjects) {
 				const projectCost = sessionCosts.get(project.projectKey);
 				const cost = projectCost?.totalCost ?? 0;
@@ -239,9 +495,7 @@ async function main() {
 				);
 				if (projectCost?.modelBreakdowns) {
 					for (const [modelName, modelCost] of projectCost.modelBreakdowns) {
-						const shortModel = modelName
-							.replace("claude-", "")
-							.replace("-20", " ");
+						const shortModel = formatModelName(modelName);
 						console.log(
 							`----${shortModel}: ${formatCost(modelCost)} | color=#666666 size=11`,
 						);
@@ -253,19 +507,34 @@ async function main() {
 
 		// Today's summary
 		console.log(`Today: ${formatCost(todayCost)} | size=14`);
-		if (today) {
-			console.log(
-				`--Tokens: ${formatTokens(today.inputTokens + today.outputTokens)} | color=#888888`,
-			);
-			console.log(
-				`--Input: ${formatTokens(today.inputTokens)} | color=#888888`,
-			);
-			console.log(
-				`--Output: ${formatTokens(today.outputTokens)} | color=#888888`,
-			);
-			if (today.cacheReadTokens > 0) {
+		if (todayEntries.length > 1) {
+			for (const agent of agentUsage) {
 				console.log(
-					`--Cache Read: ${formatTokens(today.cacheReadTokens)} | color=#888888`,
+					`--${agent.agent}: ${formatCost(agent.totalCost)} | color=#888888`,
+				);
+			}
+		}
+		if (todayEntries.length > 0) {
+			const inputTokens = todayEntries.reduce(
+				(sum, entry) => sum + (entry.inputTokens ?? 0),
+				0,
+			);
+			const outputTokens = todayEntries.reduce(
+				(sum, entry) => sum + (entry.outputTokens ?? 0),
+				0,
+			);
+			const cacheReadTokens = todayEntries.reduce(
+				(sum, entry) => sum + (entry.cacheReadTokens ?? 0),
+				0,
+			);
+			console.log(
+				`--Tokens: ${formatTokens(inputTokens + outputTokens)} | color=#888888`,
+			);
+			console.log(`--Input: ${formatTokens(inputTokens)} | color=#888888`);
+			console.log(`--Output: ${formatTokens(outputTokens)} | color=#888888`);
+			if (cacheReadTokens > 0) {
+				console.log(
+					`--Cache Read: ${formatTokens(cacheReadTokens)} | color=#888888`,
 				);
 			}
 		}
@@ -274,17 +543,19 @@ async function main() {
 		console.log("---");
 		console.log(`This Month: ${formatCost(monthCost)} | size=14`);
 
-		// Model breakdown
-		if (today?.modelBreakdowns && today.modelBreakdowns.length > 0) {
+		// Agent and model breakdown
+		if (agentUsage.length > 0) {
 			console.log("---");
-			console.log("Models Used Today:");
-			for (const breakdown of today.modelBreakdowns) {
-				const shortModel = breakdown.modelName
-					.replace("claude-", "")
-					.replace("-20", " ");
+			console.log("Agents Used Today:");
+			for (const agent of agentUsage) {
 				console.log(
-					`--${shortModel}: ${formatCost(breakdown.cost)} | color=#888888`,
+					`--${agent.agent}: ${formatCost(agent.totalCost)} | color=#888888`,
 				);
+				for (const [modelName, modelCost] of agent.modelBreakdowns) {
+					const shortModel = formatModelName(modelName);
+					const suffix = modelCost > 0 ? `: ${formatCost(modelCost)}` : "";
+					console.log(`----${shortModel}${suffix} | color=#666666 size=11`);
+				}
 			}
 		}
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
-import { $ } from "bun";
 import { existsSync } from "node:fs";
+import { $ } from "bun";
 
 const PLUGIN_NAME = "cc-notch.5m.sh";
 const LEGACY_PLUGIN_NAME = "cc-notch.5m.ts";

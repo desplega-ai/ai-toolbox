@@ -1,6 +1,6 @@
 # cc-notch
 
-macOS menu bar cost tracker for Claude Code using SwiftBar.
+macOS menu bar cost tracker for coding agents using SwiftBar and ccusage.
 
 ## Prerequisites
 
@@ -19,12 +19,13 @@ Then launch SwiftBar and point it to `~/Library/Application Support/SwiftBar/Plu
 
 ## Features
 
-- Shows today's Claude Code cost in the menu bar
+- Shows today's combined coding-agent cost in the menu bar
 - Color-coded by spend: red (≤$50), orange (≤$100), green (>$100)
 - Dropdown shows:
-  - Today's cost and token breakdown
+  - Today's total cost and token breakdown
+  - Agent-by-agent breakdown for all sources returned by ccusage, including Claude Code, Codex, OpenCode, Amp, and pi-agent when present
   - Current month's total cost
-  - Model-by-model cost breakdown
+  - Model-by-model cost breakdown under each agent
 - Auto-refreshes every 5 minutes
 
 ## Uninstall
