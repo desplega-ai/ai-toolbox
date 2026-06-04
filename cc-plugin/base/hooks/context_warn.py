@@ -18,7 +18,7 @@ from context_state import (
     classify,
     level_rank,
     load_state,
-    read_last_usage,
+    read_usage,
     save_state,
     severe_msg,
     soft_warn_for_yolo_session,
@@ -40,11 +40,11 @@ def main() -> None:
     if not session_id or not transcript_path:
         sys.exit(0)
 
-    used, model = read_last_usage(transcript_path)
+    used, peak, model = read_usage(transcript_path)
     if used <= 0:
         sys.exit(0)
 
-    total = window_size(model)
+    total = window_size(model, peak)
     level = classify(used, total)
 
     state = load_state(session_id)

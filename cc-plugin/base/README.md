@@ -80,6 +80,7 @@ Inside you will find:
 - [commands](./commands) - Entrypoint commands, the important part
 - [agents](./agents) - Sub-agents to be used by the commands
 - [skills](./skills)
+- [hooks](./hooks) - Lifecycle hooks (context-window pressure warnings, `thoughts/` validation, plan-checkbox tracking)
 
 #### Commands
 
@@ -117,6 +118,47 @@ Inside you will find:
 | `phase-running` | Atomic phase execution as background sub-agent |
 | `learning` | Compounding knowledge via tiered backends (local/qmd/agent-fs) |
 | `script-builder` | Generate TS/Python/Bash validation scripts with PASS/FAIL + /tmp log convention |
+
+#### Hooks
+
+The plugin also registers a few lifecycle hooks (see [`hooks/`](./hooks) and the `hooks` block in [`.claude-plugin/plugin.json`](./.claude-plugin/plugin.json)):
+
+- **Context-window pressure warnings** (`context_warn.py` on `UserPromptSubmit`, `stop_confirm.py` on `Stop`) — the enforcement arm of "Problem 2" above. As the session fills up they nudge you to **offload to sub-agents, persist progress to `thoughts/`, and avoid `/compact`** (so those files keep their value); at high pressure they pause the session so you can hand off to a fresh one instead of grinding on in a degraded context.
+- **`thoughts/` validation** (`validate-thoughts.py` on `Write|Edit`) — keeps thoughts-directory writes well-formed.
+- **Plan checkbox tracking** (`plan_checkbox_*.py`) — keeps plan progress in sync during `implement`.
+
+**Window detection.** The warnings scale to the model's real context window. Large-window models (Opus 4.6+, Sonnet 4.x) are treated as **1M**; Haiku, Opus 4.5 and older, and non-Claude models as **200k**. Claude Code strips the `[1m]` variant from everything it writes to disk, so detection layers model family + env signals + observed peak usage (>200k proves a 1M window) — see comments in [`hooks/context_state.py`](./hooks/context_state.py).
+
+**Thresholds — level × window**
+
+*1M window* (Opus 4.6+ / Sonnet 4.x — absolute token cutoffs):
+
+| Level | Tokens | % of 1M |
+|-------|--------|---------|
+| `ok` | 0 – 200k | ≤ 20% |
+| `warn` | 200k – 350k | 20 – 35% |
+| `severe` | 350k – 500k | 35 – 50% |
+| `yolo` | 500k+ | > 50% |
+
+*200k window* (Haiku / Opus 4.5 & older / non-Claude — percentage-based):
+
+| Level | % of window | Tokens |
+|-------|-------------|--------|
+| `ok` | < 40% | 0 – 80k |
+| `warn` | 40 – 60% | 80k – 120k |
+| `severe` | > 60% | 120k+ |
+| `yolo` | — | _not reachable_ |
+
+**What each level does**
+
+| Level | `UserPromptSubmit` (nudge) | `Stop` |
+|-------|----------------------------|--------|
+| `ok` | silent | allow |
+| `warn` | heads-up: start offloading — sub-agents for research, persist to `thoughts/`, avoid `/compact` | allow |
+| `severe` | "stop next non-readonly action" + `AskUserQuestion`: continue / hand off / yolo | **blocks** until you choose |
+| `yolo` _(1M only)_ | strongly advises handing off to a fresh session | **blocks** |
+
+Each level fires **once per upward crossing** (throttled per session). If you explicitly opt into "yolo this session", `severe`/`yolo` degrade to a silent one-line usage note — no pause. The `40%` warn threshold on the 200k window is deliberately the same "~40% context" line called out in Problem 2.
 
 #### Workflow
 

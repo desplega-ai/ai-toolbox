@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import getpass
 import json
 import os
 import pathlib
+import re
 from typing import Any
 
 STATE_DIR = (
@@ -16,6 +18,41 @@ STATE_DIR = (
 )
 
 LEVELS = ("ok", "warn", "severe", "yolo")
+
+
+def _user_name() -> str:
+    """Best-effort display name for the human running this session.
+
+    The plugin is installed by many people, so the warning messages must not
+    be hard-coded to one name. Resolution order:
+      1. DESPLEGA_USER_NAME env override (explicit wins).
+      2. The OS account's real name (passwd gecos), first token.
+      3. The login / home-dir name, capitalized.
+      4. The neutral fallback "the user".
+    """
+    override = os.environ.get("DESPLEGA_USER_NAME", "").strip()
+    if override:
+        return override
+    try:
+        import pwd
+
+        gecos = pwd.getpwuid(os.getuid()).pw_gecos.split(",")[0].strip()
+        if gecos:
+            return gecos.split()[0]
+    except Exception:
+        pass
+    try:
+        login = (getpass.getuser() or "").strip()
+    except Exception:
+        login = ""
+    if not login:
+        login = os.path.basename(os.path.expanduser("~")).strip()
+    if login and login.isascii() and login.replace("-", "").replace("_", "").isalnum():
+        return login[:1].upper() + login[1:]
+    return "the user"
+
+
+USER = _user_name()
 
 
 def state_path(session_id: str) -> pathlib.Path:
@@ -34,15 +71,25 @@ def save_state(session_id: str, state: dict[str, Any]) -> None:
     state_path(session_id).write_text(json.dumps(state))
 
 
-def read_last_usage(transcript_path: str) -> tuple[int, str]:
-    """Return (used_tokens, model_id) from the newest assistant message with usage."""
+def read_usage(transcript_path: str) -> tuple[int, int, str]:
+    """Return (last_used, peak_used, model_id) across assistant usage records.
+
+    ``last_used`` is the newest assistant message's token total and drives the
+    current pressure classification. ``peak_used`` is the maximum ever seen in
+    this transcript; since you cannot accumulate >200k tokens in a 200k window,
+    a peak above 200k proves a 1M window even when the model/env signals miss
+    the (display-stripped) ``[1m]`` variant.
+    """
     try:
         with open(transcript_path, encoding="utf-8") as f:
             lines = f.readlines()
     except (FileNotFoundError, OSError):
-        return 0, ""
+        return 0, 0, ""
 
-    for line in reversed(lines):
+    last_used = 0
+    peak_used = 0
+    model = ""
+    for line in lines:
         try:
             rec = json.loads(line)
         except json.JSONDecodeError:
@@ -58,8 +105,11 @@ def read_last_usage(transcript_path: str) -> tuple[int, str]:
             + int(usage.get("cache_creation_input_tokens") or 0)
             + int(usage.get("cache_read_input_tokens") or 0)
         )
-        return used, str(msg.get("model") or "")
-    return 0, ""
+        last_used = used
+        if used > peak_used:
+            peak_used = used
+        model = str(msg.get("model") or model)
+    return last_used, peak_used, model
 
 
 _ENV_MODEL_KEYS = (
@@ -85,10 +135,38 @@ def _env_signals_1m() -> bool:
     return False
 
 
-def window_size(model: str) -> int:
+# Families that run with a 1M-token context window. Claude Code strips the
+# "[1m]" variant suffix from everything it writes to disk (transcript + session
+# store), and only SessionStart hooks receive a model field — so the
+# UserPromptSubmit/Stop hooks here cannot read the live variant. We therefore
+# default these modern families to their 1M window; positive signals ([1m] in
+# the model string or env, observed usage) only ever upgrade, never downgrade.
+_MODEL_RE = re.compile(r"claude-(opus|sonnet|haiku)-(\d+)-(\d+)")
+
+
+def _family_supports_1m(model: str) -> bool:
+    m = _MODEL_RE.search((model or "").lower())
+    if not m:
+        return False
+    family, major, minor = m.group(1), int(m.group(2)), int(m.group(3))
+    if family == "haiku":
+        return False  # Haiku has no 1M variant
+    if major != 4:
+        return major > 4  # 5.x+ assumed 1M; <4 was 200k-only
+    if family == "sonnet":
+        return True  # all Sonnet 4.x support the 1M context beta
+    return minor >= 6  # Opus 4.6+ support the 1M context beta
+
+
+def window_size(model: str, peak_used: int = 0) -> int:
+    # Proven by observation: >200k tokens cannot fit a 200k window.
+    if peak_used > 200_000:
+        return 1_000_000
     if "[1m]" in (model or "").lower():
         return 1_000_000
     if _env_signals_1m():
+        return 1_000_000
+    if _family_supports_1m(model):
         return 1_000_000
     return 200_000
 
@@ -149,9 +227,9 @@ def severe_msg(used: int, total: int, flag_path: pathlib.Path) -> str:
     return (
         f"Context tight: {u}/{t} ({pct}%). STOP next non-readonly action. Use "
         f"AskUserQuestion: (continue) / (hand off — persist to thoughts/ then "
-        f"new session) / (yolo this session). If Taras picks 'yolo', write "
+        f"new session) / (yolo this session). If {USER} picks 'yolo', write "
         f'{{"level":"severe","yolo":true}} to {flag_path}. Don\'t recommend '
-        f"/compact; accept if Taras insists.\n{TAIL}"
+        f"/compact; accept if {USER} insists.\n{TAIL}"
     )
 
 
@@ -160,7 +238,7 @@ def yolo_tier_msg(used: int, total: int, flag_path: pathlib.Path) -> str:
     return (
         f"{u}/{t} ({pct}%) — I see you like gambling. STOP. Use AskUserQuestion "
         f"before anything else; handing off to a new session is strongly advised. "
-        f'If Taras picks yolo, write {{"level":"yolo","yolo":true}} to {flag_path}.\n{TAIL}'
+        f'If {USER} picks yolo, write {{"level":"yolo","yolo":true}} to {flag_path}.\n{TAIL}'
     )
 
 
@@ -174,7 +252,7 @@ def stop_block_reason(level: str, used: int, total: int, flag_path: pathlib.Path
     u, t, pct = render_usage(used, total)
     return (
         f"Context is at {level} ({u}/{t}, {pct}%). Before ending, use "
-        f"AskUserQuestion to ask Taras: (a) hand off to a new session "
+        f"AskUserQuestion to ask {USER}: (a) hand off to a new session "
         f"(persist state to thoughts/ first), (b) continue, or (c) yolo this "
         f'session (write {{"level":"{level}","yolo":true}} to {flag_path}). '
         f"Don't recommend /compact."

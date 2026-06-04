@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Stop hook: at severe+ context pressure (no yolo flag), block stop so
-Claude must confirm with Taras via AskUserQuestion before ending.
+Claude must confirm with the user via AskUserQuestion before ending.
 
 Loop-safe: if stop_hook_active is true, exits 0 to avoid re-blocking.
 Throttled: only fires once per level via the shared state file.
@@ -14,7 +14,7 @@ import sys
 from context_state import (
     classify,
     load_state,
-    read_last_usage,
+    read_usage,
     save_state,
     state_path,
     stop_block_reason,
@@ -36,11 +36,11 @@ def main() -> None:
     if not session_id or not transcript_path:
         sys.exit(0)
 
-    used, model = read_last_usage(transcript_path)
+    used, peak, model = read_usage(transcript_path)
     if used <= 0:
         sys.exit(0)
 
-    total = window_size(model)
+    total = window_size(model, peak)
     level = classify(used, total)
     if level not in ("severe", "yolo"):
         sys.exit(0)

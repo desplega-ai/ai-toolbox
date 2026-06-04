@@ -77,7 +77,7 @@ bun run lint:fix             # Auto-fix
 
 ## Using cc-what to Answer Questions
 
-When Taras asks questions about his Claude Code usage, **use native TS imports** with bun:
+When the user asks questions about their Claude Code usage, **use native TS imports** with bun:
 
 ```typescript
 // Run with: bun -e "..."
