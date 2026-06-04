@@ -1,7 +1,7 @@
 {
     "name": "desplega",
     "description": "Plugin for effective agentic development",
-    "version": "2.0.1",
+    "version": "2.1.0",
     "author": {
         "name": "desplega.ai",
         "email": "contact@desplega.ai"
@@ -16,6 +16,17 @@
     ],
     "license": "MIT",
     "hooks": {
+        "SessionStart": [
+            {
+                "matcher": "startup|clear",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session_start.py"
+                    }
+                ]
+            }
+        ],
         "PreToolUse": [
             {
                 "matcher": "Write|Edit",
