@@ -17,6 +17,7 @@ interface DailyEntry {
 	provider?: string;
 	inputTokens: number;
 	outputTokens: number;
+	reasoningOutputTokens?: number;
 	cacheCreationTokens: number;
 	cacheReadTokens: number;
 	totalTokens?: number;
@@ -49,10 +50,12 @@ interface DailyEntry {
 const CCUSAGE_TIMEOUT_MS = 20_000;
 const PACKAGE_DIR = new URL("..", import.meta.url).pathname;
 const CCUSAGE_BIN = new URL(
-	"../node_modules/ccusage/dist/index.js",
+	"../node_modules/ccusage/dist/cli.js",
 	import.meta.url,
 ).pathname;
 const CCUSAGE_SOURCES = ["claude", "codex", "opencode", "amp", "pi"] as const;
+const ACTIVE_SESSION_SOURCES = ["claude", "codex"] as const;
+const SELECTABLE_ACTION = "bash=/usr/bin/true terminal=false";
 
 interface DailyResponse {
 	daily?: DailyEntry[];
@@ -66,19 +69,22 @@ interface SessionData {
 	session?: string;
 	projectPath?: string;
 	project?: string;
+	directory?: string;
 	agent?: string;
 	source?: string;
 	provider?: string;
 	inputTokens: number;
 	outputTokens: number;
+	reasoningOutputTokens?: number;
 	cacheCreationTokens: number;
 	cacheReadTokens: number;
 	totalTokens?: number;
 	totalCost: number;
 	costUSD?: number;
 	lastActivity?: string;
-	models?: string[];
+	models?: string[] | Record<string, unknown>;
 	modelsUsed?: string[];
+	sessionFile?: string;
 	modelBreakdowns: Array<{
 		modelName: string;
 		cost: number;
@@ -108,16 +114,18 @@ interface UsageTotals {
 	totalCostUSD?: number;
 }
 
-interface ProjectSessionCost {
-	totalCost: number;
-	modelBreakdowns: Map<string, number>;
-}
-
-interface ActiveProject {
-	projectPath: string;
-	projectKey: string;
+interface ActiveSession {
+	agent: string;
 	projectName: string;
+	sessionId: string;
 	lastActivity: number;
+	totalCost: number;
+	inputTokens: number;
+	outputTokens: number;
+	reasoningOutputTokens: number;
+	cacheCreationTokens: number;
+	cacheReadTokens: number;
+	modelBreakdowns: Map<string, number>;
 }
 
 interface AgentUsage {
@@ -125,9 +133,18 @@ interface AgentUsage {
 	totalCost: number;
 	inputTokens: number;
 	outputTokens: number;
+	reasoningOutputTokens: number;
 	cacheCreationTokens: number;
 	cacheReadTokens: number;
 	modelBreakdowns: Map<string, number>;
+}
+
+interface TokenUsageSummary {
+	inputTokens: number;
+	outputTokens: number;
+	reasoningOutputTokens?: number;
+	cacheCreationTokens?: number;
+	cacheReadTokens?: number;
 }
 
 function formatCost(cost: number): string {
@@ -148,6 +165,43 @@ function getCostColor(cost: number): string {
 	if (cost <= 50) return "#F44336"; // red - low usage
 	if (cost <= 100) return "#FF9800"; // orange - moderate usage
 	return "#4CAF50"; // green - good usage
+}
+
+function selectable(params = ""): string {
+	return params ? `${params} ${SELECTABLE_ACTION}` : SELECTABLE_ACTION;
+}
+
+function getCoreTokens(usage: TokenUsageSummary): number {
+	return (
+		usage.inputTokens + usage.outputTokens + (usage.reasoningOutputTokens ?? 0)
+	);
+}
+
+function printTokenUsage(prefix: string, usage: TokenUsageSummary): void {
+	console.log(
+		`${prefix}Tokens: ${formatTokens(getCoreTokens(usage))} | ${selectable("color=#888888")}`,
+	);
+	console.log(
+		`${prefix}Input: ${formatTokens(usage.inputTokens)} | ${selectable("color=#888888")}`,
+	);
+	console.log(
+		`${prefix}Output: ${formatTokens(usage.outputTokens)} | ${selectable("color=#888888")}`,
+	);
+	if ((usage.reasoningOutputTokens ?? 0) > 0) {
+		console.log(
+			`${prefix}Reasoning: ${formatTokens(usage.reasoningOutputTokens ?? 0)} | ${selectable("color=#888888")}`,
+		);
+	}
+	if ((usage.cacheCreationTokens ?? 0) > 0) {
+		console.log(
+			`${prefix}Cache Write: ${formatTokens(usage.cacheCreationTokens ?? 0)} | ${selectable("color=#888888")}`,
+		);
+	}
+	if ((usage.cacheReadTokens ?? 0) > 0) {
+		console.log(
+			`${prefix}Cache Read: ${formatTokens(usage.cacheReadTokens ?? 0)} | ${selectable("color=#888888")}`,
+		);
+	}
 }
 
 async function runCcusageDaily(): Promise<{
@@ -210,101 +264,109 @@ function pathToProjectKey(projectPath: string): string {
 	return projectPath.replace(/\//g, "-");
 }
 
-function getProjectName(projectPath: string): string {
-	return projectPath.split("/").pop() || projectPath;
+function getEncodedProjectName(pathSegment: string): string | null {
+	const homePrefix = process.env.HOME
+		? `${pathToProjectKey(process.env.HOME)}-Documents-code-`
+		: "";
+	if (homePrefix && pathSegment.startsWith(homePrefix)) {
+		return pathSegment.slice(homePrefix.length) || null;
+	}
+
+	return null;
 }
 
-async function getRecentlyActiveProjects(
-	minutesAgo = 30,
-): Promise<ActiveProject[]> {
-	const historyPath = `${process.env.HOME}/.claude/history.jsonl`;
+function getProjectName(projectPath: string): string {
+	const normalizedPath = projectPath.replace(/\\/g, "/");
+	const segments = normalizedPath.split("/").filter(Boolean);
+	const encodedProjectName = getEncodedProjectName(segments[0] ?? "");
+	if (encodedProjectName) {
+		const nestedName = segments.at(-1);
+		return nestedName && nestedName !== segments[0]
+			? `${encodedProjectName}/${nestedName}`
+			: encodedProjectName;
+	}
+
+	if (normalizedPath.includes("/")) {
+		return segments.at(-1) || projectPath;
+	}
+
+	return normalizedPath || projectPath;
+}
+
+function getSessionProjectPath(session: SessionData): string {
+	return session.projectPath ?? session.project ?? session.directory ?? "";
+}
+
+function getSessionDisplayName(
+	source: (typeof ACTIVE_SESSION_SOURCES)[number],
+	session: SessionData,
+): string {
+	const projectPath = getSessionProjectPath(session);
+	if (source !== "codex" || !/^\d{4}\/\d{2}\/\d{2}$/.test(projectPath)) {
+		return getProjectName(projectPath || session.sessionId);
+	}
+
+	const sessionName =
+		session.sessionFile ?? session.sessionId.split("/").at(-1);
+	const sessionMatch = sessionName?.match(
+		/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i,
+	);
+	return sessionMatch?.[1].slice(0, 8) ?? sessionName ?? session.sessionId;
+}
+
+async function getActiveSessions(minutesAgo = 30): Promise<ActiveSession[]> {
+	const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
 	const cutoffTime = Date.now() - minutesAgo * 60 * 1000;
 
-	try {
-		const file = Bun.file(historyPath);
-		const text = await file.text();
-		const lines = text.trim().split("\n");
+	const sourceResults = await Promise.all(
+		ACTIVE_SESSION_SOURCES.map(async (source) => {
+			const result = await runCcusage([
+				source,
+				"session",
+				"--json",
+				"--since",
+				today,
+				"--offline",
+			]);
+			if (!result.success || !result.stdout) return [];
 
-		// Read last 200 lines to find recent activity
-		const recentLines = lines.slice(-200);
-		const projectMap = new Map<string, number>();
-
-		for (const line of recentLines) {
 			try {
-				const entry = JSON.parse(line) as {
-					project?: string;
-					timestamp?: number;
-				};
-				if (entry.project && entry.timestamp && entry.timestamp >= cutoffTime) {
-					const existing = projectMap.get(entry.project);
-					if (!existing || entry.timestamp > existing) {
-						projectMap.set(entry.project, entry.timestamp);
-					}
-				}
+				const parsed = JSON.parse(result.stdout) as SessionResponse;
+				return getSessionEntries(parsed)
+					.map((session) => {
+						const lastActivity = session.lastActivity
+							? new Date(session.lastActivity).getTime()
+							: 0;
+						const modelBreakdowns = new Map<string, number>();
+						for (const breakdown of getModelCosts(session)) {
+							modelBreakdowns.set(
+								breakdown.model,
+								(modelBreakdowns.get(breakdown.model) ?? 0) + breakdown.cost,
+							);
+						}
+
+						return {
+							agent: getEntryAgent({ ...session, agent: source }),
+							projectName: getSessionDisplayName(source, session),
+							sessionId: session.sessionId ?? session.session ?? "",
+							lastActivity,
+							totalCost: getEntryCost(session),
+							inputTokens: session.inputTokens ?? 0,
+							outputTokens: session.outputTokens ?? 0,
+							reasoningOutputTokens: session.reasoningOutputTokens ?? 0,
+							cacheCreationTokens: session.cacheCreationTokens ?? 0,
+							cacheReadTokens: session.cacheReadTokens ?? 0,
+							modelBreakdowns,
+						};
+					})
+					.filter((session) => session.lastActivity >= cutoffTime);
 			} catch {
-				// Skip malformed lines
+				return [];
 			}
-		}
+		}),
+	);
 
-		const activeProjects: ActiveProject[] = [];
-		for (const [projectPath, lastActivity] of projectMap) {
-			activeProjects.push({
-				projectPath,
-				projectKey: pathToProjectKey(projectPath),
-				projectName: getProjectName(projectPath),
-				lastActivity,
-			});
-		}
-
-		// Sort by most recent activity
-		return activeProjects.sort((a, b) => b.lastActivity - a.lastActivity);
-	} catch {
-		return [];
-	}
-}
-
-async function getSessionCostsByProject(): Promise<
-	Map<string, ProjectSessionCost>
-> {
-	const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-	const projectMap = new Map<string, ProjectSessionCost>();
-
-	try {
-		const sessionResult = await runCcusage([
-			"session",
-			"--json",
-			"--since",
-			today,
-			"--offline",
-		]);
-		if (!sessionResult.success) return projectMap;
-		const stdout = sessionResult.stdout;
-		const parsed = JSON.parse(stdout) as SessionResponse;
-		const sessions = getSessionEntries(parsed);
-		if (sessions.length > 0) {
-			for (const session of sessions) {
-				const key = session.projectPath ?? session.project;
-				if (!key) continue;
-				const existing = projectMap.get(key) ?? {
-					totalCost: 0,
-					modelBreakdowns: new Map<string, number>(),
-				};
-				existing.totalCost += getEntryCost(session);
-				for (const breakdown of getModelCosts(session)) {
-					existing.modelBreakdowns.set(
-						breakdown.model,
-						(existing.modelBreakdowns.get(breakdown.model) ?? 0) +
-							breakdown.cost,
-					);
-				}
-				projectMap.set(key, existing);
-			}
-		}
-	} catch {
-		// Return empty map on error
-	}
-
-	return projectMap;
+	return sourceResults.flat().sort((a, b) => b.lastActivity - a.lastActivity);
 }
 
 async function runCcusage(args: string[]): Promise<{
@@ -408,6 +470,7 @@ function summarizeByAgent(entries: DailyEntry[]): AgentUsage[] {
 			totalCost: 0,
 			inputTokens: 0,
 			outputTokens: 0,
+			reasoningOutputTokens: 0,
 			cacheCreationTokens: 0,
 			cacheReadTokens: 0,
 			modelBreakdowns: new Map<string, number>(),
@@ -416,6 +479,7 @@ function summarizeByAgent(entries: DailyEntry[]): AgentUsage[] {
 		existing.totalCost += getEntryCost(entry);
 		existing.inputTokens += entry.inputTokens ?? 0;
 		existing.outputTokens += entry.outputTokens ?? 0;
+		existing.reasoningOutputTokens += entry.reasoningOutputTokens ?? 0;
 		existing.cacheCreationTokens += entry.cacheCreationTokens ?? 0;
 		existing.cacheReadTokens += entry.cacheReadTokens ?? 0;
 
@@ -444,10 +508,9 @@ function formatModelName(modelName: string): string {
 async function main() {
 	try {
 		// Fetch all data in parallel
-		const [dailyResult, activeProjects, sessionCosts] = await Promise.all([
+		const [dailyResult, activeSessions] = await Promise.all([
 			runCcusageDaily(),
-			getRecentlyActiveProjects(30),
-			getSessionCostsByProject(),
+			getActiveSessions(30),
 		]);
 
 		let todayCost = 0;
@@ -474,7 +537,7 @@ async function main() {
 
 		// Menu bar display with active session count
 		const color = getCostColor(todayCost);
-		const activeCount = activeProjects.length;
+		const activeCount = activeSessions.length;
 		const menuBarText =
 			activeCount > 0
 				? `(${activeCount}) ${formatCost(todayCost)}`
@@ -486,31 +549,31 @@ async function main() {
 
 		// Active sessions section (if any)
 		if (activeCount > 0) {
-			console.log(`Active Claude Projects (${activeCount}): | size=14`);
-			for (const project of activeProjects) {
-				const projectCost = sessionCosts.get(project.projectKey);
-				const cost = projectCost?.totalCost ?? 0;
+			console.log(
+				`Active Sessions (${activeCount}): | ${selectable("size=14")}`,
+			);
+			for (const session of activeSessions) {
 				console.log(
-					`--${project.projectName}: ${formatCost(cost)} | color=#888888`,
+					`--${session.agent} ${session.projectName}: ${formatCost(session.totalCost)} | ${selectable("color=#888888")}`,
 				);
-				if (projectCost?.modelBreakdowns) {
-					for (const [modelName, modelCost] of projectCost.modelBreakdowns) {
-						const shortModel = formatModelName(modelName);
-						console.log(
-							`----${shortModel}: ${formatCost(modelCost)} | color=#666666 size=11`,
-						);
-					}
+				printTokenUsage("----", session);
+				for (const [modelName, modelCost] of session.modelBreakdowns) {
+					const shortModel = formatModelName(modelName);
+					const suffix = modelCost > 0 ? `: ${formatCost(modelCost)}` : "";
+					console.log(
+						`----${shortModel}${suffix} | ${selectable("color=#666666 size=11")}`,
+					);
 				}
 			}
 			console.log("---");
 		}
 
 		// Today's summary
-		console.log(`Today: ${formatCost(todayCost)} | size=14`);
+		console.log(`Today: ${formatCost(todayCost)} | ${selectable("size=14")}`);
 		if (todayEntries.length > 1) {
 			for (const agent of agentUsage) {
 				console.log(
-					`--${agent.agent}: ${formatCost(agent.totalCost)} | color=#888888`,
+					`--${agent.agent}: ${formatCost(agent.totalCost)} | ${selectable("color=#888888")}`,
 				);
 			}
 		}
@@ -523,38 +586,48 @@ async function main() {
 				(sum, entry) => sum + (entry.outputTokens ?? 0),
 				0,
 			);
+			const reasoningOutputTokens = todayEntries.reduce(
+				(sum, entry) => sum + (entry.reasoningOutputTokens ?? 0),
+				0,
+			);
+			const cacheCreationTokens = todayEntries.reduce(
+				(sum, entry) => sum + (entry.cacheCreationTokens ?? 0),
+				0,
+			);
 			const cacheReadTokens = todayEntries.reduce(
 				(sum, entry) => sum + (entry.cacheReadTokens ?? 0),
 				0,
 			);
-			console.log(
-				`--Tokens: ${formatTokens(inputTokens + outputTokens)} | color=#888888`,
-			);
-			console.log(`--Input: ${formatTokens(inputTokens)} | color=#888888`);
-			console.log(`--Output: ${formatTokens(outputTokens)} | color=#888888`);
-			if (cacheReadTokens > 0) {
-				console.log(
-					`--Cache Read: ${formatTokens(cacheReadTokens)} | color=#888888`,
-				);
-			}
+			printTokenUsage("--", {
+				inputTokens,
+				outputTokens,
+				reasoningOutputTokens,
+				cacheCreationTokens,
+				cacheReadTokens,
+			});
 		}
 
 		// Monthly summary
 		console.log("---");
-		console.log(`This Month: ${formatCost(monthCost)} | size=14`);
+		console.log(
+			`This Month: ${formatCost(monthCost)} | ${selectable("size=14")}`,
+		);
 
 		// Agent and model breakdown
 		if (agentUsage.length > 0) {
 			console.log("---");
-			console.log("Agents Used Today:");
+			console.log(`Agents Used Today: | ${selectable()}`);
 			for (const agent of agentUsage) {
 				console.log(
-					`--${agent.agent}: ${formatCost(agent.totalCost)} | color=#888888`,
+					`--${agent.agent}: ${formatCost(agent.totalCost)} | ${selectable("color=#888888")}`,
 				);
+				printTokenUsage("----", agent);
 				for (const [modelName, modelCost] of agent.modelBreakdowns) {
 					const shortModel = formatModelName(modelName);
 					const suffix = modelCost > 0 ? `: ${formatCost(modelCost)}` : "";
-					console.log(`----${shortModel}${suffix} | color=#666666 size=11`);
+					console.log(
+						`----${shortModel}${suffix} | ${selectable("color=#666666 size=11")}`,
+					);
 				}
 			}
 		}
