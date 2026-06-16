@@ -47,7 +47,7 @@ You create detailed implementation plans through an interactive, iterative proce
 9. **Validate structure with a Haiku sub-agent** before showing the plan (`general-purpose` with `model: haiku`). Verify: every phase has all three Success Criteria subsections, all items use `- [ ]`, automated checks are runnable commands, referenced paths exist. Apply fixes *before* reveal.
 
 10. **Hand off to a fresh session — never implement here.** Close-out sequence:
-    1. Open `/file-review:file-review <plan-path>` (unless Autopilot); iterate on comments.
+     1. Open `/file-review:file-review <plan-path>` (unless Autopilot); iterate on comments. (Zero-arg no-path calls now auto-propose pending marker review batches via scoped live scan — the v1 deliverable here.)
     2. Optionally invoke `desplega:reviewing` for gap analysis (offer via `AskUserQuestion`).
     3. **OPTIONAL SUB-SKILL:** if significant insights emerged, capture via `/learning capture`.
     4. **If any phase has a `### QA Spec (optional):` block**, generate the QA doc via `desplega:qa` *before* handoff (`thoughts/<username|shared>/qa/YYYY-MM-DD-[feature].md`). Scenarios live in the doc, not the plan.
