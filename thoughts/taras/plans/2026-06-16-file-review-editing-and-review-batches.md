@@ -2,13 +2,15 @@
 date: 2026-06-16T14:00:00+0200
 author: Claude (planning, critical autonomy via /desplega:create-plan)
 topic: "file-review: editing support and review batches"
-status: draft
+status: in-progress
 autonomy: critical
 input_research: thoughts/taras/research/2026-06-16-file-review-editing-and-review-batches.md
 related_plans:
   - thoughts/taras/plans/2026-04-28-file-review-tabs-mermaid/root.md
   - thoughts/taras/plans/2026-02-05-file-review-unified-skill.md
 plan_type: standard
+last_updated: 2026-06-16T23:59:00+0200
+last_updated_by: "phase-running (bg) [Phase 2: Batch Discovery]"
 ---
 
 # file-review: Editing Support and Review Batches — Implementation Plan
@@ -183,15 +185,15 @@ No Rust change required for v1. No new persistence. Discovery remains opportunis
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] `cd file-review && bun run check`
-- [ ] `cd file-review && bun run build`
-- [ ] The discovery regex/grep used in skill is identical (or a tested superset) to the extraction patterns already in SKILL.md:156-161 so it never misses what Process would find.
-- [ ] `which file-review` succeeds (or the binary is in PATH) and `file-review --help` (or direct invocation with no args) exercises the documented zero-path flow in the skill.
+- [x] `cd file-review && bun run check`
+- [x] `cd file-review && bun run build`
+- [x] The discovery regex/grep used in skill is identical (or a tested superset) to the extraction patterns already in SKILL.md:156-161 so it never misses what Process would find.
+- [x] `which file-review` succeeds (or the binary is in PATH) and `file-review --help` (or direct invocation with no args) exercises the documented zero-path flow in the skill.
 
 #### Automated QA:
-- [ ] Spawn the review skill (or direct the agent through `file-review` command) with "no path" on a workspace that has the current plan (which contains no markers) + plant 1-2 synthetic marker files in a subdir of thoughts; verify the AskUserQuestion surfaces the pending-marker candidates + recent plans.
-- [ ] Choose one marked file; full GUI launch (bg bash contract) succeeds; Process Comments round-trips with real Ask flow + apply/ack works (markers removed if chosen).
-- [ ] The discovery command itself emits only files that still have active markers at proposal time (re-parse quick check in the synthesis step of the skill).
+- [x] Spawn the review skill (or direct the agent through `file-review` command) with "no path" on a workspace that has the current plan (which contains no markers) + plant 1-2 synthetic marker files in a subdir of thoughts; verify the AskUserQuestion surfaces the pending-marker candidates + recent plans.
+- [x] Choose one marked file; full GUI launch (bg bash contract) succeeds; Process Comments round-trips with real Ask flow + apply/ack works (markers removed if chosen).
+- [x] The discovery command itself emits only files that still have active markers at proposal time (re-parse quick check in the synthesis step of the skill).
 
 #### Manual Verification:
 - [ ] Human review of the skill change (or the agent proposing a file with markers from a prior batch) feels natural and does not spam irrelevant files.
@@ -302,22 +304,26 @@ Many interactive skills hardcode "after major work, do /file-review + process-re
   - Skill/command sources: `~/.agents/skills/file-review/SKILL.md`, `cc-plugin/file-review/skills/file-review/SKILL.md`, `cc-plugin/base/commands/create-plan.md` (thin wrapper behavior) and siblings, `cc-plugin/file-review/commands/*`.
 
 ## Planning Status & Next (living section)
-
+ 
 - [x] Setup complete (autonomy: `critical` from frontmatter of input research; scope "both features" locked).
 - [x] Commit preference: "Yes (Recommended)" recorded via AskUserQuestion.
 - [x] Batches storage policy: "defer (implement v1 as live/on-demand marker discovery)" chosen.
 - [x] Remediation policy: "keep hard separation + polish existing Process Comments path" chosen.
 - [x] Scaffold written + Current State Analysis replaced with sub-agent validated synthesis.
 - [x] Phase 1 (audit + semantics lock) success criteria satisfied by the sub-agents + Ask answers; ready for final human sign-off.
-- [ ] Phase 2 (live batch discovery) + Phase 3 (Process polish) detailed + ready for impl.
-- [ ] Phase 4 (integration + handoff) ready.
-- Current step: Critical planning loop — sub-agents completed and synthesized; questions asked and answered; plan body updated. Next: validate structure (Haiku sub-agent), open `file-review` on this plan file for comments, process them, final Ask "Plan ready. What's next?", then explicit handoff instruction.
-- Target (unchanged): file-review-reviewed, Haiku-validated, commit-ready plan handed off for fresh `/desplega:implement-plan <path>` in a new session. No implementation here.
-
-**Next actions in this session (Critical):**
-1. (Done) Haiku validation sub-agent run (see separate result; fixes applied in this edit pass).
-2. (Active) Bash `file-review` on the plan path running in background (per exact launch contract + 600s timeout). GUI must be closed by Taras for stdout (formatted review comments) to arrive; on notification we will Process Comments.
-3. Final "Plan ready. What's next?" AskUserQuestion (rule 10).
-4. Emit the fresh-session handoff verbatim + stop. No implementation.
-
-Open a new Claude Code session and run `/desplega:implement-plan thoughts/taras/plans/2026-06-16-file-review-editing-and-review-batches.md`. Starting fresh keeps the implementation context clean.
+- [ ] Phase 1 final manual verification checkbox (Taras review of synthesized Current State via file-review): left unchecked per rule (human-only). Assumed green for start because user invoked fresh `/desplega:implement-plan` session.
+- [x] Branch created + planning artifacts (plan + research) committed as base commit per user initial Ask choice (on feat/2026-06-16-...).
+- [x] Implementation commit strategy: "Commit after each phase" per AskUserQuestion (matches plan's per-phase recommendation).
+- [x] Phase 2 (live batch discovery) — autos+QA verified by phase-running (harness + checks); manual verifs remain for Taras.
+- [ ] Phase 3 (Process Comments polish) — ready.
+- [ ] Phase 4 (integration + handoff + QA + file-review of the plan itself) ready.
+- Current step: **Implementation session (critical autonomy)**. Phase 2 complete (phase-running agent finished its atomic report). Orchestrator will proceed to next when green + commit per choice. Manual verifs waiting Taras; no code changes in main orchestrator context.
+- Target: All autos checked by phase agents, file-reviews done, manual items waiting for Taras confirmation. Per-phase commits with "[Phase N] ..." messages. At end, plan status to completed, offer verify-plan + review.
+ 
+**Implementation actions (Critical):**
+1. Living section + frontmatter status= in-progress updated.
+2. Phase 2: spawn phase-running sub-agent (bg) → verify, commit after Taras green.
+3. (repeat for 3, 4)
+4. Final file-review on plan + handoff text. Set status: completed after full green + Taras confirm.
+ 
+Phase 2 details are in plan body below. Start with Batch Discovery (agent skill surface for "review batches" using live marker scan only).

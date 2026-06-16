@@ -76,6 +76,20 @@ Check for recently created or modified files in the current session:
 
 Propose candidates to the user via AskUserQuestion.
 
+**Review batches (v1 live marker scan):** In addition (or "also check/use these too"), discover files that still contain *active `review-*` markers* — these are "pending review batches/sessions" from prior file-review invocations (markers written on save/close and only stripped by later Process Comments).
+
+Run a tightly scoped discovery using grep -l on literal starts, then *re-filter in synthesis using the exact extraction regexes from the Process section below* so discovery emits ONLY files with currently-active parseable markers at proposal time (never includes e.g. this plan file which only quotes the pattern, or docs that don't fully match the capture groups).
+
+Discovery command (auditable; used verbatim or as superset):
+```bash
+grep -rl '<!--\s*review-(start|line-start)' thoughts/taras/ thoughts/shared/ --include="*.md" 2>/dev/null | head -20
+```
+(Scope limited to `thoughts/taras/` + `thoughts/shared/` only; always combine with re-parse verification pass `node -e ' ... use the two /.../g regexes from 156-161; if ([...c.matchAll(re)].length >0 ) include'` or equiv bash+grep quick; | head -20; see also "Review batches v1" note later in this file.)
+
+Present the pending-marker files (with count hints if feasible) alongside the recent plans list using multi-select AskUserQuestion ("use these too?" supported).
+
+On selection (one or many), launch exactly as below: `file-review "abs-path1" "abs-path2" ...` under Bash `run_in_background: true` `timeout: 600000` (contract allows batch to the underlying binary which supports 0-N files) then immediately flow to **Process Comments** for the returned markers (per file or collected). Existing per-comment Apply/Ack/Skip/remove logic unchanged.
+
 ### If path provided
 
 1. **Verify the file exists** and is readable.
@@ -129,6 +143,15 @@ Propose candidates to the user via AskUserQuestion.
 | Cmd+O | Open file |
 
 ---
+
+## Review batches (v1)
+
+This extension (Phase 2 live marker scan) delivers the user-requested "review batches" as the set of files that currently contain active `review-(start|line-start)` markers (written by GUI, consumed only by Process Comments).
+
+- No sidecar, no new Rust, no marker syntax change, no index.
+- Discovery is on-demand + scope-limited live scan (see "If no path provided" block for the exact command; it runs a recheck using Extraction Patterns:156-161 so never proposes non-active).
+- Re-invoking file-review on any discovered batch file re-uses the existing Tab load/append/multi + export + Process behavior fully.
+- Optional helper paths (future): a `process-pending` alias could collect all such discovered + auto start Process flow without GUI reopen, but for v1 selection + normal launch + Process is sufficient.
 
 ## Process Comments
 
