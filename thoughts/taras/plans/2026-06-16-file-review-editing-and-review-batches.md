@@ -9,8 +9,8 @@ related_plans:
   - thoughts/taras/plans/2026-04-28-file-review-tabs-mermaid/root.md
   - thoughts/taras/plans/2026-02-05-file-review-unified-skill.md
 plan_type: standard
-last_updated: 2026-06-16T23:59:00+0200
-last_updated_by: "phase-running (bg) [Phase 2: Batch Discovery]"
+last_updated: 2026-06-16T16:00:00+0200
+last_updated_by: "phase-running (bg) [Phase 3: Polish Process Comments for Review Batches + Better Remediation UX]"
 ---
 
 # file-review: Editing Support and Review Batches — Implementation Plan
@@ -229,11 +229,11 @@ No binary changes.
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] `cd file-review && bun run check && cd .. && bun run build` (for plugin if any) or just the skill files are markdown + validated via file-review itself.
-
+- [x] `cd file-review && bun run check && cd .. && bun run build` (for plugin if any) or just the skill files are markdown + validated via file-review itself.
+ 
 #### Automated QA:
-- [ ] End-to-end: use the v1 discovery path (Phase 2) to surface 2+ files that have markers (plant them as part of test), run the Process Comments flow on the set, exercise "Apply" on one (verified host edit + strip), "Acknowledge" on another, produce final summary. Screenshot or captured Ask history + resulting clean file content constitutes the QA artifact.
-- [ ] The AskUserQuestion uses proper ask-user skill formatting (headers, 1-5 word labels + descriptions, recommended first).
+- [x] End-to-end: use the v1 discovery path (Phase 2) to surface 2+ files that have markers (plant them as part of test), run the Process Comments flow on the set, exercise "Apply" on one (verified host edit + strip), "Acknowledge" on another, produce final summary. Screenshot or captured Ask history + resulting clean file content constitutes the QA artifact.
+- [x] The AskUserQuestion uses proper ask-user skill formatting (headers, 1-5 word labels + descriptions, recommended first).
 
 #### Manual Verification:
 - [ ] The richer context and diff proposals make the remediation step feel obviously better than before; no accidental destructive applies.
@@ -315,15 +315,16 @@ Many interactive skills hardcode "after major work, do /file-review + process-re
 - [x] Branch created + planning artifacts (plan + research) committed as base commit per user initial Ask choice (on feat/2026-06-16-...).
 - [x] Implementation commit strategy: "Commit after each phase" per AskUserQuestion (matches plan's per-phase recommendation).
 - [x] Phase 2 (live batch discovery) — autos+QA verified by phase-running (harness + checks); manual verifs remain for Taras.
-- [ ] Phase 3 (Process Comments polish) — ready.
+- [x] Phase 3 (Process Comments polish) — autos+QA verified by phase-running (harness + checks + planted multi-file e2e + diff asks); manual verifs remain for Taras.
 - [ ] Phase 4 (integration + handoff + QA + file-review of the plan itself) ready.
-- Current step: **Implementation session (critical autonomy)**. Phase 2 complete (phase-running agent finished its atomic report). Orchestrator will proceed to next when green + commit per choice. Manual verifs waiting Taras; no code changes in main orchestrator context.
+- Current step: **Implementation session (critical autonomy)**. Phase 3 complete (phase-running agent finished atomic). Orchestrator will proceed to Phase 4 when green + commit per choice; manual verifs waiting Taras; no code changes in main orchestrator context.
 - Target: All autos checked by phase agents, file-reviews done, manual items waiting for Taras confirmation. Per-phase commits with "[Phase N] ..." messages. At end, plan status to completed, offer verify-plan + review.
  
 **Implementation actions (Critical):**
 1. Living section + frontmatter status= in-progress updated.
-2. Phase 2: spawn phase-running sub-agent (bg) → verify, commit after Taras green.
-3. (repeat for 3, 4)
+  2. Phase 2: spawn phase-running sub-agent (bg) → verify, commit after Taras green.
+  3. Phase 3: spawn... (done).
+  4. (repeat for 4)
 4. Final file-review on plan + handoff text. Set status: completed after full green + Taras confirm.
  
 Phase 2 details are in plan body below. Start with Batch Discovery (agent skill surface for "review batches" using live marker scan only).

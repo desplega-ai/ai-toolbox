@@ -184,51 +184,182 @@ multiple lines
 /<!--\s*review-line-start\(([a-zA-Z0-9-]+)\)\s*-->\n?([\s\S]*?)\n?<!--\s*review-line-end\(\1\):\s*([\s\S]*?)\s*-->/g
 ```
 
-### Workflow
+### Marker Parsing Utility (reusable, new in Phase 3)
 
-**Step 1: Read and Parse**
+> DRY helper + richer context for batch processing and discovery filtration. Use the EXACT two regexes above (copy or reference by comment). Call before any group presentation or Ask.
 
-Read the file, extract all comments, present a summary:
+Documented reusable parse procedure (copyable to bash `node -e` harness or direct execution in agent flow):
+
+```javascript
+// parseAllMarkersWithContext(files: string[], contextLines?: number = 5)
+// returns array of: { file: string, id: string, type: 'inline'|'line',
+//   highlighted: string, feedback: string,
+//   contextSnippet: string,   // +/- N lines around match (for Ask description)
+//   fullMarker: string, startIdx: number, endIdx: number }
+function parseAllMarkersWithContext(filePaths, contextLines = 5) {
+  const inlineRe = /<!--\s*review-start\(([a-zA-Z0-9-]+)\)\s*-->([\s\S]*?)<!--\s*review-end\(\1\):\s*([\s\S]*?)\s*-->/g;
+  const lineRe = /<!--\s*review-line-start\(([a-zA-Z0-9-]+)\)\s*-->\n?([\s\S]*?)\n?<!--\s*review-line-end\(\1\):\s*([\s\S]*?)\s*-->/g;
+  const results = [];
+  for (const file of filePaths) {
+    const content = require('fs').readFileSync(file, 'utf8');
+    let m;
+    while ((m = inlineRe.exec(content)) !== null) {
+      const [full, id, highlighted, feedback] = m;
+      const ctx = extractContext(content, m.index, m.index + full.length, contextLines);
+      results.push({ file, id, type: 'inline', highlighted, feedback, contextSnippet: ctx, fullMarker: full, startIdx: m.index, endIdx: m.index + full.length });
+    }
+    while ((m = lineRe.exec(content)) !== null) {
+      const [full, id, highlighted, feedback] = m;
+      const ctx = extractContext(content, m.index, m.index + full.length, contextLines);
+      results.push({ file, id, type: 'line', highlighted, feedback, contextSnippet: ctx, fullMarker: full, startIdx: m.index, endIdx: m.index + full.length });
+    }
+  }
+  return results;
+  function extractContext(src, sIdx, eIdx, n) {
+    // line-aware context around marked span; strip markers in snippet presentation if desired for preview
+    const lines = src.split('\n');
+    let pos = 0, startLine = 0;
+    for (let i=0; i<lines.length; i++) { if (pos + lines[i].length +1 > sIdx) { startLine = i; break; } pos += lines[i].length +1; }
+    const from = Math.max(0, startLine - n), to = Math.min(lines.length-1, startLine + n);
+    return lines.slice(from, to+1).join('\n');
+  }
+}
+```
+
+(Used by Phase2 "if no path" re-filter + the Process collect below. Re-parse always verifies live active markers.)
+
+### Workflow (batch-aware, Phase 3 polish)
+
+Support single-file or multi-file batches from prior discovery/review launch (the chosen set from "use these too", multi `file-review p1 p2`, or per-file `process-comments` arg). 
+
+**Collect comments across chosen files FIRST** (then present grouped). Even for single always include richer surroundings. Use the parsing utility above (contextLines=5 default, configurable for verbose when needed).
+
+**Step 1: Determine chosen files + Read/Parse all**
+
+- Chosen files = list from the review batch launch, or explicit path arg(s) to process-comments / the skill, or [most recent reviewed file(s)] from conversation context.
+- Parse: `const markers = parseAllMarkersWithContext(chosenFilePaths, 5);`
+- Group by file for presentation.
+- Present a batch-aware summary example:
 
 ```
-Found 3 review comments in <filename>:
+Found 5 review comments across 2 files (batch from review session at <close time>):
 
-1. [inline] "implement caching" -> "Consider using Redis"
-2. [line] "function fetchData()..." -> "Add error handling"
-3. [inline] "TODO" -> "Please complete this"
+thoughts/taras/plans/2026-...plan.md (3 markers):
+  1. [inline@L12] "def foo()..." -> "Add docs + handle None"
+  2. [line@L45-52] "for x in xs..." -> "Use enumerate"
+  3. ...
+thoughts/taras/research/....md (2 markers):
+  ...
+
+"N markers from the same batch" hint visible in each prompt below when context from Phase2 discovery/launch has batch size.
 ```
 
-**Step 2: Process Each Comment**
+Use utility to ensure only files with ACTIVE live markers (re-verifies on disk) are included.
 
-For each comment, show context and use AskUserQuestion:
+**Step 2: Process Each Comment (grouped presentation + richer Ask + safe apply)**
 
-| Question | Options |
-|----------|---------|
-| "Comment N of M: <feedback summary>" | 1. Apply edit, 2. Acknowledge (remove markers only), 3. Skip |
+Per-marker (in file-group order or flat with file prefix), include **more surrounding lines** (the captured contextSnippet ~5 lines pre/post the marked span) + original highlighted snippet + feedback in the description / full prompt text.
 
-- **Apply edit**: Propose changes, apply after confirmation, remove markers.
-- **Acknowledge**: Remove markers, preserve content. Recommend this for praise/FYI.
-- **Skip**: Leave as-is, move on.
+The AskUserQuestion *MUST* obey ask-user/SKILL.md conventions exactly: one-sentence question ending with ?, header chip (short axis name), options: 1-5 word labels (Recommended first if applicable), one-sentence descriptions.
+
+Current per-comment decision shape (example):
+
+```
+Question: "How to handle comment 2/5 on thoughts/taras/plans/2026-06-16-....md (3 markers same batch)? feedback='Add docs + handle None' (original highlighted span follows context below)."
+
+Header: "Action"
+
+Options (use tool, not plain bullets):
+  label: "Apply edit (Recommended)"
+  description: "Draft target text for the span per feedback; preview exact unified diff before host-edit; always strips markers."
+  label: "Acknowledge"
+  description: "Safe for FYI/praise/LGTM. Removes markers, leaves content unchanged."
+  label: "Skip"
+  description: "Leave marker+content untouched for a later pass."
+```
+
+Provide context to actor inside description or as preceding text before calling tool: the contextSnippet + highlighted.
+
+**Apply edit branch (safe + reviewable diff preview):**
+
+- Using the marker's `highlighted` + feedback + contextSnippet, draft the exact remediation string (`proposed` — the intended replacement content for *that span*, no markers in it).
+-  `oldSpan = marker.highlighted; newContent = proposed;`
+- Compute the *unified diff*:
+  ```
+  --- a/<relative or file> (span id=xxx)
+  +++ b/<file> (addressing feedback)
+  @@ -Lxx,yy +Lxx,zz @@
+  -<old span lines, verbatim from the captured>
+  +<proposed lines, verbatim>
+  ```
+- If `oldSpan.trim() === newContent.trim()` || (length delta very small and only whitespace/line-end diffs): treat as trivial — proceed directly to host edit without extra Ask OK.
+- Else (normal case): BEFORE any host edit call, show the unified diff in output, then make **explicit confirmation AskUserQuestion** using proper format:
+
+  | Question | Options |
+  |----------|---------|
+  | "Apply this unified diff to remediate the marker comment?" | label "Yes Apply (Recommended)" description "Exact change matches feedback + reviewable diff. Safe."; label "No, cancel" description "Redraft proposed content or pick Acknowledge/Skip." |
+
+  Header e.g. "Confirm Diff"
+
+  Only on "Yes Apply (Recommended)" continue; otherwise abort back to per-marker decision for that item.
+
+- Then (after confirmation or auto trivial), **perform the remediation with host edit tool**:
+  Use the `edit` tool (precise match) to replace the marker's `fullMarker` (the entire `<!-- review-start... whole end -->`) in one shot with `newContent` (the proposed remediation span, *no* marker tags).
+  This both applies the edit addressing the feedback and cleanly strips the markers at the site.
+
+- After successful edit write, optionally re-verify no markers remain for that id via quick reparse.
+
+**Acknowledge branch:**
+
+- Directly use `edit` tool: replace the `fullMarker` entire block string with *just* `highlighted` (preserves original content, removes markers). No diff ask needed. Ideal default for praise (see special cases).
+
+**Skip branch:**
+
+- No edit. Record for final count. Marker stays on disk.
+
+Track per-file stats: `applied[file]++, acked[file]++, skipped[file]++` as you go.
 
 **Step 3: Remove Markers**
 
-- Inline: replace `<!-- review-start(ID) -->text<!-- review-end(ID): feedback -->` with `text`
-- Line: replace the full block with just the content lines
+Integrated into Apply/Ack above (the targeted host `edit` replaces the tagged block). 
+- Line comments: full block removal/replace leaves the inner `content lines` exactly (the `highlighted` in parse).
+- Inline: same.
+- Rust remove_comment command not used here (post-GUI agent drive uses direct edit for both change+strip).
 
-**Step 4: Final Summary**
+**Step 4: Final Summary (enhanced, lists files + counts per file)**
+
+Always produce after last marker:
 
 ```
-Processing complete!
+Processing complete for review batch (2 files, N from prior sessions)!
 
-- Applied edits: 2
-- Acknowledged: 1
-- Skipped: 0
+thoughts/taras/plans/2026-06-16-file-review-....md:
+  - Applied edits: 1
+  - Acknowledged: 2
+  - Skipped: 0
 
-File saved.
+thoughts/shared/research/....md:
+  - Applied edits: 0
+  - Acknowledged: 1
+  - Skipped: 0
+
+Totals: Applied=1, Acknowledged=3, Skipped=0
+All markers stripped from touched files; disk state clean.
+File(s) saved via host edits.
 ```
+
+(Adapt counts/labels to the marks that participated in this run. List every chosen file even if 0 markers at parse time.)
 
 ### Special Cases
 
-- **FYI/Praise** ("LGTM", "Nice work"): Recommend Acknowledge as default
-- **Empty feedback**: Ask if user wants to remove markers
-- **Unclear feedback**: Use AskUserQuestion to clarify reviewer intent
+- **FYI/Praise** ("LGTM", "Nice work", "ship it", empty/positive-only): Default to **Acknowledge (Recommended)** — show why in the initial per-marker Ask description.
+- **Empty feedback**: After parse, present AskUserQuestion to decide remove (ack) vs clarify; do not auto-apply.
+- **Unclear feedback**: Use AskUserQuestion "Clarify intent?" with labels "Apply default edit (Recommended)" + "Acknowledge anyway" + "Skip"; include rich contextSnippet.
+- **Batch hints**: When markers were grouped from discovery or multi-launch, surface "X of the Y markers from same review session/batch" in question context (available via passed closure info if any, or file list len).
+- **Trivial applies** (no-op ws, formatting same): auto-apply + log as such (no extra Ask for diff); still report in summary.
+- **Multi-file simultaneous edits**: safe due to sequential Ask+edit+reparse-per-step; do no concurrent host writes.
+- After apply or batch complete, optional re-run of parseAll utility should yield zero for the just-processed group (proves strip worked).
+
+Ensure every process pass starts by reading latest from disk (never cached markers).
+
+(End of revised Process Comments section for Phase 3)

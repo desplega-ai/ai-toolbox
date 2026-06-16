@@ -11,7 +11,8 @@ Shortcut command for backward compatibility. Delegates to the unified `file-revi
 
 When the user invokes `/file-review [path]`:
 
-- When no path (omitted): delegates fully to **Review a File > If no path provided** in the skill, which now surfaces recent + (pending marker batches discovered live).
+- When no path (omitted): delegates fully to **Review a File > If no path provided** in the skill, which now surfaces recent + (pending marker batches discovered live from Phase 2).
+  Then always flows through the improved (Phase 3) **Process Comments** (collect-first batch presentation, higher context, diff-preview Apply).
 - Otherwise: pass path and flags.
 
 1. Follow the **Review a File** section of the `file-review:file-review` skill
