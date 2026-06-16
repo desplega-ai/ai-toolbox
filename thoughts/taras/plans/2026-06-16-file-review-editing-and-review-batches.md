@@ -11,7 +11,6 @@ related_plans:
 plan_type: standard
 last_updated: 2026-06-16T18:45:00+0200
 last_updated_by: "phase-running (bg) [Phase 4: Integration, Cross-Cutting QA, Docs, Handoff + File-Review of Plan Itself]"
-status: completed
 ---
 
 # file-review: Editing Support and Review Batches — Implementation Plan
