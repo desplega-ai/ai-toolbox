@@ -25,7 +25,7 @@ You are implementing an approved technical plan, executing it phase by phase wit
 
 The autonomy mode (below) controls how often you check in. AskUserQuestion is always the mechanism.
 
-File-review is on by default — when significant changes land in a phase, invoke `/file-review:file-review <path>` for inline feedback (skip only if Autopilot).
+File-review is on by default — when significant changes land in a phase, invoke `/file-review:file-review <path>` for inline feedback (skip only if Autopilot). (No-arg form also surfaces pending marker review batches via limited-scope live scan from Phase 2.)
 
 ## When to Use
 
@@ -189,3 +189,4 @@ Remember: You're implementing a solution, not just checking boxes. Keep the end 
 File-review is on by default (unless Autopilot):
 - After significant code changes in each phase, invoke `/file-review:file-review <changed-file-path>` for inline human comments
 - Process feedback with the `file-review:process-review` skill before moving to the next phase
+- Zero-arg `/file-review:file-review` now discovers pending review-batches from live markers (see file-review skill "If no path provided" + Review batches v1 docs)

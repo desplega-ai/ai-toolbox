@@ -153,6 +153,8 @@ This extension (Phase 2 live marker scan) delivers the user-requested "review ba
 - Re-invoking file-review on any discovered batch file re-uses the existing Tab load/append/multi + export + Process behavior fully.
 - Optional helper paths (future): a `process-pending` alias could collect all such discovered + auto start Process flow without GUI reopen, but for v1 selection + normal launch + Process is sufficient.
 
+**Phase 4 note (final)**: The zero-path behavior ("includes pending review markers / batches") + the improved batch-aware richer-context Process Comments UX (with grouping, contextSnippets=5, unified-diff preview before Apply, per-file stats in summary) is now the canonical live realization of the 2026-06 research request. Discovery scan is intentionally limited-scope (thoughts/*/ + on-demand re-filter via util using exact inline+line regexes at skill:179-184; see parseAllMarkersWithContext at 193-227). The new capabilities are documented here, in cc-plugin commands, and file-review/README.md. The loop (no-arg discover, bg GUI file-review, notify stdout, Process apply with richer prompts + safe edits) was exercised directly against this plan itself + artifacts (markers cleaned via Acknowledge/Apply paths).
+
 ## Process Comments
 
 ### Comment Format
