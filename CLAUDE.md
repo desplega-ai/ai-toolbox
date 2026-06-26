@@ -84,3 +84,13 @@ After making changes to `file-review/`, follow this sequence:
 4. **Commit Cargo.lock**: The build updates `file-review/src-tauri/Cargo.lock` — commit and push it separately
 
 Use `bun run dev -- /path/to/file.md` for E2E testing before release.
+
+<important if="you change the file-review binary (`file-review/`) OR its plugin skill (`cc-plugin/file-review/`)">
+
+The binary and the plugin skill must stay in sync — the skill **documents** what the binary does (CLI flags, keyboard shortcuts, output formats, config). They have drifted before.
+
+- Change the binary's CLI/shortcuts/output/config behavior → update `cc-plugin/file-review/skills/file-review/SKILL.md` (and `commands/`) to match, treating the binary source as the source of truth (`src-tauri/src/{main,lib,comments,config,web_server}.rs`, `src/shortcuts.ts`).
+- Change the skill → verify every documented flag/shortcut/format still matches the current binary.
+- Either way, bump the plugin version in `cc-plugin/file-review/.claude-plugin/plugin.json` (per the Plugin versioning rules above).
+</important>
+
