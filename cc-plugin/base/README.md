@@ -123,6 +123,7 @@ Inside you will find:
 
 The plugin also registers a few lifecycle hooks (see [`hooks/`](./hooks) and the `hooks` block in [`.claude-plugin/plugin.json`](./.claude-plugin/plugin.json)):
 
+- **Workflow frame** (`session_start.py` on `SessionStart`, new/cleared sessions only) — injects a short, factual reminder once per fresh context: push research/exploration to sub-agents (`Explore`, `/desplega:research`), persist to `thoughts/`, hand off between stages instead of `/compact`. One-time, so no per-turn nagging.
 - **Context-window pressure warnings** (`context_warn.py` on `UserPromptSubmit`, `stop_confirm.py` on `Stop`) — the enforcement arm of "Problem 2" above. As the session fills up they nudge you to **offload to sub-agents, persist progress to `thoughts/`, and avoid `/compact`** (so those files keep their value); at high pressure they pause the session so you can hand off to a fresh one instead of grinding on in a degraded context.
 - **`thoughts/` validation** (`validate-thoughts.py` on `Write|Edit`) — keeps thoughts-directory writes well-formed.
 - **Plan checkbox tracking** (`plan_checkbox_*.py`) — keeps plan progress in sync during `implement`.
