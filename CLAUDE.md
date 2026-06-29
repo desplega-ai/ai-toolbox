@@ -17,6 +17,7 @@ Monorepo of AI and developer tools by desplega.ai. Each subdirectory is a standa
 | `hive/` | macOS app for Claude Code sessions | TypeScript, Electron, Vite |
 | `hn-sql/` | HN data with Parquet + SQL | - |
 | `invoice-cli/` | Invoice email fetcher | - |
+| `shot/` | No-auth URL screenshot service (Playwright over CDP) | TypeScript, Node, Docker |
 | `thoughts/` | Research notes & plans (via /desplega:*) | Markdown |
 | `willitfront.page/` | HN analysis with natural language | - |
 | `wts/` | Git worktree manager | TypeScript, Bun |

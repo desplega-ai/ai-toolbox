@@ -1,0 +1,22 @@
+services:
+  shot:
+    build: .
+    image: desplega/shot:latest
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      # SSRF guard is on by default; flip to "true" only on trusted/internal nets.
+      # ALLOW_PRIVATE_IPS: "false"
+      # MAX_CONCURRENCY: "4"
+      #
+      # The entrypoint supervises two processes: a Chromium CDP server +
+      # the screenshot server connected to it (both restart on failure).
+      #
+      # Set CDP_URL to reuse an EXTERNAL CDP backend (Chrome pool / browserless)
+      # instead — the entrypoint then skips launching Chromium and just supervises
+      # the server against it:
+      # CDP_URL: "http://chrome:9222"
+    # Chromium is unhappy with the tiny default /dev/shm in containers.
+    shm_size: "1gb"
+    restart: unless-stopped

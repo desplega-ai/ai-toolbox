@@ -1,0 +1,21 @@
+{
+  "name": "@desplega.ai/shot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "No-auth screenshot service: render any URL to PNG/JPEG via Playwright over CDP (bundled Chromium, or reuse an external CDP backend).",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "start:supervised": "node scripts/supervisor.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "playwright": "1.61.1",
+    "tsx": "^4.19.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2"
+  }
+}
