@@ -19,6 +19,7 @@ Monorepo of AI and developer tools by [desplega.ai](https://desplega.ai). Each s
 | [hn-sql](./hn-sql) | HN data with Parquet + SQL | - |
 | [invoice-cli](./invoice-cli) | Invoice email fetcher | - |
 | [meme-gen](./meme-gen) | Meme generator using Imgflip API | TypeScript, Bun |
+| [shot](./shot) | No-auth URL screenshot service (Playwright + CDP) | TypeScript, Node, Docker |
 | [thoughts](./thoughts) | Research notes & plans (via /desplega:\*) | Markdown |
 | [willitfront.page](./willitfront.page) | HN analysis with natural language | - |
 | [wts](./wts) | Git worktree manager | TypeScript, Bun |
