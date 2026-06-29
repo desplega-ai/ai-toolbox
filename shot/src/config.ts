@@ -55,6 +55,9 @@ export const config = {
   /** Max screenshots rendered concurrently; further requests queue. */
   maxConcurrency: num("MAX_CONCURRENCY", 4),
 
+  /** Max requests allowed to wait for a render slot before we shed load (503). */
+  maxQueue: num("MAX_QUEUE", 64),
+
   /**
    * SSRF guard: when false (default), refuse URLs that resolve to private,
    * loopback, link-local or cloud-metadata addresses. Set ALLOW_PRIVATE_IPS=true

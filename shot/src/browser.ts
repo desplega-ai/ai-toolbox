@@ -9,17 +9,31 @@
 
 import { chromium, type Browser, type BrowserContext } from "playwright";
 import { config } from "./config";
+import { HttpError } from "./errors";
 
-/** Minimal FIFO semaphore bounding concurrent renders. */
+/**
+ * Minimal FIFO semaphore bounding concurrent renders, with a bounded wait queue.
+ * Once `max` renders are in flight and `maxQueue` requests are already waiting,
+ * further acquires are rejected (503) instead of piling up unbounded — otherwise
+ * an unauthenticated flood could exhaust memory/file descriptors.
+ */
 class Semaphore {
   private active = 0;
   private readonly queue: Array<() => void> = [];
-  constructor(private readonly max: number) {}
+  constructor(
+    private readonly max: number,
+    private readonly maxQueue: number,
+  ) {}
 
   acquire(): Promise<void> {
     if (this.active < this.max) {
       this.active++;
       return Promise.resolve();
+    }
+    if (this.queue.length >= this.maxQueue) {
+      return Promise.reject(
+        new HttpError(503, "Server busy: render queue full, retry shortly"),
+      );
     }
     return new Promise<void>((resolve) => this.queue.push(resolve));
   }
@@ -41,8 +55,21 @@ const LAUNCH_ARGS = [
 
 let browserPromise: Promise<Browser> | null = null;
 
+/**
+ * A safe label for the rendering backend, exposed on the unauthenticated `/` and
+ * `/health` responses. A CDP URL can embed credentials (userinfo, or a token in
+ * the query string, e.g. browserless), so we strip everything but scheme+host:port
+ * — never the raw value.
+ */
 export function backendDescription(): string {
-  return config.cdpUrl ? `cdp:${config.cdpUrl}` : "chromium:bundled";
+  if (!config.cdpUrl) return "chromium:bundled";
+  try {
+    const u = new URL(config.cdpUrl);
+    const auth = u.username ? "***@" : ""; // signal creds exist without leaking them
+    return `cdp:${u.protocol}//${auth}${u.host}`;
+  } catch {
+    return "cdp:external";
+  }
 }
 
 async function createBrowser(): Promise<Browser> {
@@ -100,7 +127,7 @@ export interface ShotOptions {
 }
 
 // Bound the number of pages rendering at once to keep memory predictable.
-const semaphore = new Semaphore(Math.max(1, config.maxConcurrency));
+const semaphore = new Semaphore(Math.max(1, config.maxConcurrency), Math.max(0, config.maxQueue));
 
 /** Render a URL to an image buffer. */
 export async function takeScreenshot(opts: ShotOptions): Promise<Buffer> {

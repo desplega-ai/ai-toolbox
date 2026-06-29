@@ -108,6 +108,7 @@ All via environment variables (see [`.env.example`](./.env.example)):
 | `MAX_TIMEOUT_MS`          | `60000`     | Ceiling for `timeout`                                |
 | `NAV_WAIT_UNTIL`          | `load`      | Default wait condition                               |
 | `MAX_CONCURRENCY`         | `4`         | Max simultaneous renders (rest queue)                |
+| `MAX_QUEUE`               | `64`        | Max requests waiting for a slot before shedding load (`503`) |
 | `MAX_WIDTH/HEIGHT`        | `3840`      | Viewport ceilings                                    |
 | `MAX_DEVICE_SCALE_FACTOR` | `3`         | DPR ceiling                                          |
 | `MAX_DELAY_MS`            | `15000`     | Ceiling for `delay`                                  |
@@ -123,7 +124,11 @@ All via environment variables (see [`.env.example`](./.env.example)):
   This is a guard rail, not airtight — it does not stop DNS rebinding or
   redirects to private hosts mid-navigation.
 - Resource ceilings (`MAX_*`) bound viewport size, DPR, delay, timeout, and
-  concurrency so a single caller can't trivially exhaust memory.
+  concurrency so a single caller can't trivially exhaust memory. Beyond
+  `MAX_CONCURRENCY` renders, up to `MAX_QUEUE` requests wait; further ones are
+  shed with `503` + `Retry-After` instead of piling up unbounded.
+- The `CDP_URL` (which may embed a backend credential) is **redacted** to
+  scheme+host in the public `/` and `/health` responses — never echoed raw.
 
 ## Deployment
 

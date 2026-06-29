@@ -147,6 +147,7 @@ export function openapiSpec(): unknown {
             "400": { description: "Missing or invalid parameters" },
             "403": { description: "Target blocked by SSRF guard" },
             "502": { description: "Failed to render the page" },
+            "503": { description: "Server busy: render queue full (honor Retry-After)" },
           },
         },
       },

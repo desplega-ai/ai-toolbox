@@ -31,6 +31,7 @@ function sendJson(res: http.ServerResponse, status: number, body: unknown): void
 }
 
 function sendError(res: http.ServerResponse, status: number, message: string): void {
+  if (status === 503 && !res.headersSent) res.setHeader("retry-after", "1");
   sendJson(res, status, { error: { status, message } });
 }
 
@@ -164,6 +165,7 @@ async function handleScreenshot(res: http.ServerResponse, params: URLSearchParam
   try {
     image = await takeScreenshot(opts);
   } catch (err) {
+    if (err instanceof HttpError) throw err; // e.g. 503 queue-full — preserve status
     const message = err instanceof Error ? err.message : String(err);
     throw new HttpError(502, `Failed to render ${opts.url}: ${message}`);
   }
