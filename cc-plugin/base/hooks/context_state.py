@@ -141,14 +141,20 @@ def _env_signals_1m() -> bool:
 # UserPromptSubmit/Stop hooks here cannot read the live variant. We therefore
 # default these modern families to their 1M window; positive signals ([1m] in
 # the model string or env, observed usage) only ever upgrade, never downgrade.
-_MODEL_RE = re.compile(r"claude-(opus|sonnet|haiku)-(\d+)-(\d+)")
+#
+# The minor version is optional: newer IDs like "claude-sonnet-5" or
+# "claude-fable-5" have no trailing "-<minor>" segment (unlike the
+# "claude-opus-4-8" / "claude-sonnet-4-5-20250929" style), so it must not be
+# required by the pattern.
+_MODEL_RE = re.compile(r"claude-(opus|sonnet|haiku|fable)-(\d+)(?:-(\d+))?")
 
 
 def _family_supports_1m(model: str) -> bool:
     m = _MODEL_RE.search((model or "").lower())
     if not m:
         return False
-    family, major, minor = m.group(1), int(m.group(2)), int(m.group(3))
+    family, major, minor_s = m.group(1), int(m.group(2)), m.group(3)
+    minor = int(minor_s) if minor_s is not None else 0
     if family == "haiku":
         return False  # Haiku has no 1M variant
     if major != 4:
