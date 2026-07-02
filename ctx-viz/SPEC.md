@@ -152,8 +152,8 @@ Fast listing — **never read whole files**: `stat` all candidate files, sort by
   "scanned": 500,
   "sessions": [
     {
-      "id": "7b92dfa0-b6d2-4838-8a18-c7cc68f99908",
-      "path": "/Users/x/.claude/projects/-Users-x-code-foo/7b92dfa0-....jsonl",
+      "id": "1f2e3d4c-5b6a-4789-9abc-def012345678",
+      "path": "/Users/x/.claude/projects/-Users-x-code-foo/1f2e3d4c-....jsonl",
       "project": "-Users-x-code-foo",
       "cwd": "/Users/x/code/foo",
       "gitBranch": "main",
@@ -185,7 +185,7 @@ Snapshot of the background read-stats state (see `stats` under `/api/sessions`):
 ```json
 {
   "ready": {
-    "/Users/x/.claude/projects/-Users-x-code-foo/7b92dfa0-....jsonl": { "filesRead": 34, "linesRead": 4231, "ctxTokens": 142337, "filesReadInTree": 30, "treeFiles": 512 }
+    "/Users/x/.claude/projects/-Users-x-code-foo/1f2e3d4c-....jsonl": { "filesRead": 34, "linesRead": 4231, "ctxTokens": 142337, "filesReadInTree": 30, "treeFiles": 512 }
   },
   "pending": 12
 }
@@ -200,7 +200,7 @@ Validates `path` resolves under `<claude-dir>/projects` (403 otherwise; 404 if m
 ```json
 {
   "meta": {
-    "id": "7b92dfa0-...",
+    "id": "1f2e3d4c-...",
     "path": "/abs/file.jsonl",
     "cwd": "/Users/x/code/foo",
     "gitBranch": "main",
@@ -343,12 +343,12 @@ Dark, "mission control" aesthetic. Elegant, dense but breathable. **No external 
 ## Verification (used by build + integration agents)
 
 ```bash
-cd /Users/taras/Documents/code/ai-toolbox/ctx-viz
+cd path/to/ai-toolbox/ctx-viz
 bun src/cli.ts --no-open --port 43117 &   # backend self-test uses 43117; integration uses 43119
 curl -s localhost:43117/api/sessions | jq '.total, .scanned, .sessions[0]'
 P=$(curl -s localhost:43117/api/sessions | jq -r '.sessions[0].path' | jq -sRr @uri)
 curl -s "localhost:43117/api/session?path=$P" | jq '.meta, (.events | length), (.events | map(.kind) | group_by(.) | map({(.[0]): length}) | add)'
-CWD=$(printf %s "/Users/taras/Documents/code/ai-toolbox" | jq -sRr @uri)
+CWD=$(printf %s "$(cd .. && pwd)" | jq -sRr @uri)
 curl -s "localhost:43117/api/tree?cwd=$CWD&branch=main&before=2026-07-01T00:00:00Z" | jq '.source, .sha, (.files|length)'
 curl -s -o /dev/null -w "%{http_code} %{content_type}\n" localhost:43117/
 curl -s -o /dev/null -w "%{http_code} %{content_type}\n" localhost:43117/app.js
