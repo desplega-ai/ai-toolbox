@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ctx-viz</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <div class="brand"><span class="brand-dot"></span>ctx-viz<button id="theme-toggle" class="theme-btn" type="button" title="toggle theme">&#9728;&#xFE0E;</button></div>
+    <div class="filter-wrap">
+      <input id="filter" type="search" placeholder="filter sessions&hellip;" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="dirfilter-wrap">
+      <div class="dirfilter-anchor">
+        <input id="dir-filter" type="text" placeholder="filter by directory&hellip;" autocomplete="off" spellcheck="false">
+        <div id="dir-dropdown" class="dir-dropdown" hidden></div>
+      </div>
+      <div id="dir-pills" class="dir-pills" hidden></div>
+    </div>
+    <div id="session-list" class="session-list"></div>
+    <div id="list-footer" class="list-footer"></div>
+  </aside>
+
+  <main id="main">
+    <div id="empty-state" class="empty-state">
+      <div class="empty-glyph">&#9678;</div>
+      <div>Select a session to replay its context usage</div>
+    </div>
+
+    <div id="detail-loading" class="detail-loading" hidden>
+      <div class="spinner"></div>
+      <div class="loading-text">parsing session&hellip;</div>
+    </div>
+
+    <div id="detail" hidden>
+      <header id="chips">
+        <div id="chips-static" class="chip-row"></div>
+        <div id="chips-live" class="chip-row"></div>
+      </header>
+
+      <div id="tree-banner" class="banner" hidden></div>
+
+      <div id="tree-toolbar" class="tree-toolbar">
+        <span id="tree-counts" class="tree-counts"></span>
+        <span class="toolbar-btns">
+          <button id="tree-compact-btn" class="mode-btn" type="button"></button>
+          <button id="tree-mode-btn" class="mode-btn" type="button"></button>
+        </span>
+      </div>
+
+      <div id="tree" class="tree"></div>
+
+      <div id="legend" class="legend">
+        <span class="lg"><span class="dot k-read"></span>read</span>
+        <span class="lg"><span class="dot k-grep"></span>search</span>
+        <span class="lg"><span class="dot k-glob"></span>glob</span>
+        <span class="lg"><span class="dot k-edit"></span>edit</span>
+        <span class="lg"><span class="dot k-write"></span>new</span>
+        <span class="lg"><span class="side-mark">&#9672;</span>subagent</span>
+        <span class="lg note">counts incl. subagents &#9672;</span>
+      </div>
+
+      <div id="readout" class="readout"></div>
+
+      <div id="spark-wrap" class="spark-wrap">
+        <svg id="spark" viewBox="0 0 600 56" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div id="spark-peak" class="spark-peak"></div>
+      </div>
+
+      <div id="controls">
+        <button id="btn-restart" class="ctl" title="restart">&#9198;&#xFE0E;</button>
+        <button id="btn-back" class="ctl" title="step back (&larr;)">&#9664;&#xFE0E;</button>
+        <button id="btn-play" class="ctl ctl-play" title="play / pause (space)">&#9654;&#xFE0E;</button>
+        <button id="btn-fwd" class="ctl" title="step forward (&rarr;)">&#9654;&#xFE0E;|</button>
+        <select id="speed" class="speed" title="playback speed">
+          <option value="0.5">0.5&times;</option>
+          <option value="1" selected>1&times;</option>
+          <option value="2">2&times;</option>
+          <option value="4">4&times;</option>
+          <option value="8">8&times;</option>
+        </select>
+        <input id="scrubber" type="range" min="0" max="0" value="0" step="1">
+        <span id="replay-pill" class="replay-pill" hidden>replay &#10003;</span>
+        <span id="counter" class="counter">0 / 0</span>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div id="toasts"></div>
+
+<script type="module" src="/app.js"></script>
+</body>
+</html>

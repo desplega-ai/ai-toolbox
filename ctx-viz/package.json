@@ -1,0 +1,21 @@
+{
+  "name": "@desplega.ai/ctx-viz",
+  "version": "0.1.0",
+  "description": "Visualize Claude Code session context usage — replay file reads, searches, and token consumption over time",
+  "type": "module",
+  "bin": {
+    "ctx-viz": "src/cli.ts"
+  },
+  "scripts": {
+    "start": "bun src/cli.ts",
+    "dev": "bun --watch src/cli.ts --no-open",
+    "check": "bunx tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.0"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "license": "MIT"
+}

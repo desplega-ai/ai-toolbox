@@ -11,6 +11,7 @@ Monorepo of AI and developer tools by desplega.ai. Each subdirectory is a standa
 | `cc-hooks/` | macOS notifications for Claude Code | Bash |
 | `cc-notch/` | Menu bar cost tracker (SwiftBar) | Shell |
 | `cc-plugin/` | Claude Code plugins (base, swarm, wts, teams, radical-candor) | YAML/Markdown |
+| `ctx-viz/` | Visualize Claude Code session context usage (replay file reads/searches over time) | TypeScript, Bun |
 | `dokcli/` | CLI tool for Dokploy (auto-generated from OpenAPI) | TypeScript, Bun |
 | `dns/` | DNS TXT record query utility | - |
 | `file-review/` | File review tool | - |
