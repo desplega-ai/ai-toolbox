@@ -1,6 +1,6 @@
 ---
 description: List files on reMarkable tablet
-argument-hint: [path] [--tree]
+argument-hint: "[path] [--tree]"
 allowed-tools: Bash
 ---
 

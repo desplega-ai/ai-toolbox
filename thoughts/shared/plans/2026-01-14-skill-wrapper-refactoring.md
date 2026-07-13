@@ -272,7 +272,7 @@ If the `file-review` plugin is available and autonomy mode is not Autopilot:
 ---
 description: Document codebase as-is with thoughts directory for historical context
 model: opus
-argument-hint: [--autonomy=MODE] [query]
+argument-hint: "[--autonomy=MODE] [query]"
 allowed-tools: Read, Grep, Glob
 ---
 
@@ -564,7 +564,7 @@ Always separate into:
 ---
 description: Create detailed implementation plans through interactive research and iteration
 model: opus
-argument-hint: [--autonomy=MODE] [file_or_task]
+argument-hint: "[--autonomy=MODE] [file_or_task]"
 ---
 
 # Create Plan
@@ -799,7 +799,7 @@ Remember: You're implementing a solution, not just checking boxes. Keep the end 
 ---
 description: Implement technical plans from a predefined plan file
 model: inherit
-argument-hint: [--autonomy=MODE] [plan_path]
+argument-hint: "[--autonomy=MODE] [plan_path]"
 ---
 
 # Implement Plan

@@ -213,7 +213,7 @@ promoted_to: null
 ---
 description: Capture, search, and promote institutional learnings across projects
 model: inherit
-argument-hint: [capture|recall|promote|review] [args...]
+argument-hint: "[capture|recall|promote|review] [args...]"
 ---
 ```
 

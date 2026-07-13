@@ -1,7 +1,7 @@
 ---
 description: Functional validation with test evidence and QA reports
 model: inherit
-argument-hint: [--autonomy=MODE] [source-path]
+argument-hint: "[--autonomy=MODE] [source-path]"
 ---
 
 # QA

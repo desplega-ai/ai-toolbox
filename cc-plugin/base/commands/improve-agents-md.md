@@ -1,7 +1,7 @@
 ---
 description: Improve or bootstrap an AGENTS.md / CLAUDE.md file using conditional `<important if>` blocks
 model: inherit
-argument-hint: [path-or-hint]
+argument-hint: "[path-or-hint]"
 ---
 
 # improve-agents-md

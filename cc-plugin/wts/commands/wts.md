@@ -1,6 +1,6 @@
 ---
 description: Git worktree management expert - create, switch, delete worktrees and create PRs
-argument-hint: [command or question]
+argument-hint: "[command or question]"
 allowed-tools: Bash, Read
 ---
 

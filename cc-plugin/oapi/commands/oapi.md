@@ -1,6 +1,6 @@
 ---
 description: OpenAPI CLI expert - register specs, execute API requests, manage auth profiles
-argument-hint: [command or question]
+argument-hint: "[command or question]"
 allowed-tools: Bash, Read
 ---
 

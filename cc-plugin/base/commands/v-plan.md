@@ -1,7 +1,7 @@
 ---
 description: Create a DAG-structured implementation plan for parallel execution
 model: inherit
-argument-hint: [--autonomy=MODE] [file_or_task]
+argument-hint: "[--autonomy=MODE] [file_or_task]"
 ---
 
 # v-plan

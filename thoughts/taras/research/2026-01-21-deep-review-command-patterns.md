@@ -43,7 +43,7 @@ Commands are thin wrappers with this structure:
 ---
 description: [One-line description]
 model: opus  # or inherit
-argument-hint: [--autonomy=MODE] [parameters]
+argument-hint: "[--autonomy=MODE] [parameters]"
 allowed-tools: [optional tool restrictions]
 ---
 ```

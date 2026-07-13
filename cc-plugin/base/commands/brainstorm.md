@@ -1,7 +1,7 @@
 ---
 description: Interactive exploration of ideas through Socratic Q&A
 model: inherit
-argument-hint: [--autonomy=MODE] [topic]
+argument-hint: "[--autonomy=MODE] [topic]"
 ---
 
 # Brainstorm

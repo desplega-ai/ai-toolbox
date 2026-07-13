@@ -1,7 +1,7 @@
 ---
 description: Document codebase as-is with thoughts directory for historical context
 model: inherit
-argument-hint: [--autonomy=MODE] [query]
+argument-hint: "[--autonomy=MODE] [query]"
 allowed-tools: Read, Grep, Glob
 ---
 

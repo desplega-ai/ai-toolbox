@@ -1,7 +1,7 @@
 ---
 description: Generate durable validation scripts from testing intent
 model: inherit
-argument-hint: [--autonomy=MODE] [intent]
+argument-hint: "[--autonomy=MODE] [intent]"
 ---
 
 # Script Builder

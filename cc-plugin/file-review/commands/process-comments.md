@@ -1,6 +1,6 @@
 ---
 description: Process review comments in a file using the process-review skill
-argument-hint: [file_path]
+argument-hint: "[file_path]"
 ---
 
 # Process Comments

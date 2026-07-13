@@ -1,7 +1,7 @@
 ---
 description: One-shot question answering using the research process
 model: inherit
-argument-hint: [question]
+argument-hint: "[question]"
 ---
 
 # Question

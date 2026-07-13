@@ -1,6 +1,6 @@
 ---
 description: Continue work from a saved handoff file
-argument-hint: [handoff-file-path]
+argument-hint: "[handoff-file-path]"
 allowed-tools: Glob(~/.claude/**), Read(~/.claude/**), Bash(mkdir -p ~/.claude/*), Bash(mv ~/.claude/hand-offs/*)
 ---
 

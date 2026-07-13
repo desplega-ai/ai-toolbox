@@ -42,7 +42,7 @@ All command wrappers share the same structure (`commands/research.md:1-41`, `com
 ---
 description: <one-line description>
 model: inherit
-argument-hint: [--flags] [query]
+argument-hint: "[--flags] [query]"
 allowed-tools: <optional tool restrictions>
 ---
 ```

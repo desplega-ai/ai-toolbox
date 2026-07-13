@@ -1,7 +1,7 @@
 ---
 description: Create detailed implementation plans through interactive research and iteration
 model: inherit
-argument-hint: [--autonomy=MODE] [file_or_task]
+argument-hint: "[--autonomy=MODE] [file_or_task]"
 ---
 
 # Create Plan
