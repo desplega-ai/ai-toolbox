@@ -137,6 +137,8 @@ Each phase is executed via a background sub-agent running `desplega:phase-runnin
 
 The implementing skill is an **orchestrator** — it coordinates phases, handles human checkpoints, and manages cross-phase decisions, but delegates actual implementation work to phase-runner sub-agents.
 
+**Executor routing**: if the `desplega:delegate-work` skill is available, pick each phase's executor per its routing matrix instead of defaulting to a `phase-running` sub-agent — a phase may route to a Codex variant or a specific Claude model tier. Only the executor choice changes; everything else here (autonomy modes, checkpoints, plan bookkeeping, verification, commit strategy) stays unchanged.
+
 ### Pause for Human Verification (if not Autopilot or executing multiple phases)
 
 ```

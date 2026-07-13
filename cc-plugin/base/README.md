@@ -60,8 +60,10 @@ Tag scheme: `cc-desplega-<semver>`. Current pinnable tags:
 
 | Tag | Notes |
 |-----|-------|
-| `cc-desplega-2.0.0` | Current latest. Shape D planning, three Success Criteria buckets, v-skills (DAG plans), step-running. |
+| `cc-desplega-2.0.0` | Latest tag. Shape D planning, three Success Criteria buckets, v-skills (DAG plans), step-running. |
 | `cc-desplega-1.13.0` | Last 1.x release. Pin here if you want pre-v2 behavior. |
+
+Current version on `main` is `2.1.0` — adds the `delegate-work` skill (executor routing policy: which model/Codex variant each delegated task gets).
 
 **v2.0 breaking changes** (released — pin to `cc-desplega-1.13.0` if your workflow depends on v1 contracts):
 
@@ -90,6 +92,8 @@ Inside you will find:
 | `create-plan` | Create detailed implementation plans through research and iteration |
 | `create-tdd-plan` | Create TDD implementation plans with Red-Green-Commit cycles |
 | `implement-plan` | Execute approved plans phase by phase |
+| `v-plan` | Create DAG-structured plans for parallel execution |
+| `v-implement` | Implement a DAG plan by fanning out parallel sub-agents |
 | `brainstorm` | Interactive Socratic Q&A exploration of ideas |
 | `question` | One-shot question answering using the research process |
 | `review` | Structured critique of research, plan, and brainstorm documents |
@@ -99,6 +103,7 @@ Inside you will find:
 | `commit` | Create git commits for session changes |
 | `continue-handoff` | Continue work from a saved handoff file |
 | `learning` | Capture, search, and promote institutional learnings across projects |
+| `improve-agents-md` | Improve or bootstrap an AGENTS.md / CLAUDE.md with `<important if>` blocks |
 | `bu-auto-instrument` | Auto-instrument Business-Use SDK tracking |
 | `script-builder` | Generate durable validation scripts from testing intent |
 
@@ -110,6 +115,10 @@ Inside you will find:
 | `planning` | Interactive plan creation with research and iteration |
 | `tdd-planning` | TDD-focused planning with Red-Green-Commit cycles |
 | `implementing` | Phase-by-phase plan execution with verification |
+| `v-planning` | DAG-structured plan directories of independent, QA-able vertical slices |
+| `v-implementing` | Topologically schedules DAG steps and fans them out as parallel sub-agents |
+| `step-running` | Atomic DAG-step execution as background sub-agent (sibling of `phase-running`) |
+| `delegate-work` | Executor routing policy — picks the model (Claude tier or Codex variant) for every delegated task, with worktree/exec mechanics via `codex-exec.sh` |
 | `brainstorming` | Socratic Q&A exploration producing pre-PRD documents |
 | `questioning` | One-shot Q&A using the research process, no document generated |
 | `reviewing` | Structured critique with severity categorization |
@@ -118,6 +127,8 @@ Inside you will find:
 | `phase-running` | Atomic phase execution as background sub-agent |
 | `learning` | Compounding knowledge via tiered backends (local/qmd/agent-fs) |
 | `script-builder` | Generate TS/Python/Bash validation scripts with PASS/FAIL + /tmp log convention |
+| `ask-user` | Shared conventions for `AskUserQuestion` prompts across the other skills |
+| `improve-agents-md` | Improve or bootstrap an AGENTS.md / CLAUDE.md with `<important if>` blocks |
 
 #### Hooks
 
@@ -207,6 +218,7 @@ flowchart LR
 **Variants and helpers:**
 - `create-tdd-plan` is a drop-in variant of `create-plan` with strict Red-Green-Commit cycles — use it when you want TDD discipline baked into the phases.
 - `qa` runs **in parallel** with `plan` and `implement`: start it alongside to produce functional test evidence while planning/implementation is in flight; findings feed back into the plan.
+- `delegate-work` layers on top of `implement`/`v-implement` (and ad-hoc sub-agent spawning): same orchestration semantics, but each phase/step/task is routed to the cheapest executor — Claude tier or Codex variant — that clears the quality bar.
 - `script-builder` is invoked inside `implement` (or anywhere you want durable validation) to turn throwaway bash into re-runnable PASS/FAIL scripts.
 - `learning` is out-of-band — capture reusable knowledge whenever you notice a pattern worth keeping across runs.
 - `review` can be invoked at any stage to critique a document before moving on.

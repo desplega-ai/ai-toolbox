@@ -118,6 +118,8 @@ Use the `Agent` tool with `run_in_background: true`, invoking `desplega:step-run
 
 The orchestrator does NOT do step work itself — it delegates. See `desplega:step-running` for the full sub-agent contract.
 
+**Executor routing**: if the `desplega:delegate-work` skill is available, pick each step's executor per its routing matrix instead of defaulting to a `step-running` sub-agent — a step may route to a Codex variant (one worktree per parallel slice) or a specific Claude model tier. Only the executor choice changes; the scheduler, frontmatter claim protocol, and all other semantics here stay unchanged. When a step routes to Codex, the orchestrator owns the frontmatter bookkeeping that `step-running` would normally do (Codex must not edit plan files).
+
 ### Wave Completion
 
 When a wave finishes:
