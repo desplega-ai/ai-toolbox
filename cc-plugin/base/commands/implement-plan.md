@@ -1,7 +1,7 @@
 ---
 description: Implement technical plans from a predefined plan file
 model: inherit
-argument-hint: [--autonomy=MODE] [plan_path]
+argument-hint: "[--autonomy=MODE] [plan_path]"
 ---
 
 # Implement Plan

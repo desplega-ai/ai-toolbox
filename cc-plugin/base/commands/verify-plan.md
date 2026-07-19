@@ -1,7 +1,7 @@
 ---
 description: Post-implementation plan verification and audit
 model: inherit
-argument-hint: [--autonomy=MODE] [plan-path]
+argument-hint: "[--autonomy=MODE] [plan-path]"
 ---
 
 # Verify Plan

@@ -1,7 +1,7 @@
 ---
 description: Structured critique of research, plan, and brainstorm documents
 model: inherit
-argument-hint: [--autonomy=MODE] [--output=append|separate] <path>
+argument-hint: "[--autonomy=MODE] [--output=append|separate] <path>"
 ---
 
 # Review Document

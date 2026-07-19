@@ -1,6 +1,6 @@
 ---
 description: Transfer your current context to a swarm worker agent
-argument-hint: [target-agent-id or goal]
+argument-hint: "[target-agent-id or goal]"
 ---
 
 # Teleport Context to Worker

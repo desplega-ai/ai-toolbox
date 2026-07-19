@@ -1,6 +1,6 @@
 ---
 description: Manage automatic background sync for brain
-argument-hint: [install|status|remove] [--interval N]
+argument-hint: "[install|status|remove] [--interval N]"
 allowed-tools: Bash
 ---
 

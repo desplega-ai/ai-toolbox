@@ -228,7 +228,7 @@ Create the three slash commands: ls, get, put.
 ```markdown
 ---
 description: List files on reMarkable tablet
-argument-hint: [path]
+argument-hint: "[path]"
 allowed-tools: Bash
 ---
 

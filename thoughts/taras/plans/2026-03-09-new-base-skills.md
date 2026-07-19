@@ -182,7 +182,7 @@ description: Structured critique of research, plan, and brainstorm documents for
 ---
 description: Structured critique of research, plan, and brainstorm documents
 model: inherit
-argument-hint: [--autonomy=MODE] [--output=append|separate] <path>
+argument-hint: "[--autonomy=MODE] [--output=append|separate] <path>"
 ---
 ```
 
@@ -265,7 +265,7 @@ description: Interactive exploration of ideas through Socratic Q&A. Produces pro
 ---
 description: Interactive exploration of ideas through Socratic Q&A
 model: inherit
-argument-hint: [--autonomy=MODE] [topic]
+argument-hint: "[--autonomy=MODE] [topic]"
 ---
 ```
 
@@ -342,7 +342,7 @@ description: Post-implementation plan verification. Cross-references plans again
 ---
 description: Post-implementation plan verification and audit
 model: inherit
-argument-hint: [--autonomy=MODE] [plan-path]
+argument-hint: "[--autonomy=MODE] [plan-path]"
 ---
 ```
 

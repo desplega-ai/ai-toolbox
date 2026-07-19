@@ -1,7 +1,7 @@
 ---
 description: Create TDD implementation plans with strict Red-Green-Commit/Rollback cycles
 model: inherit
-argument-hint: [--autonomy=MODE] [file_or_task]
+argument-hint: "[--autonomy=MODE] [file_or_task]"
 ---
 
 # Create TDD Plan

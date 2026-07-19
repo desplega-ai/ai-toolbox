@@ -86,7 +86,7 @@ Format:
 ---
 allowed-tools: Read, Grep, Glob
 description: Research codebase patterns
-argument-hint: [query]
+argument-hint: "[query]"
 ---
 
 Your command prompt here with $1 for arguments

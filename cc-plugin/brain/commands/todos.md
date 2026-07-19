@@ -1,6 +1,6 @@
 ---
 description: Manage todos with the brain CLI
-argument-hint: [list|add|done|cancel|edit|rm] [args...]
+argument-hint: "[list|add|done|cancel|edit|rm] [args...]"
 allowed-tools: Bash
 ---
 

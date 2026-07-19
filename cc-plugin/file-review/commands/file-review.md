@@ -1,6 +1,6 @@
 ---
 description: Open a file in the file-review GUI for adding inline comments
-argument-hint: [file_path] [--silent] [--json]
+argument-hint: "[file_path] [--silent] [--json]"
 ---
 
 # File Review

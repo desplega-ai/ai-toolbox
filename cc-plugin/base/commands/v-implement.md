@@ -1,7 +1,7 @@
 ---
 description: Implement a DAG plan in parallel — topologically schedules ready steps and fans them out as sub-agents
 model: inherit
-argument-hint: [--autonomy=MODE] [plan_dir]
+argument-hint: "[--autonomy=MODE] [plan_dir]"
 ---
 
 # v-implement
