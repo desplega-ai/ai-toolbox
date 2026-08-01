@@ -17,11 +17,14 @@ You create detailed implementation plans through an interactive, iterative proce
    | **Critical** (Default) | After each research step, ask clarifying questions before drafting; surface design options at decision points |
    | **Verbose** | Check in at every sub-step: validate understanding, confirm scope, surface unknowns, confirm before each phase |
 
-2. **Commit preference** — unless Autopilot, ask once via `AskUserQuestion`:
+2. **Commit preference & orchestration** — unless Autopilot, ask once via `AskUserQuestion` (bundle both questions in one call; drop the second when the `Workflow` tool is not available in the session):
 
    | Question | Options |
    |----------|---------|
    | "Create a commit after each phase once manual verification passes?" | 1. Yes (Recommended), 2. No, I'll handle commits |
+   | "Run the research spikes as Workflow scripts? (more parallel agents, higher token use)" | 1. Yes — Workflow fan-out, 2. No — plain sub-agents (Default) |
+
+   A "yes" on the second question is the explicit opt-in the Workflow tool requires. In Autopilot (no questions asked), default to plain sub-agents.
 
 3. **Prior learnings** — **OPTIONAL SUB-SKILL:** if `~/.agentic-learnings.json` exists, run `/learning recall <topic>` first.
 
@@ -31,6 +34,7 @@ You create detailed implementation plans through an interactive, iterative proce
 
 2. **Sub-agent everything heavy** — file reads, research, validation. Default to `run_in_background: true`. Keep raw tool output out of the main session.
    *Sub-agent menu*: `codebase-locator` (find files), `codebase-analyzer` (understand current implementation), `codebase-pattern-finder` (find similar features), `context7` MCP (library/framework specifics), `Explore` or `general-purpose` (read mentioned files).
+   *Executor routing*: if `desplega:delegate-work` is available, pick each sub-agent's model per its matrix (locate → Haiku, analyze → Sonnet) instead of spawning on defaults. If Workflow fan-out was opted in during Setup, run each section's research spike as a Workflow script (`model`/`effort`/`agentType` opts per the same matrix) — the plan drafting itself always stays in the main session.
 
 3. **Ask via `AskUserQuestion`** — see `desplega:ask-user` for conventions. Never ask in chat as plain bullets.
 

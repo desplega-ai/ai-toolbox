@@ -53,6 +53,16 @@ Rankings 1–10, higher = better. Cost = subscription quota burned — both Clau
 
 Heuristic: if the prompt reads as a work order → delegate; if writing it forces decisions → it's design, keep it.
 
+## Workflow-tool orchestration
+
+When the harness exposes the `Workflow` tool AND the user has opted in (the desplega skills ask during setup — that answer IS the explicit opt-in the tool requires), fan-out runs as a workflow script instead of ad-hoc `Agent` calls. The matrix above still routes every executor; it just maps onto `agent()` opts:
+
+- **Model tiers** → `model: "haiku" | "sonnet" | "opus"`; omit `model` for work that must stay at orchestrator quality (it inherits the session model). `effort` follows the same logic: `low` for mechanical stages, higher tiers only for verify/judge stages.
+- **Named agents** (locators, analyzers, pattern-finders) → the `agentType` opt.
+- **Codex rows** still apply inside a workflow: an `agent()` can drive `codex-exec.sh` in its own worktree. Plan bookkeeping and commits stay orchestrator-side, as always.
+- **The join stays Claude-side**: the workflow returns data (findings, reports, file lists) — reading the diff, deduping findings, and the final verdict happen in the main session, never inside the script.
+- **Pause points sit between Workflow invocations** — one workflow per wave/stage, orchestrator judges and checkpoints in between. Never bury a human checkpoint inside a script.
+
 ## Codex: the one primitive
 
 > **Prerequisite**: the `codex` CLI on PATH, authenticated, with access to the gpt-5.6 models. If it's missing, the Codex rows of the matrix are unavailable — route implementation work to Claude executors instead (Opus for hard slices, Sonnet for routine ones) and tell the user why.

@@ -58,6 +58,14 @@ Perform a quick analysis of the research query. If anything is unclear and auton
 |----------|---------|
 | "Thank you for your research question: '[user's question]'. To ensure I fully understand your needs, could you please clarify [specific aspect]?" | Provide relevant options based on the specific clarification needed |
 
+**Workflow orchestration (opt-in):** if the `Workflow` tool is available in this session and the query warrants a real fan-out (3+ research areas), bundle one more question into the same AskUserQuestion call:
+
+| Question | Options |
+|----------|---------|
+| "Orchestrate the research fan-out as a Workflow script? (more parallel agents, better coverage, higher token use)" | 1. Yes — Workflow fan-out, 2. No — plain Task agents (Default) |
+
+A "yes" here is the explicit opt-in the Workflow tool requires. When the tool is absent or in Autopilot mode (no question asked, so no opt-in), use plain Task agents.
+
 ### Steps
 
 1. **Read any directly mentioned files first:**
@@ -87,6 +95,10 @@ Perform a quick analysis of the research query. If anything is unclear and auton
 
    **For nested researches:**
    - Spawn additional Tasks using `/research <topic>` for deep dives
+
+   **Executor routing:** if `desplega:delegate-work` is available, pick each sub-agent's model per its matrix instead of spawning on defaults — locate/pattern-find/digest work → Haiku, analysis → Sonnet.
+
+   **If Workflow fan-out was opted in:** run steps 3–4 as one Workflow script instead — one `agent()` per research area (same agent split as above; `model`/`effort`/`agentType` opts per `desplega:delegate-work`), then a barrier before synthesis. Synthesis and the document write-up (step 5 onward) stay in the main session — the workflow returns findings, it never writes the research doc.
 
 4. **Wait for all sub-agents to complete and synthesize findings:**
    - IMPORTANT: Wait for ALL sub-agent tasks to complete before proceeding

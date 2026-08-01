@@ -63,6 +63,14 @@ Use **AskUserQuestion**:
 
 If "Commit after each step" is selected, after a step's manual verification passes, create a commit: `[step-N] <step name>`.
 
+### 3. Orchestration Mode (only if the `Workflow` tool is available)
+
+| Question | Options |
+|----------|---------|
+| "Run the DAG waves as Workflow scripts? (deterministic scheduling, parallel steps as agent() calls)" | 1. Yes — Workflow waves, 2. No — Agent fan-out (Default) |
+
+A "yes" is the explicit opt-in the Workflow tool requires. If opted in, each wave of the scheduler loop below runs as one Workflow script — a `parallel()` of `agent()` calls, one per ready step, with `model`/`effort` per `desplega:delegate-work`. Everything else is unchanged: step agents still follow the `step-running` contract (atomic frontmatter claim, three-bucket verification), and autonomy-mode pause points sit **between** Workflow invocations, never inside one. In Autopilot these questions are skipped, so there is no opt-in — use Agent fan-out unless the user pre-authorized workflows.
+
 ## Getting Started
 
 Given a plan directory path:
@@ -147,6 +155,7 @@ When every step is `done`:
 2. Set `root.md` frontmatter `status: completed`.
 3. Offer post-implementation auditing: "Would you like me to run `/verify-plan` and `/review` on the plan directory?"
 4. If commit-per-step was off, offer to create a single bundled commit now.
+5. If the work ships as a GitHub PR: once review comments land, address them with `desplega:tackle-gh-comments` (fetch threads, verify each claim, fix, reply, resolve — push last).
 
 ## Important Guidelines
 
