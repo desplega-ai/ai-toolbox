@@ -40,6 +40,7 @@ Rankings 1–10, higher = better. Cost = subscription quota burned — both Clau
 | API-level QA / E2E agents, plan-verification agents | **Sonnet 5** | `Agent` with `model: "sonnet"` |
 | browser E2E / driving the real UI | **Opus 5** | `Agent` with `model: "opus"`; use a browser-automation agent for local URLs unless stated differently |
 | search, locate, pattern-find, doc digests | **Haiku 4.5** | `Explore` / locator agents with `model: "haiku"` |
+| bulk mechanical call-sequences (~10+ similar tool/API calls, any fan-out over a list) | **a script** | `desplega:script-builder` — cheapest executor of all; one summary re-enters context, raw payloads never do |
 | raw code implementation from a frozen spec | **Codex** | variant by scope ↓, via `codex-exec.sh` |
 
 **Codex variant by scope** (effort in parentheses):
@@ -86,7 +87,7 @@ printf '%s' "$PROMPT" | codex-exec.sh -m gpt-5.6-terra -e high \
 
 ## Codex prompt contract
 
-Codex starts with zero session context. Every prompt: goal, exact repo/paths (absolute plan path in the MAIN repo — worktrees don't contain untracked `thoughts/`), scope fence ("ONLY Phase N / step-N, don't touch X"), non-goals, verification commands to run, and the report shape (status completed/blocked/failed, files changed, verification output, notes). Codex must NOT edit the plan file — the orchestrator owns all plan bookkeeping.
+Codex starts with zero session context. Every prompt: goal, exact repo/paths (absolute plan path in the MAIN repo — worktrees don't contain untracked `thoughts/`), scope fence ("ONLY Phase N / step-N, don't touch X"), non-goals, verification commands to run, the standards line ("smallest diff that solves the problem; no speculative abstractions" — per `desplega:engineering-standards`), and the report shape (status completed/blocked/failed, files changed, verification output, notes). Codex must NOT edit the plan file — the orchestrator owns all plan bookkeeping.
 
 ## Worktrees & parallelism
 
@@ -104,8 +105,8 @@ Codex starts with zero session context. Every prompt: goal, exact repo/paths (ab
 - Re-run the phase/step verification commands yourself when the report is ambiguous.
 - After web service-layer changes: probe the running dev server — unit tests miss RSC import crashes.
 - UI touched by anything non-Opus (or by Codex at all): hands-on polish pass — drive the real UI, screenshot, fix spacing/copy/empty-states yourself.
-- Then the normal per-phase review round (Sonnet/Opus per the table) before closing the phase.
-- **Codex can review too**: for complex/high-stakes phases, run a Claude review (Opus) AND a Codex review (`codex exec review`, or a sol review prompt via `codex-exec.sh`) in parallel, then join — dedupe findings, discard false positives, rank the rest. The JOIN and the final verdict stay Claude-side; a review is never delegated to a single executor and never skipped.
+- Then the per-phase review round before closing the phase: `desplega:code-reviewing` — two axes (Standards per `desplega:engineering-standards`, Spec against the phase body), parallel sub-agents Sonnet/Opus per the table, reported separately and never merged.
+- **Codex can review too**: for complex/high-stakes phases, add a Codex review (`codex exec review`, or a sol review prompt via `codex-exec.sh`) in parallel with the two Claude axes, then join — dedupe findings, discard false positives, rank the rest. The JOIN and the final verdict stay Claude-side; a review is never delegated to a single executor and never skipped.
 
 ## Failure & mismatch handling
 

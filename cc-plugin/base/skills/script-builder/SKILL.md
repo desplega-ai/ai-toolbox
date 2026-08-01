@@ -1,11 +1,18 @@
 ---
 name: script-builder
-description: Generate durable, re-runnable validation scripts from testing intent. Supports TypeScript, Python, Bash with auto-detection, enforces context-optimal PASS/FAIL + /tmp log output, and auto-documents scripts in CLAUDE.md. Triggers on phrases like "turn this into a script", "I want to test/validate X end-to-end", "wrap this in a re-runnable script", or whenever an agent needs durable validation instead of throwaway commands.
+description: Generate durable, re-runnable scripts from session intent — validation scripts (PASS/FAIL contract) AND gather/bulk scripts (many API/tool calls in code, one derived summary out). Supports TypeScript, Python, Bash with auto-detection, enforces context-optimal output, and auto-documents scripts in CLAUDE.md. Triggers on "turn this into a script", "I want to test/validate X end-to-end", "wrap this in a re-runnable script" — and, critically, whenever you are about to make (or just made) ~10+ similar tool/API calls or any bulk fan-out over a list: that mechanical middle belongs in a script, not in context.
 ---
 
 # script-builder
 
-You are converting testing/validation intent into a durable, re-runnable script committed to the target project's `scripts/` directory. The output is **context-optimal**: a single PASS/FAIL line + `/tmp` log path on success, full verbose output redirected to a timestamped log file, and an `<important if>` block in `CLAUDE.md`/`AGENTS.md` so future agents discover the script when the relevant testing intent recurs.
+You are converting session intent into a durable, re-runnable script committed to the target project's `scripts/` directory. Two script classes share one principle — **only the derived answer re-enters context; raw payloads never do**:
+
+- **Validation scripts** (`check-*`, `e2e-*`, `smoke-*`, …): a single PASS/FAIL line + `/tmp` log path on success, full verbose output redirected to a timestamped log file.
+- **Gather/bulk scripts** (`gather-*`, `bulk-*`): replace N similar tool/API calls with one script that loops, filters, and aggregates *in code* — stdout is one compact summary block (JSON or table), raw responses go to the `/tmp` log. Rubric (from production code-mode data): past ~10 items or any fan-out over a list, a script beats individual tool calls by ~100x on context and roughly halves end-to-end cost. Offer the script *before* the fan-out happens when you can see it coming, not just retrospectively.
+
+Both classes get an `<important if>` block in `CLAUDE.md`/`AGENTS.md` so future agents discover the script when the intent recurs — durable scripts are reusable agent memory: import, don't re-derive.
+
+**Schema discovery happens in code, too**: when scripting against an unfamiliar API, grep/filter its OpenAPI spec or typed client programmatically to find the few relevant endpoints — never paste the full schema into context.
 
 ## Working Agreement
 
@@ -43,7 +50,7 @@ The autonomy mode is passed by the invoking command. If not specified, default t
 
 Decide silently — **do not** ask the user "which mode?". Use the following heuristics:
 
-1. **Scan recent session tool-use history** (the last ~20 tool calls in the current conversation) for test/validation-shaped activity: `curl`/`fetch` calls, `bun run`/`python`/`pytest`, database queries, `qa-use` browser actions, repeated `grep`/log inspection of a single endpoint or table. If ≥2 such actions targeting the same area exist → **retrospective mode**.
+1. **Scan recent session tool-use history** (the last ~20 tool calls in the current conversation) for test/validation-shaped activity: `curl`/`fetch` calls, `bun run`/`python`/`pytest`, database queries, `qa-use` browser actions, repeated `grep`/log inspection of a single endpoint or table. If ≥2 such actions targeting the same area exist → **retrospective mode**. Separately, if the history (or the task ahead) shows the *same call shape repeated ~10+ times or a fan-out over a list* → **gather-script mode**: propose replacing the repetition with one `gather-*` script before continuing.
 2. **Parse the user's invocation message** for cues:
    - Narrative cues → retrospective: *"we just figured out"*, *"turn this into a script"*, *"wrap that in"*, *"that thing we just did"*.
    - Intent cues → forward-declared: *"I want to test"*, *"validate that"*, *"smoke check"*, *"check before deploy"*.
@@ -113,6 +120,7 @@ Confirm via **AskUserQuestion** with the detected language as the first option (
    - `{{WHAT}}` / `{{WHEN}}` / `{{ENV}}` / `{{EXAMPLE}}` ← intent fields.
    - `{{UV_METADATA}}` ← per Step 4.
 3. **Generate `{{TEST_BODY}}`** from the intent. Keep it minimal: a single concrete probe + assertion, not a battery. Re-read the templates' README (`templates/README.md`) for the contract — the body must respect the PASS/FAIL surface. Throw/raise/`exit 1` on failure; let the template's outer try/trap convert it into the FAIL line.
+   **Gather-class bodies** adapt the same template: the loop/aggregation replaces the probe, raw per-item responses go to the log only, and the final `console.log`/`print` emits one compact summary (JSON or aligned table) instead of the PASS line — exit non-zero only on operational failure (auth, network), not on "found problems" (problems ARE the output).
 4. **Propose a file name** matching the intent shape — see the prefix table below. Use **AskUserQuestion** with the proposed name first (Recommended) and `custom name` as the alternative.
 
 **Naming conventions** (advisory — skill proposes, user overrides):
@@ -124,6 +132,7 @@ Confirm via **AskUserQuestion** with the detected language as the first option (
 | `smoke-*` | Minimal-viability post-deploy checks | `smoke-prod-api.ts` |
 | `measure-*` | Performance / size / token measurements | `measure-tool-tokens.ts` |
 | `seed-*` / `generate-*` | Data seeding or artifact generation (rare for validation) | `seed-api-keys.sh` |
+| `gather-*` / `bulk-*` | Bulk data-gathering or bulk mutation replacing N tool calls; stdout = one summary block, not PASS/FAIL | `gather-workflow-health.ts` |
 
 If the intent doesn't match any prefix cleanly, propose a free-form name like `validate-<area>.<ext>`.
 
@@ -173,7 +182,8 @@ Generated/maintained via `/script-builder`.
 2. **Placement heuristic**: search the file for the first heading matching `Test|Testing|Validation|Scripts` (case-insensitive). If found, append the new block within/after that section. Otherwise, append a new `## Scripts for testing & validation` section near the end of the file but **before** any heading matching `License|Acknowledg|Maintain|Contributors`.
 3. **Idempotency**: if a block referencing `scripts/<name>` already exists (i.e., a prior `/script-builder` run for the same script name), update it in place — replace the entire `<important if=...>...</important>` block, do not append a duplicate.
 4. **Scripts-dir marker**: if Step 2 resolved the scripts directory by user choice (not from an existing marker), insert `<!-- script-builder:dir=<path> -->` near the top of `CLAUDE.md` (after the title) so subsequent runs are silent. Skip if the marker already exists.
-5. **Show the diff**: run the equivalent of `git diff CLAUDE.md AGENTS.md` and print a 5-line summary of what changed. **Never auto-stage** — the user commits.
+5. **Scale gate — `scripts/index.md`**: if the scripts directory holds **>10 documented scripts**, per-script `<important if>` blocks become their own context bloat. Generate/maintain a `scripts/index.md` hub instead (one line + link per script, mirroring the `runbooks/` convention from `desplega:engineering-standards`), collapse the CLAUDE.md/AGENTS.md blocks into ONE pointer block referencing the hub, and add new scripts to the hub only.
+6. **Show the diff**: run the equivalent of `git diff CLAUDE.md AGENTS.md` and print a 5-line summary of what changed. **Never auto-stage** — the user commits.
 
 ### Step 8: Offer Escalation
 

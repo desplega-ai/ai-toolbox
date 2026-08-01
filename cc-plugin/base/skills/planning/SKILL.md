@@ -46,7 +46,7 @@ You create detailed implementation plans through an interactive, iterative proce
 
 7. **Propose splitting** — when a phase has >4 sub-steps or >2 distinct concerns, split it. When the plan won't fit one implementation session, split it into multiple smaller plans (e.g., contract → storage → UI).
 
-8. **Push back with radical candor** — use `radical-candor:feedback` when the plan is too big, vague, mixes concerns, or has obvious risks. Silence is Ruinous Empathy.
+8. **Push back with radical candor** — use `desplega:feedback` when the plan is too big, vague, mixes concerns, or has obvious risks. Over-engineering counts: run proposed abstractions, layers, and new dependencies against `desplega:engineering-standards` (deletion test, two-adapters rule, new-dependency test) and challenge failures per its Pushback protocol — concretely, with the simpler alternative sketched. Silence is Ruinous Empathy.
 
 9. **Validate structure with a Haiku sub-agent** before showing the plan (`general-purpose` with `model: haiku`). Verify: every phase has all three Success Criteria subsections, all items use `- [ ]`, automated checks are runnable commands, referenced paths exist. Apply fixes *before* reveal.
 

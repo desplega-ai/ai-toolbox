@@ -3,7 +3,8 @@
 
 This hook intercepts Write and Edit operations targeting thoughts directories
 and validates:
-1. Path structure: thoughts/{username|agentId|shared}/{research|plans|brainstorms|qa|questions|learnings}/YYYY-MM-DD-topic.md
+1. Path structure: thoughts/{username|agentId|shared}/{research|plans|plans-yolo|brainstorms|qa|questions|learnings|reviews}/YYYY-MM-DD-topic.md
+   (design-docs/ is the exception: thoughts/{...}/design-docs/system-slug.md — living docs, no date prefix)
 2. File format: Must have YAML frontmatter (for Write operations)
 
 Exit codes:
@@ -31,10 +32,14 @@ def validate_path(file_path: str) -> tuple[bool, str]:
     #   - DAG (v-planning skill):    thoughts/{user|shared}/plans/YYYY-MM-DD-topic/{root|step-N}.md
     research_pattern = r'thoughts/[^/]+/research/\d{4}-\d{2}-\d{2}-[\w-]+\.md$'
     plans_pattern = r'thoughts/[^/]+/plans/\d{4}-\d{2}-\d{2}-[\w-]+(?:\.md|/(?:root|step-\d+)\.md)$'
+    plans_yolo_pattern = r'thoughts/[^/]+/plans-yolo/\d{4}-\d{2}-\d{2}-[\w-]+\.md$'
     brainstorms_pattern = r'thoughts/[^/]+/brainstorms/\d{4}-\d{2}-\d{2}-[\w-]+\.md$'
     qa_pattern = r'thoughts/[^/]+/qa/\d{4}-\d{2}-\d{2}-[\w-]+\.md$'
     questions_pattern = r'thoughts/[^/]+/questions/\d{4}-\d{2}-\d{2}-[\w-]+\.md$'
     learnings_pattern = r'thoughts/[^/]+/learnings/\d{4}-\d{2}-\d{2}-[\w-]+\.md$'
+    reviews_pattern = r'thoughts/[^/]+/reviews/\d{4}-\d{2}-\d{2}-[\w-]+\.md$'
+    # Design docs are living per-system docs — named by system slug, not dated
+    design_docs_pattern = r'thoughts/[^/]+/design-docs/[\w-]+\.md$'
 
     if "/research/" in file_path:
         if not re.search(research_pattern, file_path):
@@ -78,10 +83,31 @@ def validate_path(file_path: str) -> tuple[bool, str]:
                 "Expected: thoughts/{username|agentId|shared}/learnings/YYYY-MM-DD-topic-slug.md\n"
                 f"Got: {file_path}"
             )
+    elif "/plans-yolo/" in file_path:
+        if not re.search(plans_yolo_pattern, file_path):
+            return False, (
+                "Invalid yolo-plan path format.\n"
+                "Expected: thoughts/{username|agentId|shared}/plans-yolo/YYYY-MM-DD-topic-slug.md\n"
+                f"Got: {file_path}"
+            )
+    elif "/reviews/" in file_path:
+        if not re.search(reviews_pattern, file_path):
+            return False, (
+                "Invalid review path format.\n"
+                "Expected: thoughts/{username|agentId|shared}/reviews/YYYY-MM-DD-topic-slug.md\n"
+                f"Got: {file_path}"
+            )
+    elif "/design-docs/" in file_path:
+        if not re.search(design_docs_pattern, file_path):
+            return False, (
+                "Invalid design-doc path format.\n"
+                "Expected: thoughts/{username|agentId|shared}/design-docs/system-slug.md (no date prefix — design docs are living docs)\n"
+                f"Got: {file_path}"
+            )
     else:
         return False, (
             "Invalid thoughts subdirectory.\n"
-            "Thoughts files must be in 'research', 'plans', 'brainstorms', 'qa', 'questions', or 'learnings' subdirectory.\n"
+            "Thoughts files must be in 'research', 'plans', 'plans-yolo', 'brainstorms', 'qa', 'questions', 'learnings', 'reviews', or 'design-docs' subdirectory.\n"
             f"Got: {file_path}"
         )
 

@@ -64,6 +64,9 @@ Socratic Q&A loop. The goal is to systematically uncover requirements, constrain
 
 **Rules:**
 - Ask **ONE question at a time** via AskUserQuestion
+- **Every question ships with a recommended answer** — make your recommendation the first option, labeled "(Recommended)", with the reasoning in its description. Never ask open-endedly what you can propose a default for; the user confirms or overrides.
+- **Facts vs decisions**: never ask the user something you can look up. What the code does, what a library supports, what the current behavior is — those are *facts*: spawn a quick background sub-agent (Haiku locate / Sonnet analyze, per `desplega:delegate-work`) mid-session and record the answer as an insight. Only genuine *decisions* — trade-offs, preferences, scope calls — go to the user.
+- **Track the frontier**: maintain the set of unresolved decision branches (a short TodoWrite list works). Each answer may close a branch and open new ones. The exploration is done when the frontier is empty — every branch resolved or explicitly deferred, nothing left silently assumed.
 - After each answer, append a new section to the document under `## Exploration`:
   ```markdown
   ### Q: [Your question]
@@ -88,7 +91,7 @@ Socratic Q&A loop. The goal is to systematically uncover requirements, constrain
 
 ### Step 4: Synthesize Phase
 
-When exploration is complete (user signals done, or natural saturation), append a `## Synthesis` section:
+When exploration is complete (the frontier is empty, or the user signals done), append a `## Synthesis` section:
 
 ```markdown
 ## Synthesis
@@ -96,9 +99,10 @@ When exploration is complete (user signals done, or natural saturation), append 
 ### Key Decisions
 - [Decision 1]
 - [Decision 2]
+- [Deferred: <decision> — defaulting to <recommended answer> unless revisited]
 
 ### Open Questions
-- [Question that still needs investigation]
+- [FACT-shaped question only — answerable by /research, tagged as its input]
 
 ### Constraints Identified
 - [Constraint 1]
@@ -108,6 +112,8 @@ When exploration is complete (user signals done, or natural saturation), append 
 - [Requirement 1 — lightweight PRD-style]
 - [Requirement 2]
 ```
+
+**A brainstorm that ends with undecided decisions is incomplete.** Open Questions may only contain *fact-shaped* items — things `/research` can answer from the codebase or docs. Decision-shaped questions must be either resolved in Key Decisions or recorded there as "Deferred, defaulting to X" with your recommendation written down. If the user cut the session short with decisions still open, ask once (batched) for a default on each before synthesizing — or record your own recommendation as the default, clearly marked.
 
 ### Learning Capture
 

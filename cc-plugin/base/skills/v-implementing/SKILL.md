@@ -71,6 +71,14 @@ If "Commit after each step" is selected, after a step's manual verification pass
 
 A "yes" is the explicit opt-in the Workflow tool requires. If opted in, each wave of the scheduler loop below runs as one Workflow script — a `parallel()` of `agent()` calls, one per ready step, with `model`/`effort` per `desplega:delegate-work`. Everything else is unchanged: step agents still follow the `step-running` contract (atomic frontmatter claim, three-bucket verification), and autonomy-mode pause points sit **between** Workflow invocations, never inside one. In Autopilot these questions are skipped, so there is no opt-in — use Agent fan-out unless the user pre-authorized workflows.
 
+### 4. Code Review Mode
+
+| Question | Options |
+|----------|---------|
+| "Run an automatic code review after each wave?" | 1. Automatic two-axis review per wave (Recommended), 2. Only at the end (single review after the DAG drains), 3. Off — I'll review myself |
+
+In **Autopilot**, skip the question and default to automatic per-wave review.
+
 ## Getting Started
 
 Given a plan directory path:
@@ -132,10 +140,11 @@ The orchestrator does NOT do step work itself — it delegates. See `desplega:st
 
 When a wave finishes:
 1. **Review each agent's report.** Mark steps `done` only if `completed` was reported.
-2. **Handle `QA Doc: <path>`** — for each step that reported a QA doc, invoke `desplega:qa` against that path. The Automated QA bucket inside the step is already handled by the sub-agent; only the linked doc needs separate orchestration here. (`QA: n/a` → proceed normally.)
-3. **Manual verification (if not Autopilot)** — present manual verification items from each completed step's body. Wait for user confirmation. Don't tick manual boxes until confirmed.
-4. **Commits (if commit-per-step was selected)** — after a step's manual verification passes, create a commit: `[step-N] <step name>`.
-5. **Loop** — recompute `ready` and start the next wave.
+2. **Run the wave code review** (unless review mode is Off) — invoke `desplega:code-reviewing` on the wave's combined diff: Standards + Spec axes as parallel background sub-agents (routed per `desplega:delegate-work`), spec source = the completed steps' bodies and Success Criteria. Critical findings block those steps' commits — fix and re-verify first. If "Only at the end" was selected, run one review over the full diff after the DAG drains instead.
+3. **Handle `QA Doc: <path>`** — for each step that reported a QA doc, invoke `desplega:qa` against that path. The Automated QA bucket inside the step is already handled by the sub-agent; only the linked doc needs separate orchestration here. (`QA: n/a` → proceed normally.)
+4. **Manual verification (if not Autopilot)** — present manual verification items from each completed step's body. Wait for user confirmation. Don't tick manual boxes until confirmed.
+5. **Commits (if commit-per-step was selected)** — after a step's manual verification passes, create a commit: `[step-N] <step name>`.
+6. **Loop** — recompute `ready` and start the next wave.
 
 ## Handling Failures and Mismatches
 

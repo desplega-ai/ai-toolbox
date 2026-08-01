@@ -22,10 +22,10 @@ last_updated_by: [Author name]
 ## Synthesis
 
 ### Key Decisions
-- [Filled after exploration]
+- [Filled after exploration — includes "Deferred: X, defaulting to Y" entries for consciously parked decisions]
 
 ### Open Questions
-- [Filled after exploration]
+- [Fact-shaped questions only (answerable by /research) — undecided decisions don't belong here]
 
 ### Constraints Identified
 - [Filled after exploration]

@@ -53,7 +53,7 @@ step-2.md
 
 7. **Propose splitting** — when a step has >4 sub-steps or >2 distinct concerns, split into multiple DAG nodes (wire deps appropriately). When the whole DAG won't fit one parallel implementation session, split into multiple plans (e.g., contract → storage → UI). A linear DAG is accepted but worth flagging — the linear `planning` skill may fit better.
 
-8. **Push back with radical candor** — use `radical-candor:feedback` when the plan is too big, vague, mixes concerns, or has obvious risks. Silence is Ruinous Empathy.
+8. **Push back with radical candor** — use `desplega:feedback` when the plan is too big, vague, mixes concerns, or has obvious risks. Silence is Ruinous Empathy.
 
 9. **Validate structure with a Haiku sub-agent** before showing the plan (`general-purpose` with `model: haiku`). Verify: every `step-<n>.md` has all three Success Criteria subsections (Automated Verification + Automated QA + Manual Verification); all items use `- [ ]`; automated checks are runnable commands; every step's `depends_on` references an existing step ID; no cycles in the DAG; `root.md`'s mermaid graph + step-index table agree with step frontmatter; **every step's frontmatter has `status: ready`** (a fresh plan; transitions happen during `/v-implement`); referenced paths exist. Apply fixes *before* reveal.
 

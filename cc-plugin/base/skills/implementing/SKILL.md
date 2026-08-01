@@ -80,6 +80,16 @@ If "Commit after each phase" is selected:
 - After completing each phase's verification, create a commit with message: `[Phase N] <phase name>`
 - Use the plan's phase descriptions for commit messages
 
+### 3. Code Review Mode
+
+Use **AskUserQuestion** with these options:
+
+| Question | Options |
+|----------|---------|
+| "Run an automatic code review after each phase?" | 1. Automatic two-axis review per phase (Recommended), 2. Only at the end (single review before completion), 3. Off — I'll review myself |
+
+In **Autopilot**, skip the question and default to automatic per-phase review.
+
 Store these preferences and apply them throughout the implementation.
 
 ## Prior Learning Recall
@@ -132,8 +142,9 @@ Each phase is executed via a background sub-agent running `desplega:phase-runnin
 3. **Wait for agent completion** — you'll be notified when it finishes
 4. **Review the agent's report** — check status (completed/blocked/failed), changed files, verification results
 5. **Check QA Doc status** — if the phase agent reports `QA Doc: <path>`, the linked QA doc has scenarios that need execution. Invoke `desplega:qa` against the QA doc path. (For `QA: n/a`, proceed normally.) Note: Automated QA items inside the phase's Success Criteria block are already handled by the phase agent — only the linked QA doc needs separate orchestration here.
-6. **Handle manual verification** with the user — present the manual verification items from the phase
-7. **Proceed to next phase** after user confirms
+6. **Run the per-phase code review** (unless review mode is Off) — invoke `desplega:code-reviewing` on the phase's diff: Standards + Spec axes as parallel background sub-agents (routed per `desplega:delegate-work`), spec source = the phase body and Success Criteria. Critical findings block the phase from closing — fix and re-verify before the commit. If "Only at the end" was selected, run one review over the full diff before Completing Implementation instead.
+7. **Handle manual verification** with the user — present the manual verification items from the phase
+8. **Proceed to next phase** after user confirms
 
 The implementing skill is an **orchestrator** — it coordinates phases, handles human checkpoints, and manages cross-phase decisions, but delegates actual implementation work to phase-runner sub-agents.
 

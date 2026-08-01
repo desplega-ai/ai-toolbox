@@ -5,7 +5,7 @@ description: Structured critique of research, plan, and brainstorm documents for
 
 # Reviewing
 
-You are performing a structured critique of a document (research, plan, or brainstorm) to identify gaps, weaknesses, and quality issues.
+You are performing a structured critique of a document (research, plan, or brainstorm) to identify gaps, weaknesses, and quality issues. (For reviewing a code diff, use `desplega:code-reviewing` instead — this skill reviews documents.)
 
 ## Working Agreement
 
@@ -110,6 +110,7 @@ Apply type-specific quality criteria:
 - Are there unstated assumptions about the codebase?
 - Is error handling or rollback addressed?
 - Is there scope creep risk (doing more than stated)?
+- Is any phase over-built? Run proposed abstractions, layers, and new dependencies against `desplega:engineering-standards` (deletion test, two-adapters rule, new-dependency test) — flag failures as Important.
 
 **Brainstorms:**
 - Were important angles left unexplored?
