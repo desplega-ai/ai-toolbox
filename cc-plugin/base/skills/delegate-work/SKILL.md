@@ -1,6 +1,6 @@
 ---
 name: delegate-work
-description: Executor routing policy for ALL delegated work — pick the right model for every sub-agent and the right Codex variant for every implementation slice. Use whenever you are about to spawn a sub-agent/Task (research, review, QA, UI, search), whenever a desplega skill (implement-plan, v-implement, run-phase, run-step, research) is choosing executors for phases/steps, or when the user says "implement with codex", "delegate this", "which model should do this", or similar.
+description: Executor routing policy for ALL delegated work — pick the right model for every sub-agent and the right Codex variant for every implementation slice. Use whenever you are about to spawn a sub-agent/Task (research, review, QA, UI, search), whenever a desplega skill (implement-plan, v-implement, run-phase, run-step, research) is choosing executors for phases/steps, or when the user says "implement with codex", "delegate this", "which model should do this", or similar. Supersedes codex-implement (its worktree/exec mechanics live here).
 ---
 
 # delegate-work
@@ -18,14 +18,14 @@ Rankings 1–10, higher = better. Cost = subscription quota burned — both Clau
 | executor                | cost | code | taste | speed | role |
 |-------------------------|------|------|-------|-------|------|
 | fable-5                 | 2    | 9    | 9     | 4     | orchestration, deep reasoning, architecture, final judgment |
-| opus-4.8                | 4    | 7    | 8     | 5     | UI implementation, complex review, browser E2E |
+| opus-5                  | 4    | 7    | 8     | 5     | UI implementation, complex review, browser E2E |
 | sonnet-5                | 5    | 5    | 7     | 7     | routine review, API QA agents, standard sub-agent work |
 | haiku-4.5               | 9    | 3    | 4     | 9     | search, locate, digest, mechanical sweeps — NEVER for writing code |
 | codex gpt-5.6-sol       | 8    | 10   | 6     | 6     | hard/long-horizon implementation, gnarly debugging |
 | codex gpt-5.6-terra     | 9    | 8    | 5     | 8     | everyday implementation from a frozen spec |
 | codex gpt-5.6-luna      | 10   | 6    | 4     | 10    | mechanical code: migrations, renames, test fills, dep bumps |
 
-(Context for the Codex rows, from the 5.6 release: Sol-max is SOTA on the AA Coding Agent Index, ~3 pts above Fable 5 at ~⅓ the cost; Terra lands just above Fable 5; Luna outperforms Opus 4.8 — each in ~⅓ the time. Claude keeps the edge on taste and judgment; that's why review and UI stay Claude-side.)
+(Context for the Codex rows, from the 5.6 release: Sol-max is SOTA on the AA Coding Agent Index, ~3 pts above Fable 5 at ~⅓ the cost; Terra lands just above Fable 5; Luna outperforms Opus 5 — each in ~⅓ the time. Claude keeps the edge on taste and judgment; that's why review and UI stay Claude-side.)
 
 **Defaults, not limits.** Standing permission to override: if a cheaper executor's output doesn't meet the bar, rerun or redo with a smarter one without asking. Judge the output, not the price tag. Escalating costs less than shipping mediocre work.
 
@@ -34,11 +34,11 @@ Rankings 1–10, higher = better. Cost = subscription quota burned — both Clau
 | work | executor | how |
 |------|----------|-----|
 | orchestration, deep reasoning, spec-writing, architecture | **Fable 5** | stay in the main session; never delegated |
-| UI implementation (pages, components, styles, UX flows) | **Opus 4.8** | `Agent` with `model: "opus"`, background |
+| UI implementation (pages, components, styles, UX flows) | **Opus 5** | `Agent` with `model: "opus"`, background |
 | code review — routine / per-phase | **Sonnet 5** | `Agent` with `model: "sonnet"` |
-| code review — complex, security-sensitive, cross-cutting, or reviewing Sol output | **Opus 4.8** (+ optional parallel Codex review, see Verify ↓) | `Agent` with `model: "opus"` |
+| code review — complex, security-sensitive, cross-cutting, or reviewing Sol output | **Opus 5** (+ optional parallel Codex review, see Verify ↓) | `Agent` with `model: "opus"` |
 | API-level QA / E2E agents, plan-verification agents | **Sonnet 5** | `Agent` with `model: "sonnet"` |
-| browser E2E / driving the real UI | **Opus 4.8** | `Agent` with `model: "opus"`; use a browser-automation agent for local URLs unless stated differently |
+| browser E2E / driving the real UI | **Opus 5** | `Agent` with `model: "opus"`; use a browser-automation agent for local URLs unless stated differently |
 | search, locate, pattern-find, doc digests | **Haiku 4.5** | `Explore` / locator agents with `model: "haiku"` |
 | raw code implementation from a frozen spec | **Codex** | variant by scope ↓, via `codex-exec.sh` |
 
