@@ -96,6 +96,7 @@ Inside you will find:
 | `v-implement` | Implement a DAG plan by fanning out parallel sub-agents |
 | `brainstorm` | Interactive Socratic Q&A exploration of ideas |
 | `question` | One-shot question answering using the research process |
+| `one-shot` | Plan and implement a small task in one session with a lightweight yolo plan |
 | `review` | Structured critique of research, plan, and brainstorm documents |
 | `verify-plan` | Post-implementation plan verification and audit |
 | `qa` | Functional validation with test evidence and QA reports |
@@ -121,12 +122,18 @@ Inside you will find:
 | `delegate-work` | Executor routing policy — picks the model (Claude tier or Codex variant) for every delegated task, with worktree/exec mechanics via `codex-exec.sh` |
 | `brainstorming` | Socratic Q&A exploration producing pre-PRD documents |
 | `questioning` | One-shot Q&A using the research process, no document generated |
+| `one-shot` | Small-scope plan+implement in one session, tracked in a `plans-yolo/` file; escalates to `create-plan` past ~3 phases or one subsystem |
+| `design-docs` | Living per-system design docs (`design-docs/<system-slug>.md`) — Glossary, testable Invariants (normative for review), Boundaries, Decision/Amendment logs |
 | `reviewing` | Structured critique with severity categorization |
 | `verifying` | Post-implementation audit against plan |
 | `qa` | Functional validation capturing evidence into `thoughts/*/qa/` |
 | `phase-running` | Atomic phase execution as background sub-agent |
 | `learning` | Compounding knowledge via tiered backends (local/qmd/agent-fs) |
 | `script-builder` | Generate TS/Python/Bash validation scripts with PASS/FAIL + /tmp log convention |
+| `engineering-standards` | The senior-engineer simplicity bar — named tests (deletion, two-adapters, …), smell table, `runbooks/` convention, Pushback protocol |
+| `code-reviewing` | Two-axis diff review (Standards vs Spec) via fresh parallel sub-agents, reported separately |
+| `tackle-gh-comments` | Work through every PR review thread — verify, fix, reply, resolve, push |
+| `feedback` | Radically Candid feedback (bundled from the radical-candor plugin) |
 | `ask-user` | Shared conventions for `AskUserQuestion` prompts across the other skills |
 | `improve-agents-md` | Improve or bootstrap an AGENTS.md / CLAUDE.md with `<important if>` blocks |
 
@@ -223,6 +230,8 @@ flowchart LR
 - `learning` is out-of-band — capture reusable knowledge whenever you notice a pattern worth keeping across runs.
 - `review` can be invoked at any stage to critique a document before moving on.
 - `question` is an optional one-shot shortcut before committing to full `research`.
+- `one-shot` collapses the whole plan → implement → review chain into a single session for small tasks (≤ ~3 phases, one subsystem), tracked in a lightweight `plans-yolo/` file; the moment scope grows it stops and hands off to `create-plan`.
+- `design-docs` sits outside the chain: living per-system contracts whose Glossary/Invariants `research` and `plan` read-and-abide, and whose Invariants the `code-reviewing` Spec axis treats as spec.
 
 ## Inspiration
 

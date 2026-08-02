@@ -28,6 +28,8 @@ You create detailed implementation plans through an interactive, iterative proce
 
 3. **Prior learnings** — **OPTIONAL SUB-SKILL:** if `~/.agentic-learnings.json` exists, run `/learning recall <topic>` first.
 
+4. **Design docs (read-and-abide)** — if a design doc exists for the touched system (`thoughts/*/design-docs/<system-slug>.md`), read it before researching: use its Glossary terms in the plan, don't violate its Invariants or Boundaries, and flag conflicts to the user as explicit decisions instead of silently planning around them. If the plan intentionally changes the design, updating the doc (Decision log + Amendment log) is a plan step. See `desplega:design-docs`.
+
 ## The 10 Rules
 
 1. **Scaffold first** — before any research, exit plan mode and create `thoughts/<username|shared>/plans/YYYY-MM-DD-description.md` from `cc-plugin/base/skills/planning/template.md`. (Use the user's name when known, e.g. `taras`; fall back to `thoughts/shared/` otherwise.) The file grows incrementally; the user can correct course early.
@@ -44,7 +46,7 @@ You create detailed implementation plans through an interactive, iterative proce
 
 6. **Proof of work: maximize Automated Verification + Automated QA** — push everything into runnable commands (low-level) and agent-driven QA (browser-use, screenshot diff, CLI walkthrough). Manual Verification is the exception. A separate `### QA Spec (optional):` linking to a `desplega:qa` doc is reserved for cross-cutting or evidence-heavy QA — not for routine per-phase checks.
 
-7. **Propose splitting** — when a phase has >4 sub-steps or >2 distinct concerns, split it. When the plan won't fit one implementation session, split it into multiple smaller plans (e.g., contract → storage → UI).
+7. **Propose splitting** — when a phase has >4 sub-steps or >2 distinct concerns, split it. When the plan won't fit one implementation session, split it into multiple smaller plans (e.g., contract → storage → UI). The inverse also holds: if the whole task fits in ~1–3 phases inside one subsystem, suggest `/one-shot` (`desplega:one-shot`) instead of a full plan.
 
 8. **Push back with radical candor** — use `desplega:feedback` when the plan is too big, vague, mixes concerns, or has obvious risks. Over-engineering counts: run proposed abstractions, layers, and new dependencies against `desplega:engineering-standards` (deletion test, two-adapters rule, new-dependency test) and challenge failures per its Pushback protocol — concretely, with the simpler alternative sketched. Silence is Ruinous Empathy.
 
