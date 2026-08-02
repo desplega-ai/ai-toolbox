@@ -195,6 +195,8 @@ flowchart LR
     SB[script-builder]:::aux
     L[learning]:::aux
     RV[review]:::aux
+    OS["one-shot<br/><i>small scope</i>"]:::aux
+    DD[design-docs]:::parallel
 
     B -.->|clear context| R
     R -.->|clear context| P
@@ -214,6 +216,12 @@ flowchart LR
     I --- SB
     V -.->|revise| P
     RV -.->|critique| P
+
+    P -.->|downscope| OS
+    OS -.->|escalate| P
+    DD -.->|read-and-abide| R
+    DD -.->|read-and-abide| P
+    DD -.->|read-and-abide| OS
 
     classDef stage fill:#1f6feb,stroke:#0b3a8f,color:#fff,font-weight:bold;
     classDef aux fill:#eef2f7,stroke:#6b7280,color:#111;

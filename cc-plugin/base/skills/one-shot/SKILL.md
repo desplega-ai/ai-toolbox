@@ -64,7 +64,7 @@ Run every command in the Verification section. All must pass. Fix and re-run —
 
 ## Step 5: Quick code review
 
-Run `desplega:code-reviewing` on the diff (spec source = the yolo plan). Fix Critical and Important findings, note Minor ones in the plan file.
+Run `desplega:code-reviewing` on the diff. Spec sources: the yolo plan **plus** any design doc for the touched system — pass both to the Spec agent; the doc's Invariants bind even when the yolo plan doesn't restate them. Fix Critical and Important findings, note Minor ones in the plan file.
 
 ## Step 6: Commit
 

@@ -28,11 +28,12 @@ State the pinned range in the report header.
 
 In priority order, use the strongest statement of intent available:
 
-1. The plan file (phase/step body + Success Criteria) — for desplega-driven implementations
-2. A design doc for the touched system (`thoughts/*/design-docs/`) — its Invariants section is spec, not style
-3. The originating issue/ticket/PR description
-4. The user's request in this conversation
-5. Ask via `AskUserQuestion` if none of the above pins intent
+1. The plan file (phase/step body + Success Criteria) — for desplega-driven implementations, including one-shot yolo plans
+2. The originating issue/ticket/PR description
+3. The user's request in this conversation
+4. Ask via `AskUserQuestion` if none of the above pins intent
+
+**Additionally, always:** if a design doc exists for the touched system (`thoughts/*/design-docs/<system-slug>.md`), it is a spec source **on top of** whichever ranked source applies, never a fallback — pass it to the Spec agent alongside the primary source. Its Invariants are spec, not style, and bind even when the plan doesn't restate them (see `desplega:design-docs`).
 
 ## Step 3: Fan out two sub-agents (parallel, background)
 
