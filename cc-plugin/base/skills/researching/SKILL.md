@@ -50,6 +50,10 @@ The autonomy mode is passed by the invoking command. If not specified, default t
 
 **OPTIONAL SUB-SKILL:** If `~/.agentic-learnings.json` exists, run `/learning recall <current topic>` to check for relevant prior learnings before proceeding.
 
+### Design Docs (read-and-abide)
+
+If a design doc exists for the researched system (`thoughts/*/design-docs/<system-slug>.md`), read it first and use its Glossary terms in the research document. When the code contradicts the doc's Invariants or Boundaries, flag the conflict explicitly in the findings ("doc says X, code does Y") instead of silently documenting around it — that flag is still factual documentation, not critique. See `desplega:design-docs`.
+
 ### Before Starting
 
 Perform a quick analysis of the research query. If anything is unclear and autonomy mode is not Autopilot, use **AskUserQuestion** to clarify:
