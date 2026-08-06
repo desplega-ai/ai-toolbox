@@ -1,0 +1,13 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "agent-swarm": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${PLUGIN_ROOT}/scripts/agent-swarm-mcp.mjs"],
+      "env": {
+        "AGENT_SWARM_CONFIG": "${PLUGIN_DATA}/agent-swarm.json"
+      }
+    }
+  }
+}
