@@ -6,6 +6,18 @@ Multi-agent coordination plugin for agent-swarm MCP.
 
 This plugin requires the [agent-swarm](https://github.com/desplega-ai/agent-swarm) MCP server to be configured.
 
+Portable Agent Plugins clients start the bundled MCP bridge automatically. Create `agent-swarm.json` in the client-provided plugin data directory (the location represented by `${PLUGIN_DATA}`):
+
+```json
+{
+  "apiKey": "your-swarm-api-key",
+  "agentId": "your-agent-id",
+  "mcpUrl": "https://your-swarm.example.com/mcp"
+}
+```
+
+`mcpUrl` is optional and defaults to Desplega's hosted Agent Swarm endpoint. Restrict the file to your user account because it contains a secret. The bridge requires Node.js 20.18.1 or newer with npm and downloads the pinned `mcp-remote@0.1.38` package through `npx`.
+
 ## Commands
 
 | Command | Description |

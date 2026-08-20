@@ -1,6 +1,8 @@
 import chalk from "chalk";
 import { Command } from "commander";
 import { resolveConfig } from "../config/local.ts";
+import type { Worktree } from "../config/types.ts";
+import { selectWorktree } from "../integrations/fzf.ts";
 import {
   deleteBranch,
   findWorktreeByAlias,
@@ -9,7 +11,6 @@ import {
   listWorktrees,
   removeWorktree,
 } from "../utils/git.ts";
-import { selectWorktree } from "../integrations/fzf.ts";
 import { confirm } from "../utils/prompts.ts";
 
 /**
@@ -21,11 +22,7 @@ async function getCommitsToMerge(
   cwd: string,
 ): Promise<string[]> {
   const result = await Bun.$`git log ${baseBranch}..${branch} --oneline`.cwd(cwd).quiet();
-  return result.stdout
-    .toString()
-    .trim()
-    .split("\n")
-    .filter(Boolean);
+  return result.stdout.toString().trim().split("\n").filter(Boolean);
 }
 
 interface MergeOptions {
@@ -59,7 +56,7 @@ export const mergeCommand = new Command("merge")
     const mainPath = mainWorktree.path;
 
     // Find or select worktree
-    let worktree;
+    let worktree: Worktree | undefined;
     if (alias) {
       worktree = await findWorktreeByAlias(alias, gitRoot);
       if (!worktree) {
@@ -87,7 +84,9 @@ export const mergeCommand = new Command("merge")
     const defaultBranch = await getDefaultBranch(gitRoot);
     const branchToMerge = worktree.branch;
 
-    console.log(chalk.bold(`\nMerging ${chalk.cyan(branchToMerge)} into ${chalk.cyan(defaultBranch)}\n`));
+    console.log(
+      chalk.bold(`\nMerging ${chalk.cyan(branchToMerge)} into ${chalk.cyan(defaultBranch)}\n`),
+    );
 
     // Step 1: Switch to default branch
     if (!options.force) {

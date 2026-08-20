@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "agent-swarm",
+  "version": "1.2.0",
+  "description": "Multi-agent coordination with agent-swarm MCP",
+  "author": {
+    "name": "desplega.ai",
+    "email": "contact@desplega.ai"
+  },
+  "homepage": "https://desplega.ai",
+  "repository": "https://github.com/desplega-ai/ai-toolbox",
+  "license": "MIT",
+  "keywords": ["ai", "agent", "swarm", "multi-agent", "mcp"]
+}
