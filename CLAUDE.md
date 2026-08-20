@@ -37,7 +37,7 @@ Plugin structure: `cc-plugin/{base,swarm,wts,teams,oapi,radical-candor,...}/` wi
 
 ### Plugin versioning
 
-- When modifying a plugin, **always bump its version** in `cc-plugin/<plugin>/.claude-plugin/plugin.json` (patch for fixes, minor for features, major for breaking changes).
+- When modifying a plugin, **always bump its version** in `cc-plugin/<plugin>/.claude-plugin/plugin.json` (patch for fixes, minor for features, major for breaking changes). If the plugin also has a root `plugin.json`, bump the version in **both manifests** and keep them in sync.
 - When adding a **new plugin**, also update **both**:
   1. The marketplace manifest at `.claude-plugin/marketplace.json` (add an entry to the `plugins` array)
   2. The plugin structure list in this CLAUDE.md file (below)
@@ -95,4 +95,3 @@ The binary and the plugin skill must stay in sync — the skill **documents** wh
 - Change the skill → verify every documented flag/shortcut/format still matches the current binary.
 - Either way, bump the plugin version in `cc-plugin/file-review/.claude-plugin/plugin.json` (per the Plugin versioning rules above).
 </important>
-

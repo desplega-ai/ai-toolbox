@@ -10,6 +10,70 @@ The `agent-swarm` and `wts` directories are dual-format packages. Their existing
 
 Users still need to create that protected per-plugin data file using the location exposed by their client. Native OAuth support in Agent Swarm would let us replace this setup step and bridge with a direct remote entry later.
 
+## Install from this repository
+
+Agent Plugins 1.0 standardizes the package format, not distribution. It does not define a registry, and these plugins are not published to a client-owned public marketplace. Install them from `desplega-ai/ai-toolbox` today.
+
+### Cursor
+
+Clone the repository, then link the desired plugin into Cursor's local plugin directory:
+
+```bash
+git clone https://github.com/desplega-ai/ai-toolbox.git
+mkdir -p ~/.cursor/plugins/local
+ln -s "$(pwd)/ai-toolbox/cc-plugin/swarm" ~/.cursor/plugins/local/agent-swarm
+# Optional second plugin:
+ln -s "$(pwd)/ai-toolbox/cc-plugin/wts" ~/.cursor/plugins/local/wts
+```
+
+Restart Cursor or run **Developer: Reload Window**. Cursor also supports importing this repository as a Team Marketplace on Teams and Enterprise plans.
+
+### Codex
+
+Add this repository as a marketplace, then install either plugin:
+
+```bash
+codex plugin marketplace add desplega-ai/ai-toolbox --ref main
+codex plugin add agent-swarm@desplega-ai-toolbox
+# Optional second plugin:
+codex plugin add wts@desplega-ai-toolbox
+```
+
+### GitHub Copilot CLI
+
+Install a plugin directly from its repository subdirectory:
+
+```bash
+copilot plugin install desplega-ai/ai-toolbox:cc-plugin/swarm
+# Optional second plugin:
+copilot plugin install desplega-ai/ai-toolbox:cc-plugin/wts
+```
+
+### VS Code
+
+Add the repository-backed marketplace to VS Code's user `settings.json`:
+
+```json
+{
+  "chat.plugins.marketplaces": ["desplega-ai/ai-toolbox"]
+}
+```
+
+Run **Chat: Open Customizations**, open **Plugins**, find `agent-swarm` or `wts`, and select **Install**. VS Code reads the repository's existing `.claude-plugin/marketplace.json`; this does not publish either plugin to a central registry.
+
+### Configure the Agent Swarm key
+
+The `wts` plugin needs no credentials. For `agent-swarm`, install and enable the plugin once. If configuration is absent, the launcher exits immediately and prints the exact absolute path where that client expanded `${PLUGIN_DATA}/agent-swarm.json`. Create that printed file with this content:
+
+```json
+{
+  "apiKey": "your-swarm-api-key",
+  "agentId": "your-agent-id"
+}
+```
+
+Set `mcpUrl` only when using a non-default Agent Swarm deployment. Keep the file out of the repository and restrict it to your user account, for example with `chmod 600 /the/path/printed/agent-swarm.json` on macOS or Linux. Restart or re-enable the plugin after saving it.
+
 ## Remaining ai-toolbox plugins
 
 | Plugin | Recommendation | Why | Estimate |
