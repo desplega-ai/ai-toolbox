@@ -10,6 +10,8 @@ The `agent-swarm` and `wts` directories are dual-format packages. Their existing
 
 Users still need to create that protected per-plugin data file using the location exposed by their client. Native OAuth support in Agent Swarm would let us replace this setup step and bridge with a direct remote entry later.
 
+`cc-plugin/desplega-qa` follows the same shape: a bundled stdio launcher reads `${PLUGIN_DATA}/desplega-qa.json` for a desplega.ai API key, sets it as `QA_USE_API_KEY`, and runs the pinned `@desplega.ai/qa-use-mcp@1.6.0` package through `npx`. Unlike Agent Swarm, no `mcp-remote` bridge is needed — `qa-use-mcp` is itself a stdio server, so the launcher only has to keep the credential out of `mcp.json`.
+
 ## Install from this repository
 
 Agent Plugins 1.0 standardizes the package format, not distribution. It does not define a registry, and these plugins are not published to a client-owned public marketplace. Install them from `desplega-ai/ai-toolbox` today.
