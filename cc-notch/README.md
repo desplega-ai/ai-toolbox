@@ -27,6 +27,8 @@ Then launch SwiftBar and point it to `~/Library/Application Support/SwiftBar/Plu
   - Current month's total cost
   - Model-by-model cost breakdown under each agent
 - Auto-refreshes every 5 minutes
+- Prices come from ccusage in online mode (LiteLLM and models.dev tables), so new models get a price as soon as those tables list them. If the fetch fails, ccusage falls back to its embedded price table, which lags behind new models and reports $0 for them.
+- A trailing `!` in the menu bar means a ccusage source failed or timed out. The dropdown names the source. Its cost is missing from the totals.
 
 ## Uninstall
 

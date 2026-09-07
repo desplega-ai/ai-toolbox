@@ -47,12 +47,13 @@ interface DailyEntry {
 	>;
 }
 
-const CCUSAGE_TIMEOUT_MS = 20_000;
+// Claude parsing walks every JSONL under ~/.claude/projects (GBs). When the
+// pricing fetch fails, ccusage falls back to embedded pricing, which is slower.
+const CCUSAGE_TIMEOUT_MS = 120_000;
 const PACKAGE_DIR = new URL("..", import.meta.url).pathname;
-const CCUSAGE_BIN = new URL(
-	"../node_modules/ccusage/dist/cli.js",
-	import.meta.url,
-).pathname;
+// ccusage moved its entry point from dist/ to src/ in 20.0.20; .bin is stable.
+const CCUSAGE_BIN = new URL("../node_modules/.bin/ccusage", import.meta.url)
+	.pathname;
 const CCUSAGE_SOURCES = ["claude", "codex", "opencode", "amp", "pi"] as const;
 const ACTIVE_SESSION_SOURCES = ["claude", "codex"] as const;
 const SELECTABLE_ACTION = "bash=/usr/bin/true terminal=false";
@@ -204,22 +205,28 @@ function printTokenUsage(prefix: string, usage: TokenUsageSummary): void {
 	}
 }
 
-async function runCcusageDaily(): Promise<{
+interface DailyFetchResult {
 	stdout: string;
 	success: boolean;
-}> {
+	failedSources: string[];
+}
+
+async function runCcusageDaily(): Promise<DailyFetchResult> {
 	const since = getCurrentMonthStart();
+	const failedSources: string[] = [];
 	const focusedResults = await Promise.all(
 		CCUSAGE_SOURCES.map(async (source) => {
 			const result = await runCcusage([
 				source,
 				"daily",
 				"--json",
-				"--offline",
 				"--since",
 				since,
 			]);
-			if (!result.success || !result.stdout) return [];
+			if (!result.success || !result.stdout) {
+				failedSources.push(source);
+				return [];
+			}
 
 			try {
 				const parsed = JSON.parse(result.stdout) as DailyResponse;
@@ -228,6 +235,7 @@ async function runCcusageDaily(): Promise<{
 					agent: source,
 				}));
 			} catch {
+				failedSources.push(source);
 				return [];
 			}
 		}),
@@ -237,17 +245,18 @@ async function runCcusageDaily(): Promise<{
 		return {
 			stdout: JSON.stringify({ daily: focusedEntries }),
 			success: true,
+			failedSources,
 		};
 	}
 
-	return runCcusage([
+	const fallback = await runCcusage([
 		"daily",
 		"--json",
 		"--breakdown",
-		"--offline",
 		"--since",
 		since,
 	]);
+	return { ...fallback, failedSources };
 }
 
 function getCurrentMonthStart(): string {
@@ -314,9 +323,17 @@ function getSessionDisplayName(
 	return sessionMatch?.[1].slice(0, 8) ?? sessionName ?? session.sessionId;
 }
 
-async function getActiveSessions(minutesAgo = 30): Promise<ActiveSession[]> {
+interface ActiveSessionsResult {
+	sessions: ActiveSession[];
+	failedSources: string[];
+}
+
+async function getActiveSessions(
+	minutesAgo = 30,
+): Promise<ActiveSessionsResult> {
 	const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
 	const cutoffTime = Date.now() - minutesAgo * 60 * 1000;
+	const failedSources: string[] = [];
 
 	const sourceResults = await Promise.all(
 		ACTIVE_SESSION_SOURCES.map(async (source) => {
@@ -326,9 +343,11 @@ async function getActiveSessions(minutesAgo = 30): Promise<ActiveSession[]> {
 				"--json",
 				"--since",
 				today,
-				"--offline",
 			]);
-			if (!result.success || !result.stdout) return [];
+			if (!result.success || !result.stdout) {
+				failedSources.push(source);
+				return [];
+			}
 
 			try {
 				const parsed = JSON.parse(result.stdout) as SessionResponse;
@@ -361,12 +380,18 @@ async function getActiveSessions(minutesAgo = 30): Promise<ActiveSession[]> {
 					})
 					.filter((session) => session.lastActivity >= cutoffTime);
 			} catch {
+				failedSources.push(source);
 				return [];
 			}
 		}),
 	);
 
-	return sourceResults.flat().sort((a, b) => b.lastActivity - a.lastActivity);
+	return {
+		sessions: sourceResults
+			.flat()
+			.sort((a, b) => b.lastActivity - a.lastActivity),
+		failedSources,
+	};
 }
 
 async function runCcusage(args: string[]): Promise<{
@@ -421,11 +446,16 @@ function getEntryCost(entry: DailyEntry | SessionData): number {
 	return entry.totalCost ?? entry.costUSD ?? 0;
 }
 
-function getEntryAgent(entry: DailyEntry | SessionData): string {
-	const raw = entry.agent ?? entry.source ?? entry.provider ?? "Claude";
+function formatAgentName(raw: string): string {
 	return raw
 		.replace(/[-_]+/g, " ")
 		.replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function getEntryAgent(entry: DailyEntry | SessionData): string {
+	return formatAgentName(
+		entry.agent ?? entry.source ?? entry.provider ?? "Claude",
+	);
 }
 
 function getEntryDate(entry: DailyEntry): string {
@@ -508,7 +538,7 @@ function formatModelName(modelName: string): string {
 async function main() {
 	try {
 		// Fetch all data in parallel
-		const [dailyResult, activeSessions] = await Promise.all([
+		const [dailyResult, activeResult] = await Promise.all([
 			runCcusageDaily(),
 			getActiveSessions(30),
 		]);
@@ -536,16 +566,27 @@ async function main() {
 		}
 
 		// Menu bar display with active session count
+		const activeSessions = activeResult.sessions;
+		const failedSources = [
+			...new Set([...dailyResult.failedSources, ...activeResult.failedSources]),
+		].map(formatAgentName);
 		const color = getCostColor(todayCost);
 		const activeCount = activeSessions.length;
-		const menuBarText =
-			activeCount > 0
-				? `(${activeCount}) ${formatCost(todayCost)}`
-				: formatCost(todayCost);
+		const countPrefix = activeCount > 0 ? `(${activeCount}) ` : "";
+		const warningSuffix = failedSources.length > 0 ? " !" : "";
+		const menuBarText = `${countPrefix}${formatCost(todayCost)}${warningSuffix}`;
 		console.log(`${menuBarText} | color=${color} font=SF\\ Mono size=12`);
 
 		// Dropdown separator
 		console.log("---");
+
+		// Sources whose ccusage run failed or timed out; their cost is missing above
+		if (failedSources.length > 0) {
+			console.log(
+				`No data from ${failedSources.join(", ")} (ccusage failed or timed out) | ${selectable("color=#FF9800")}`,
+			);
+			console.log("---");
+		}
 
 		// Active sessions section (if any)
 		if (activeCount > 0) {
