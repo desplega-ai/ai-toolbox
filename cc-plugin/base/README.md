@@ -107,6 +107,7 @@ Inside you will find:
 | `improve-agents-md` | Improve or bootstrap an AGENTS.md / CLAUDE.md with `<important if>` blocks |
 | `bu-auto-instrument` | Auto-instrument Business-Use SDK tracking |
 | `script-builder` | Generate durable validation scripts from testing intent |
+| `comms` | Re-express the last reply or current topic so it lands: simpler, visual, joint, or precise STE rewrite |
 
 #### Skills
 
@@ -136,6 +137,7 @@ Inside you will find:
 | `feedback` | Radically Candid feedback (bundled from the radical-candor plugin) |
 | `ask-user` | Shared conventions for `AskUserQuestion` prompts across the other skills |
 | `improve-agents-md` | Improve or bootstrap an AGENTS.md / CLAUDE.md with `<important if>` blocks |
+| `comms` | Four re-expression modes: Simpler (casual re-explain), Visual (diagram / code-shape sketch / HTML), Joint, Precise (ASD-STE100 rewrite) |
 
 #### Hooks
 
