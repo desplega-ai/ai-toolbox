@@ -52,6 +52,11 @@
             "name": "radical-candor",
             "source": "./cc-plugin/radical-candor",
             "description": "Give Radically Candid feedback — kind, clear, specific, sincere — based on Kim Scott's framework"
+        },
+        {
+            "name": "desplega-qa",
+            "source": "./cc-plugin/desplega-qa",
+            "description": "Browser-based QA test authoring, execution, and debugging using the desplega.ai MCP server"
         }
     ]
 }

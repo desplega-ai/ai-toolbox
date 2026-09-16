@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "desplega-qa",
+  "version": "0.1.0",
+  "description": "Browser-based QA test authoring, execution, and debugging with the desplega.ai MCP server",
+  "author": {
+    "name": "desplega.ai",
+    "email": "contact@desplega.ai"
+  },
+  "homepage": "https://desplega.ai",
+  "repository": "https://github.com/desplega-ai/ai-toolbox",
+  "license": "MIT",
+  "keywords": ["ai", "qa", "testing", "browser-automation", "mcp", "desplega"]
+}
