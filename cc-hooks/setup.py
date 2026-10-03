@@ -9,21 +9,21 @@ from pathlib import Path
 
 
 def install_dependencies():
-    """Install PyObjC for faster notifications."""
+    """Install pymacos for notifications."""
     try:
-        from Foundation import NSUserNotification
-        print("✓ PyObjC already installed (fast notifications enabled)")
+        import macos
+        print("✓ pymacos already installed")
     except ImportError:
-        print("Installing pyobjc-framework-Cocoa for faster notifications...")
+        print("Installing pymacos for notifications...")
         try:
             subprocess.check_call(
-                [sys.executable, "-m", "pip", "install", "pyobjc-framework-Cocoa"],
+                [sys.executable, "-m", "pip", "install", "pymacos"],
                 stdout=subprocess.DEVNULL
             )
-            print("✓ PyObjC installed successfully")
+            print("✓ pymacos installed successfully")
         except subprocess.CalledProcessError as e:
-            print(f"⚠ Could not install PyObjC: {e}")
-            print("  Notifications will use osascript fallback (slower)")
+            print(f"⚠ Could not install pymacos: {e}")
+            print("  Notifications will use the osascript fallback")
 
 
 def main():
@@ -34,7 +34,7 @@ def main():
     script_dir = Path(__file__).parent.resolve()
     notify_script = str(script_dir / "mac-notify.py")
 
-    # Use the current Python executable to ensure PyObjC is available
+    # Use the current Python executable to ensure pymacos is available
     python_exe = sys.executable
     notify_command = f"{python_exe} {notify_script}"
 
