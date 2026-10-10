@@ -18,6 +18,8 @@
 
 import type { default as MermaidAPI } from "mermaid";
 import type { Theme } from "./theme";
+import { icons, type IconName } from "./icons";
+import { downloadSvg, openLightbox } from "./lightbox";
 
 type MermaidModule = typeof MermaidAPI;
 
@@ -34,13 +36,18 @@ let mermaidPromise: Promise<MermaidModule> | null = null;
 let mermaidLoadFailed = false;
 let lastAppliedTheme: Theme | null = null;
 let getThemeFn: () => Theme = () => "dark";
+let toastFn: (message: string, type?: "success" | "info" | "error") => void = () => {};
 
 /**
- * Wire in the host's theme accessor. Called once at app boot from main.ts so
- * mermaid can read the current theme without importing app state directly.
+ * Wire in the host's theme accessor and toast. Called once at app boot from
+ * main.ts so mermaid can read the current theme without importing app state.
  */
-export function initMermaid(getTheme: () => Theme): void {
+export function initMermaid(
+  getTheme: () => Theme,
+  toast?: (message: string, type?: "success" | "info" | "error") => void,
+): void {
   getThemeFn = getTheme;
+  if (toast) toastFn = toast;
 }
 
 function escapeHtml(value: string): string {
@@ -160,6 +167,66 @@ export async function renderMermaidBlocks(
   } catch (err) {
     // Sources were validated above; anything thrown here is unexpected.
     console.error("mermaid.run failed", err);
+  }
+
+  // Not gated on `signal`: an aborted run that finishes last may have
+  // replaced the toolbar a newer run added, so every run re-checks.
+  for (const node of validNodes) addDiagramToolbar(node);
+}
+
+function toolButton(action: string, icon: IconName, label: string): string {
+  return `<button type="button" class="diagram-tool-btn" data-action="${action}" aria-label="${label}" title="${label}">${icons[icon]}</button>`;
+}
+
+/** Hover toolbar (expand, copy source, download) on a rendered diagram. */
+function addDiagramToolbar(node: HTMLElement): void {
+  if (!node.isConnected || node.querySelector(":scope > .diagram-toolbar")) return;
+  if (!node.querySelector(":scope > svg")) return;
+
+  const toolbar = document.createElement("div");
+  toolbar.className = "diagram-toolbar";
+  toolbar.innerHTML =
+    toolButton("expand", "maximize", "Expand diagram") +
+    toolButton("copy", "copy", "Copy diagram source") +
+    toolButton("download", "download", "Download SVG");
+
+  toolbar.addEventListener("click", (e) => {
+    const btn = (e.target as Element).closest<HTMLButtonElement>("button[data-action]");
+    if (!btn) return;
+    // Keep the click away from the comment handlers on the diagram block.
+    e.preventDefault();
+    e.stopPropagation();
+    void runDiagramAction(node, btn.dataset.action ?? "");
+  });
+  node.appendChild(toolbar);
+}
+
+async function runDiagramAction(node: HTMLElement, action: string): Promise<void> {
+  const svg = node.querySelector<SVGElement>(":scope > svg");
+  if (!svg) return;
+  const root = node.closest("#preview-container") ?? document;
+  const caption = `Diagram ${Array.from(root.querySelectorAll(".mermaid")).indexOf(node) + 1}`;
+  try {
+    switch (action) {
+      case "expand":
+        openLightbox({
+          kind: "svg",
+          svg: svg.cloneNode(true) as SVGElement,
+          caption,
+          source: nodeSource(node),
+        });
+        break;
+      case "copy":
+        await navigator.clipboard.writeText(nodeSource(node));
+        toastFn("Diagram source copied", "success");
+        break;
+      case "download":
+        await downloadSvg(svg, caption);
+        break;
+    }
+  } catch (error) {
+    console.error(`Diagram action ${action} failed:`, error);
+    toastFn(`Diagram ${action} failed`, "error");
   }
 }
 

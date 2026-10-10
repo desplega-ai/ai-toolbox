@@ -354,6 +354,113 @@ describe('mermaid blocks (regression)', () => {
     expect(html).not.toContain('class="code-line"');
     expect(html).not.toMatch(/<pre class="mermaid"[^>]*data-code-line-ranges/);
   });
+
+  it('stamps the mermaid node as one commentable block covering the whole fence', () => {
+    const fence = ['```mermaid', 'graph TD;', '  A-->B;', '```'].join('\n');
+    const markdown = ['---', 'title: x', '---', '# Title', '', fence, '', 'After.', ''].join('\n');
+
+    const { html } = renderMarkdown(markdown, []);
+    const host = document.createElement('div');
+    host.innerHTML = html;
+    const node = host.querySelector<HTMLElement>('pre.mermaid')!;
+    expect(node.dataset.commentable).toBe('true');
+    const start = Number(node.dataset.sourceStart);
+    const end = Number(node.dataset.sourceEnd);
+    expect(markdown.slice(start, end)).toBe(fence);
+  });
+
+  it('stamps the fence range for a mermaid block nested in a list item', () => {
+    const markdown = ['1. Step', '', '   ```mermaid', '   graph TD;', '   ```', ''].join('\n');
+    const { html } = renderMarkdown(markdown, []);
+    const host = document.createElement('div');
+    host.innerHTML = html;
+    const node = host.querySelector<HTMLElement>('pre.mermaid')!;
+    const start = Number(node.dataset.sourceStart);
+    const end = Number(node.dataset.sourceEnd);
+    expect(markdown.slice(start, end)).toBe('```mermaid\n   graph TD;\n   ```');
+  });
+});
+
+describe('GitHub callouts', () => {
+  function render(markdown: string): HTMLElement {
+    const host = document.createElement('div');
+    host.innerHTML = renderMarkdown(markdown, []).html;
+    return host;
+  }
+
+  it.each([
+    ['NOTE', 'note', 'Note'],
+    ['tip', 'tip', 'Tip'],
+    ['Important', 'important', 'Important'],
+    ['WARNING', 'warning', 'Warning'],
+    ['caution', 'caution', 'Caution'],
+  ])('renders [!%s] as a %s callout', (marker, type, label) => {
+    const host = render(`> [!${marker}]\n> Body text\n`);
+    const quote = host.querySelector('blockquote')!;
+    expect(quote.classList.contains('callout')).toBe(true);
+    expect(quote.classList.contains(`callout-${type}`)).toBe(true);
+    expect(quote.querySelector('.callout-title')!.textContent).toBe(label);
+    expect(quote.querySelector('.callout-title svg')).not.toBeNull();
+    expect(quote.textContent).not.toContain('[!');
+  });
+
+  it('keeps per-line commentable spans with source offsets for the body', () => {
+    const markdown = ['Intro.', '', '> [!WARNING]', '> First line', '> **Second** line', ''].join('\n');
+    const host = render(markdown);
+    const lines = Array.from(host.querySelectorAll<HTMLElement>('blockquote .bq-line'));
+    expect(lines.length).toBe(2);
+    expect(host.querySelector('.callout-title')!.hasAttribute('data-commentable')).toBe(false);
+    const slices = lines.map((el) =>
+      markdown.slice(Number(el.dataset.sourceStart), Number(el.dataset.sourceEnd))
+    );
+    expect(slices).toEqual(['First line', '**Second** line']);
+  });
+
+  it('leaves ordinary blockquotes and inline markers alone', () => {
+    const plain = render('> Just a quote\n').querySelector('blockquote')!;
+    expect(plain.className).toBe('');
+    const inline = render('> [!NOTE] same line\n').querySelector('blockquote')!;
+    expect(inline.classList.contains('callout')).toBe(false);
+    expect(inline.textContent).toContain('[!NOTE] same line');
+  });
+});
+
+describe('footnote definitions (lexing)', () => {
+  it('keeps single-word footnote definitions as paragraphs with offsets', () => {
+    const markdown = ['Text[^1].', '', '[^1]: Footnote', ''].join('\n');
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    initPreview(container);
+    updatePreview(markdown, []);
+
+    const def = container.querySelector<HTMLElement>('#fn-1')!;
+    expect(def).not.toBeNull();
+    expect(def.classList.contains('footnote-def')).toBe(true);
+    expect(markdown.slice(Number(def.dataset.sourceStart), Number(def.dataset.sourceEnd))).toBe(
+      '[^1]: Footnote'
+    );
+    const ref = container.querySelector<HTMLAnchorElement>('sup.footnote-ref a')!;
+    expect(ref.getAttribute('href')).toBe('#fn-1');
+    expect(ref.id).toBe('fnref-1');
+    container.remove();
+  });
+});
+
+describe('heading links', () => {
+  it('adds a copy-link button without changing heading text', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    initPreview(container);
+    updatePreview('# Hello World\n\nBody.\n', []);
+
+    const heading = container.querySelector<HTMLElement>('h1')!;
+    const btn = heading.querySelector<HTMLButtonElement>('button.heading-anchor')!;
+    expect(btn).not.toBeNull();
+    expect(btn.getAttribute('aria-label')).toBe('Copy link to heading');
+    expect(heading.textContent).toBe('Hello World');
+    expect(heading.dataset.commentable).toBe('true');
+    container.remove();
+  });
 });
 
 describe('list items with nested block children (regression)', () => {

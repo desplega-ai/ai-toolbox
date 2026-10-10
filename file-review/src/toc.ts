@@ -1,5 +1,5 @@
 import { marked } from 'marked';
-import { parseLeadingFrontmatter, slugify } from './markdown-preview';
+import { lexMarkdown, parseLeadingFrontmatter, slugify } from './markdown-preview';
 import type { Tab } from './tabs';
 
 export interface TocEntry {
@@ -27,7 +27,7 @@ export function extractTocEntries(content: string): TocEntry[] {
   // Skip leading YAML frontmatter exactly like the preview does, otherwise its
   // closing `---` turns the frontmatter into a setext heading.
   const { bodyMarkdown, consumedChars } = parseLeadingFrontmatter(content);
-  const tokens = marked.lexer(bodyMarkdown, { gfm: true, breaks: true });
+  const tokens = lexMarkdown(bodyMarkdown);
   const entries: TocEntry[] = [];
   const slugCounts = new Map<string, number>();
   let cursor = consumedChars;

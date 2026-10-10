@@ -456,7 +456,8 @@ function downloadName(caption: string): string {
   return `${base || "diagram"}.svg`;
 }
 
-async function downloadSvg(svg: SVGElement, caption: string): Promise<boolean> {
+/** Save `svg` as `<caption slug>.svg`: a save dialog in Tauri, a blob download on the web. */
+export async function downloadSvg(svg: SVGElement, caption: string): Promise<boolean> {
   const text = new XMLSerializer().serializeToString(svg);
   const name = downloadName(caption);
   if (isTauri()) {

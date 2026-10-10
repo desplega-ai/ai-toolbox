@@ -23,6 +23,11 @@
   --overlay-backdrop: rgba(0, 0, 0, 0.8);
   --overlay-text: #f5f5f5;
   --overlay-hover: rgba(255, 255, 255, 0.12);
+  --callout-note: #4493f8;
+  --callout-tip: #3fb950;
+  --callout-important: #ab7df8;
+  --callout-warning: #d29922;
+  --callout-caution: #f85149;
 }
 
 body.light-theme {
@@ -43,6 +48,11 @@ body.light-theme {
   --overlay-backdrop: rgba(0, 0, 0, 0.8);
   --overlay-text: #f5f5f5;
   --overlay-hover: rgba(255, 255, 255, 0.12);
+  --callout-note: #0969da;
+  --callout-tip: #1a7f37;
+  --callout-important: #8250df;
+  --callout-warning: #9a6700;
+  --callout-caution: #d1242f;
 }
 
 /* The hidden attribute must win over any display rule below. */
@@ -499,7 +509,8 @@ body {
 #preview-container {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 40px;
+  /* Wider left gutter: the add-comment button and heading links sit there. */
+  padding: 20px 40px 20px 56px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   line-height: 1.6;
   color: var(--text-primary);
@@ -586,6 +597,46 @@ body {
   margin-top: 1.5em;
   margin-bottom: 0.5em;
   font-weight: 600;
+}
+
+#preview-container :is(h1, h2, h3, h4, h5, h6) {
+  position: relative;
+}
+
+/* Copy-link button at the left edge of each heading (addHeadingLinks). */
+#preview-container .heading-anchor {
+  position: absolute;
+  left: -22px;
+  top: calc(0.8em - 9px);
+  width: 18px;
+  height: 18px;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+#preview-container .heading-anchor .icon-svg {
+  width: 14px;
+  height: 14px;
+}
+
+#preview-container :is(h1, h2, h3, h4, h5, h6):hover > .heading-anchor,
+#preview-container .heading-anchor:focus-visible {
+  opacity: 1;
+}
+
+#preview-container .heading-anchor:hover {
+  color: var(--accent-text);
+  background: var(--bg-hover);
 }
 
 #preview-container h1 { font-size: 2em; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3em; }
@@ -685,6 +736,54 @@ body {
   padding-left: 1em;
   margin: 1em 0;
   color: var(--text-secondary);
+}
+
+/* GitHub alerts: > [!NOTE], [!TIP], [!IMPORTANT], [!WARNING], [!CAUTION]. */
+#preview-container blockquote.callout {
+  --callout-color: var(--callout-note);
+  border-left-color: var(--callout-color);
+  background: color-mix(in srgb, var(--callout-color) 10%, transparent);
+  color: var(--text-primary);
+  padding: 8px 16px;
+  border-radius: 0 6px 6px 0;
+}
+
+#preview-container blockquote.callout-tip { --callout-color: var(--callout-tip); }
+#preview-container blockquote.callout-important { --callout-color: var(--callout-important); }
+#preview-container blockquote.callout-warning { --callout-color: var(--callout-warning); }
+#preview-container blockquote.callout-caution { --callout-color: var(--callout-caution); }
+
+#preview-container .callout-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-weight: 600;
+  color: var(--callout-color);
+  user-select: none;
+}
+
+/* Footnotes (src/footnotes.ts) */
+#preview-container .footnote-ref {
+  font-size: 0.75em;
+  line-height: 0;
+}
+
+#preview-container .footnote-ref a {
+  padding: 0 1px;
+}
+
+#preview-container .footnote-def {
+  font-size: 0.875em;
+  color: var(--text-secondary);
+}
+
+#preview-container .footnote-label {
+  font-weight: 600;
+}
+
+#preview-container .footnote-backref {
+  font-size: 0.9em;
 }
 
 #preview-container table {
@@ -1849,6 +1948,47 @@ body.light-theme #preview-container .hljs-operator { color: #1e1e1e; }
   height: auto;
 }
 
+/* Hover toolbar on rendered diagrams (src/mermaid.ts). Fades in like the
+   code copy button. */
+#preview-container .mermaid .diagram-toolbar {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+#preview-container .mermaid:hover .diagram-toolbar,
+#preview-container .mermaid .diagram-toolbar:focus-within {
+  opacity: 1;
+}
+
+#preview-container .diagram-tool-btn {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+#preview-container .diagram-tool-btn .icon-svg {
+  width: 14px;
+  height: 14px;
+}
+
+#preview-container .diagram-tool-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
 body.light-theme #preview-container .mermaid {
   background: #fafafa;
   border-color: #e0e0e0;
@@ -2065,7 +2205,10 @@ body.light-theme #preview-container .mermaid {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .lightbox {
+  .lightbox,
+  #preview-container .diagram-toolbar,
+  #preview-container .diagram-tool-btn,
+  #preview-container .heading-anchor {
     transition: none;
   }
 }

@@ -428,8 +428,8 @@ async function init() {
   setupCommentInput();
 
   // Initialize markdown preview
-  initPreview(document.getElementById("preview-container")!, readActive);
-  initMermaid(() => currentTheme);
+  initPreview(document.getElementById("preview-container")!, readActive, showToast);
+  initMermaid(() => currentTheme, showToast);
   onPreviewRendered(decoratePreview);
   initLinkRouter({
     getActiveTab: readActive,

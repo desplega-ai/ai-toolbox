@@ -26,6 +26,8 @@ import plaintext from 'highlight.js/lib/languages/plaintext';
 import type { ReviewComment } from './comments';
 import type { Tab } from './tabs';
 import { renderMermaidBlocks, resetMermaidProcessed } from './mermaid';
+import { applyFootnotes } from './footnotes';
+import { icons, type IconName } from './icons';
 
 // Register languages with aliases
 hljs.registerLanguage('javascript', javascript);
@@ -70,6 +72,20 @@ hljs.registerAliases(['toml', 'conf', 'cfg', 'properties'], { languageName: 'ini
 hljs.registerAliases(['kt', 'kts'], { languageName: 'kotlin' });
 hljs.registerAliases(['text', 'txt'], { languageName: 'plaintext' });
 
+// `[^id]: text` is a footnote definition, not a link reference definition.
+// Without this marked swallows single-word definitions as link targets.
+class FootnoteSafeTokenizer extends marked.Tokenizer {
+  override def(src: string): Tokens.Def | undefined {
+    if (/^ {0,3}\[\^/.test(src)) return undefined;
+    return super.def(src);
+  }
+}
+
+/** Lex block markdown the same way everywhere that needs source offsets. */
+export function lexMarkdown(src: string): Token[] {
+  return marked.lexer(src, { gfm: true, breaks: true, tokenizer: new FootnoteSafeTokenizer() });
+}
+
 // Mermaid integration: rewrite ` ```mermaid ` code tokens into `html` tokens
 // so marked's default code renderer (and downstream hljs) never sees them.
 // The original source is stashed in `data-src` (URI-encoded) so theme switches
@@ -79,10 +95,19 @@ hljs.registerAliases(['text', 'txt'], { languageName: 'plaintext' });
 // `marked.lexer` + `marked.parser`, and `marked.parser(tokens, opts)` does NOT
 // invoke registered walkTokens (only `marked.parse` does). Instead we walk the
 // tokens manually in `preprocessTokens` between lex and parse.
+//
+// The whole fence is one commentable block. mermaid.run only replaces the
+// node's children, so the data-source-* attributes survive re-renders.
 function mutateMermaidToken(token: Token): void {
   if (token.type === 'code' && (token as Tokens.Code).lang === 'mermaid') {
     const codeToken = token as Tokens.Code;
     const source = codeToken.text ?? '';
+    const start = getTokenSourceStart(codeToken);
+    const fenceLength = trimTrailingLineBreaks(getTokenSourceText(codeToken, codeToken.raw ?? ''));
+    const range =
+      start === undefined
+        ? ''
+        : ` data-commentable="true" data-source-start="${start}" data-source-end="${start + fenceLength}"`;
     const mutable = codeToken as unknown as {
       type: string;
       pre: boolean;
@@ -92,8 +117,32 @@ function mutateMermaidToken(token: Token): void {
     mutable.type = 'html';
     mutable.pre = false;
     mutable.block = true;
-    mutable.text = `<pre class="mermaid" data-src="${encodeURIComponent(source)}">${escapeHtml(source)}</pre>`;
+    mutable.text = `<pre class="mermaid"${range} data-src="${encodeURIComponent(source)}">${escapeHtml(source)}</pre>`;
   }
+}
+
+const CALLOUT_LABELS = {
+  note: 'Note',
+  tip: 'Tip',
+  important: 'Important',
+  warning: 'Warning',
+  caution: 'Caution',
+} as const;
+
+const CALLOUT_ICONS: Record<keyof typeof CALLOUT_LABELS, IconName> = {
+  note: 'info',
+  tip: 'lightbulb',
+  important: 'message-square',
+  warning: 'alert-triangle',
+  caution: 'alert-octagon',
+};
+
+type CalloutType = keyof typeof CALLOUT_LABELS;
+
+/** GitHub alert marker (`[!NOTE]` and friends) alone on a blockquote line. */
+function parseCalloutMarker(line: string): CalloutType | null {
+  const m = /^\[!(note|tip|important|warning|caution)\]\s*$/i.exec(line);
+  return m ? (m[1].toLowerCase() as CalloutType) : null;
 }
 
 function walkAllTokens(tokens: Token[], visit: (t: Token) => void): void {
@@ -121,6 +170,7 @@ let hideTimeout: ReturnType<typeof setTimeout> | null = null;
 // (path, comments, etc.) without re-threading them through every call. Passed
 // in once at startup via `initPreview`.
 let getActiveTab: () => Tab | null = () => null;
+let showToast: (message: string, type?: 'success' | 'info' | 'error') => void = () => {};
 
 const COMMENTABLE_SELECTORS = 'p, h1, h2, h3, h4, h5, h6, li, blockquote, pre, tr';
 const COMMENTABLE_HEADING_KINDS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
@@ -177,10 +227,12 @@ export function slugify(text: string): string {
 
 export function initPreview(
   container: HTMLElement,
-  activeTabAccessor: () => Tab | null = () => null
+  activeTabAccessor: () => Tab | null = () => null,
+  toast?: (message: string, type?: 'success' | 'info' | 'error') => void
 ) {
   previewContainer = container;
   getActiveTab = activeTabAccessor;
+  if (toast) showToast = toast;
 }
 
 // Forward-compat hook for step-2/3.
@@ -931,7 +983,7 @@ function collectListItemRanges(listToken: Tokens.List, listStart: number, ranges
 }
 
 export function collectCommentableRanges(content: string): CommentableRange[] {
-  const tokens = marked.lexer(content, { gfm: true, breaks: true });
+  const tokens = lexMarkdown(content);
   const ranges: CommentableRange[] = [];
   let cursor = 0;
 
@@ -1210,12 +1262,20 @@ export function renderMarkdown(content: string, comments: ReviewComment[]): Rend
     const sourceText = getTokenSourceText(token, token.raw ?? '');
     const lines = splitRawLines(sourceText);
     const out: string[] = [];
+    let callout: CalloutType | null = null;
+    let firstLine = true;
     for (const line of lines) {
       const t = line.text.trim();
       if (!t || /^[ \t]*>+\s*$/.test(line.text)) continue;
       const m = stripBlockquoteMarker(line.text);
       const stripped = m.stripped.trimEnd();
       if (!stripped) continue;
+      if (firstLine) {
+        firstLine = false;
+        // The marker line becomes the callout title, so it gets no span.
+        callout = parseCalloutMarker(stripped);
+        if (callout) continue;
+      }
       const html = marked.parseInline(stripped, { gfm: true, breaks: true });
       const start = blockStart + line.start + m.consumed;
       const end = start + stripped.length;
@@ -1224,6 +1284,12 @@ export function renderMarkdown(content: string, comments: ReviewComment[]): Rend
       );
     }
 
+    if (callout) {
+      const title =
+        `<div class="callout-title">${icons[CALLOUT_ICONS[callout]]}` +
+        `<span>${CALLOUT_LABELS[callout]}</span></div>`;
+      return `<blockquote class="callout callout-${callout}">${title}${out.join('')}</blockquote>\n`;
+    }
     return `<blockquote>${out.join('')}</blockquote>\n`;
   };
 
@@ -1365,13 +1431,12 @@ export function renderMarkdown(content: string, comments: ReviewComment[]): Rend
     return `<div class="preview-paragraph">${inner}</div>\n`;
   };
 
-  const tokens = marked.lexer(contentWithSpans, { gfm: true, breaks: true });
+  const tokens = lexMarkdown(contentWithSpans);
   // Manual walker pass — `marked.parser(tokens, opts)` does NOT invoke any
-  // registered `walkTokens`, so we mutate mermaid tokens here. Running this
-  // BEFORE `annotateSourceStart` keeps offsets aligned: type changes don't
-  // affect `raw.length`.
-  walkAllTokens(tokens, mutateMermaidToken);
+  // registered `walkTokens`, so we mutate mermaid tokens here. It runs AFTER
+  // `annotateSourceStart` so each diagram can stamp its fence range.
   annotateSourceStart(tokens, frontmatter.consumedChars);
+  walkAllTokens(tokens, mutateMermaidToken);
   const markdownHtml = marked.parser(tokens, {
     gfm: true,
     breaks: true,
@@ -1444,6 +1509,38 @@ function setupHoverHandlers() {
   });
 
   hoverListenersAttached = true;
+}
+
+/**
+ * Hash button at the left edge of each heading that copies `file.md#slug`.
+ * It holds only an SVG, so heading text and commentable text stay the same.
+ */
+function addHeadingLinks() {
+  if (!previewContainer) return;
+  const headings = previewContainer.querySelectorAll<HTMLElement>(
+    'h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]'
+  );
+  headings.forEach((heading) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'heading-anchor';
+    btn.innerHTML = icons.hash;
+    btn.setAttribute('aria-label', 'Copy link to heading');
+    btn.title = 'Copy link to heading';
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const path = getActiveTab()?.path;
+      const name = path ? path.split('/').pop() || path : '';
+      try {
+        await navigator.clipboard.writeText(`${name}#${heading.id}`);
+        showToast('Link copied', 'success');
+      } catch {
+        showToast('Could not copy link', 'error');
+      }
+    });
+    heading.prepend(btn);
+  });
 }
 
 function highlightCodeBlocks() {
@@ -1576,6 +1673,9 @@ export function updatePreview(content: string, comments: ReviewComment[]) {
   // are no `language-mermaid` blocks for hljs to mangle.
   highlightCodeBlocks();
   wrapCodeLines(previewContainer);
+  // After the commentable mapping, which compares element text to source.
+  applyFootnotes(previewContainer);
+  addHeadingLinks();
   applyCommentHighlights(previewContainer, comments);
 
   setupElementClickHandlers();
