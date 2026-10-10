@@ -156,7 +156,7 @@ def _family_supports_1m(model: str) -> bool:
     family, major, minor_s = m.group(1), int(m.group(2)), m.group(3)
     minor = int(minor_s) if minor_s is not None else 0
     if family == "haiku":
-        return False  # Haiku has no 1M variant
+        return major >= 5  # Haiku 5.5+ ships a 1M window; 4.x and older were 200k
     if major != 4:
         return major > 4  # 5.x+ assumed 1M; <4 was 200k-only
     if family == "sonnet":

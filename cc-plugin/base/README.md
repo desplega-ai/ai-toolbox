@@ -147,11 +147,11 @@ The plugin also registers a few lifecycle hooks (see [`hooks/`](./hooks) and the
 - **`thoughts/` validation** (`validate-thoughts.py` on `Write|Edit`) — keeps thoughts-directory writes well-formed.
 - **Plan checkbox tracking** (`plan_checkbox_*.py`) — keeps plan progress in sync during `implement`.
 
-**Window detection.** The warnings scale to the model's real context window. Large-window models (Opus 4.6+, Sonnet 4.x) are treated as **1M**; Haiku, Opus 4.5 and older, and non-Claude models as **200k**. Claude Code strips the `[1m]` variant from everything it writes to disk, so detection layers model family + env signals + observed peak usage (>200k proves a 1M window) — see comments in [`hooks/context_state.py`](./hooks/context_state.py).
+**Window detection.** The warnings scale to the model's real context window. Large-window models (Opus 4.6+, Sonnet 4.x, every 5.x family including Haiku 5.5) are treated as **1M**; Haiku 4.x, Opus 4.5 and older, and non-Claude models as **200k**. Claude Code strips the `[1m]` variant from everything it writes to disk, so detection layers model family + env signals + observed peak usage (>200k proves a 1M window) — see comments in [`hooks/context_state.py`](./hooks/context_state.py).
 
 **Thresholds — level × window**
 
-*1M window* (Opus 4.6+ / Sonnet 4.x — absolute token cutoffs):
+*1M window* (Opus 4.6+ / Sonnet 4.x / all 5.x — absolute token cutoffs):
 
 | Level | Tokens | % of 1M |
 |-------|--------|---------|
@@ -160,7 +160,7 @@ The plugin also registers a few lifecycle hooks (see [`hooks/`](./hooks) and the
 | `severe` | 350k – 500k | 35 – 50% |
 | `yolo` | 500k+ | > 50% |
 
-*200k window* (Haiku / Opus 4.5 & older / non-Claude — percentage-based):
+*200k window* (Haiku 4.x / Opus 4.5 & older / non-Claude — percentage-based):
 
 | Level | % of window | Tokens |
 |-------|-------------|--------|
