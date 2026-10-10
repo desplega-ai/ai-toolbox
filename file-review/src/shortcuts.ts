@@ -26,6 +26,8 @@ export const shortcutGroups: ShortcutGroup[] = [
   {
     title: "Navigation",
     shortcuts: [
+      { keys: "⌃- / ⌘[", description: "Back (after following a link or outline entry)" },
+      { keys: "⌃⇧- / ⌘]", description: "Forward" },
       { keys: "⌘F", description: "Search the preview" },
       { keys: "↵ / ⇧↵", description: "Next / previous match (in search)" },
       { keys: "Esc", description: "Close search" },
@@ -215,6 +217,8 @@ export interface ShortcutHandlers {
   toggleLeftRail?: () => void;
   toggleRightRail?: () => void;
   toggleReadingWidth?: () => void;
+  goBack?: () => void;
+  goForward?: () => void;
 }
 
 export function initShortcuts(handlers: ShortcutHandlers) {
@@ -264,6 +268,28 @@ export function initShortcuts(handlers: ShortcutHandlers) {
       e.preventDefault();
       handlers.prevTab?.();
       return;
+    }
+
+    // Back / forward through link jumps. Ctrl+- (and Ctrl+Shift+-) like
+    // VS Code on macOS; Cmd+[ / Cmd+] like a browser, unless CodeMirror used
+    // them (indent in Source mode). Match on `code`: Shift turns "-" into "_".
+    if (e.code === "Minus" && e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      if (e.shiftKey) handlers.goForward?.();
+      else handlers.goBack?.();
+      return;
+    }
+    if (e.metaKey && !e.shiftKey && !e.altKey && !e.defaultPrevented && !editingText) {
+      if (e.code === "BracketLeft") {
+        e.preventDefault();
+        handlers.goBack?.();
+        return;
+      }
+      if (e.code === "BracketRight") {
+        e.preventDefault();
+        handlers.goForward?.();
+        return;
+      }
     }
 
     // Layout toggles also work from CodeMirror. Match on `code` because

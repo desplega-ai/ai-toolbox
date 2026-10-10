@@ -64,6 +64,7 @@ import {
   onPreviewRendered,
 } from "./markdown-preview";
 import { initFrontmatter, setPropertiesOpen } from "./frontmatter";
+import { initNavHistory, recordNavigation, goBack, goForward, forgetPath, type NavLocation } from "./nav-history";
 import { initMermaid } from "./mermaid";
 import { extractTocEntries, initToc, renderToc, updateTocActive } from "./toc";
 import { PreviewNavigator } from "./preview-nav";
@@ -374,6 +375,7 @@ function confirmDiscardUnsavedChanges(action: string): boolean {
 
 function handleTocClick(entry: import('./toc').TocEntry) {
   const active = readActive();
+  recordNavigation();
   if (active?.isRawMode) {
     const view = getEditorView();
     view.dispatch({ selection: { anchor: entry.sourcePos } });
@@ -387,6 +389,42 @@ function handleTocClick(entry: import('./toc').TocEntry) {
     el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     flashElement(el);
   }
+}
+
+/** The active file and how far it is scrolled, for back / forward. */
+function currentNavLocation(): NavLocation | null {
+  const active = readActive();
+  if (!active?.path) return null;
+  const preview = getPreviewContainer();
+  const scrollTop = active.isMarkdownFile && !active.isRawMode
+    ? preview?.scrollTop ?? 0
+    : getEditorState().scrollTop;
+  return { path: active.path, scrollTop };
+}
+
+async function restoreNavLocation(location: NavLocation): Promise<void> {
+  if (readActive()?.path !== location.path) {
+    try {
+      // Switches to the tab, or reopens it if it was closed.
+      await loadFile(location.path, "append");
+      hideEmptyState();
+    } catch (error) {
+      console.error("Failed to go back to:", location.path, error);
+      showToast(`Could not reopen ${location.path}`, "error");
+      forgetPath(location.path);
+      return;
+    }
+  }
+  const active = readActive();
+  // Let the tab's preview render before restoring the scroll.
+  requestAnimationFrame(() => {
+    if (active?.isMarkdownFile && !active.isRawMode) {
+      const preview = getPreviewContainer();
+      if (preview) preview.scrollTop = location.scrollTop;
+    } else {
+      setEditorState({ scrollTop: location.scrollTop });
+    }
+  });
 }
 
 function renderCommentState() {
@@ -463,6 +501,25 @@ async function init() {
     },
     toast: showToast,
   });
+  initNavHistory({
+    current: currentNavLocation,
+    restore: restoreNavLocation,
+    onChange: (canGoBack, canGoForward) => {
+      const backBtn = document.getElementById("nav-back-btn") as HTMLButtonElement | null;
+      const forwardBtn = document.getElementById("nav-forward-btn") as HTMLButtonElement | null;
+      if (backBtn) backBtn.disabled = !canGoBack;
+      if (forwardBtn) forwardBtn.disabled = !canGoForward;
+      const group = document.getElementById("nav-buttons");
+      if (group) group.hidden = !canGoBack && !canGoForward;
+    },
+  });
+  document.getElementById("nav-back-btn")?.addEventListener("click", () => void goBack());
+  document.getElementById("nav-forward-btn")?.addEventListener("click", () => void goForward());
+  // Mouse back / forward buttons.
+  window.addEventListener("mouseup", (e) => {
+    if (e.button === 3) void goBack();
+    else if (e.button === 4) void goForward();
+  });
   initCommentLinking(document.getElementById("preview-container")!, getEditorView().dom);
   initMermaid(() => currentTheme, showToast);
   onPreviewRendered((container) => {
@@ -534,6 +591,8 @@ async function init() {
     toggleLeftRail: () => toggleRail("left"),
     toggleRightRail: () => toggleRail("right"),
     toggleReadingWidth,
+    goBack: () => void goBack(),
+    goForward: () => void goForward(),
   });
 
   // Set version badge

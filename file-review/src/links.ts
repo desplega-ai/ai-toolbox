@@ -3,6 +3,7 @@ import { flashElement, getPreviewContainer, slugify } from "./markdown-preview";
 import { openLightbox, type LightboxImage } from "./lightbox";
 import { icons } from "./icons";
 import type { Tab } from "./tabs";
+import { recordNavigation } from "./nav-history";
 
 export type LinkKind = "anchor" | "doc" | "file" | "external" | "unsupported";
 
@@ -158,28 +159,33 @@ function onDocumentClick(e: MouseEvent) {
   }
 }
 
-function scrollToFragment(fragment: string): void {
+/** Scroll the preview to `fragment`. Returns false when there is no such heading. */
+function scrollToFragment(fragment: string, record = false): boolean {
   const container = getPreviewContainer();
-  if (!container) return;
+  if (!container) return false;
   const behavior: ScrollBehavior = prefersReducedMotion() ? "auto" : "smooth";
   if (fragment === "") {
+    if (record) recordNavigation();
     container.scrollTo({ top: 0, behavior });
-    return;
+    return true;
   }
   const el =
     container.querySelector<HTMLElement>(`#${CSS.escape(fragment)}`) ??
     container.querySelector<HTMLElement>(`#${CSS.escape(slugify(fragment))}`);
   if (!el) {
     deps?.toast(`No heading #${fragment} in this file`, "info");
-    return;
+    return false;
   }
+  if (record) recordNavigation();
   el.scrollIntoView({ behavior, block: "start" });
   flashElement(el);
+  return true;
 }
 
 /** Open a local document as a tab (or switch to it), then scroll to `fragment`. */
 export async function openDocument(path: string, fragment?: string): Promise<void> {
   if (!deps) return;
+  recordNavigation();
   if (path !== currentPath()) {
     try {
       await deps.openDoc(path);
@@ -203,7 +209,7 @@ export async function followHref(href: string): Promise<void> {
 
   switch (link.kind) {
     case "anchor":
-      scrollToFragment(link.fragment ?? "");
+      scrollToFragment(link.fragment ?? "", true);
       return;
 
     case "doc":

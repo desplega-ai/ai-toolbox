@@ -101,9 +101,21 @@ body {
 
 /* Mermaid appends an invisible absolute tooltip to <body> that overflows the
    page, so scrollIntoView shifted the whole app up a few pixels. Fixed
-   positioning keeps it out of the page's scroll size. */
+   positioning keeps it out of the page's scroll size (!important: mermaid
+   sets position inline). */
+/* Back / forward buttons next to the file breadcrumb; shown after the first jump */
+.nav-buttons {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.nav-buttons .toolbar-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 body > .mermaidTooltip {
-  position: fixed;
+  position: fixed !important;
 }
 
 /* Toolbar */
