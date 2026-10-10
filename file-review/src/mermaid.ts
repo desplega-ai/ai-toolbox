@@ -250,10 +250,20 @@ function createSyntaxErrorBlock(
   const message = error instanceof Error ? error.message : String(error);
   const block = document.createElement("div");
   block.className = "mermaid-error";
-  // Keep comment anchoring attributes so the block stays commentable.
-  for (const attr of ["data-commentable", "data-source-start", "data-source-end"]) {
+  // Keep comment anchoring and highlight state so the block stays commentable
+  // and its existing comments stay visible.
+  for (const attr of [
+    "data-commentable",
+    "data-source-start",
+    "data-source-end",
+    "data-comment-id",
+    "data-comment-ids",
+  ]) {
     const value = node.getAttribute(attr);
     if (value !== null) block.setAttribute(attr, value);
+  }
+  for (const cls of node.classList) {
+    if (cls.startsWith("review-comment-") || cls === "preview-active") block.classList.add(cls);
   }
   block.innerHTML =
     `<div class="mermaid-error-title">Diagram syntax error</div>` +

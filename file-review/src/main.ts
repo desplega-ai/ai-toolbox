@@ -36,7 +36,13 @@ import {
   flashCommentPassage,
   pulseCommentBadge,
 } from "./sidebar";
-import { initComposer, openComposer, closeComposer, type ComposerTarget } from "./composer";
+import {
+  initComposer,
+  openComposer,
+  closeComposer,
+  mapComposerTarget,
+  type ComposerTarget,
+} from "./composer";
 import { commentExcerpt } from "./comment-utils";
 import { showFilePicker } from "./file-picker";
 import { initShortcuts, showShortcutsHelp } from "./shortcuts";
@@ -154,7 +160,7 @@ function setupClosedFilesIndicator() {
         return `
           <div class="closed-files-popover-item" data-path="${escapeHtml(f.path)}">
             <button class="closed-files-popover-path" type="button" title="Click to reopen — ${escapeHtml(f.path)}">${escapeHtml(basename)}</button>
-            <button class="closed-files-popover-remove" type="button" aria-label="Remove from review session" title="Remove from review session">×</button>
+            <button class="closed-files-popover-remove" type="button" aria-label="Remove from review session" title="Remove from review session">${icons.x}</button>
           </div>`;
       })
       .join("");
@@ -444,12 +450,7 @@ async function init() {
 
   // Initialize sidebar handlers
   initSidebar(handleDeleteComment, handleCommentClick, handleEditComment, readActive);
-  initComposer({
-    onSubmit: handleCommentSubmit,
-    onClose: () => {
-      if (readActive()?.pendingPreviewComment) writeActive({ pendingPreviewComment: null });
-    },
-  });
+  initComposer({ onSubmit: handleCommentSubmit });
 
   // Initialize markdown preview
   initPreview(document.getElementById("preview-container")!, readActive, showToast);
@@ -655,15 +656,18 @@ async function init() {
     }
     scheduleRelationsUpdate();
 
+    const mapPos = (pos: number, assoc?: number) => changes.mapPos(pos, assoc);
+    // The open composer and Undo-able deletes point at offsets too.
+    mapComposerTarget(mapPos);
     const active = readActive();
+    if (active) remapUndoableDeletes(active.id, mapPos);
+
     if (!active || active.comments.length === 0) {
       syncUnsavedChangesState();
       return;
     }
 
-    const remapped = mapCommentsThroughChanges(active.comments, (pos, assoc) =>
-      changes.mapPos(pos, assoc)
-    );
+    const remapped = mapCommentsThroughChanges(active.comments, mapPos);
     writeActive({ comments: remapped });
     renderCommentState();
   });
@@ -1135,8 +1139,9 @@ function handleAddCommentShortcut() {
       const sourceStart = parseInt(activeEl.dataset.sourceStart ?? '0', 10);
       const sourceEnd = parseInt(activeEl.dataset.sourceEnd ?? '0', 10);
       handlePreviewAddComment(sourceStart, sourceEnd, activeEl);
+    } else {
+      showToast("Select text, or hover a block and click +, to comment", "info");
     }
-    // No active block: nothing to comment on
     return;
   }
 
@@ -1161,7 +1166,6 @@ function handleAddCommentShortcut() {
     to = line.to;
   }
 
-  if (active?.pendingPreviewComment) writeActive({ pendingPreviewComment: null });
   openComposer({
     sourceStart: from,
     sourceEnd: to,
@@ -1201,7 +1205,6 @@ function handlePreviewSelectionComment(range: Range) {
     return;
   }
 
-  if (readActive()?.pendingPreviewComment) writeActive({ pendingPreviewComment: null });
   const anchor = range.cloneRange();
   const exact = target.commentType === "inline" || target.blocks.length > 1;
   openComposer({
@@ -1224,12 +1227,11 @@ function handlePreviewAddComment(
   sourceEnd: number,
   element: HTMLElement
 ) {
-  // Store pending preview comment info on the active tab
-  writeActive({ pendingPreviewComment: { sourceStart, sourceEnd, element } });
-
   openComposer({
     sourceStart,
     sourceEnd,
+    // A block (or one of its lines) is always a line comment.
+    commentType: "line",
     kind: blockKindLabel(element),
     anchorRect: () => (element.isConnected ? element.getBoundingClientRect() : null),
     quote: commentExcerpt(getEditorView().state.doc.sliceString(sourceStart, sourceEnd)),
@@ -1242,13 +1244,9 @@ function handleCommentSubmit(text: string, target: ComposerTarget) {
   if (!active) return;
 
   let comment: ReviewComment;
-  const pending = active.pendingPreviewComment;
   if (target.commentType) {
-    // Preview selection comment, typed when the composer opened
+    // Preview block or selection comment, typed when the composer opened
     comment = createComment(target.commentType, target.sourceStart, target.sourceEnd, text);
-  } else if (pending && pending.element === target.pendingElement) {
-    // Preview block comment
-    comment = createComment("line", pending.sourceStart, pending.sourceEnd, text);
   } else {
     // Raw mode comment on the range captured when the composer opened
     const { sourceStart: from, sourceEnd: to } = target;
@@ -1268,7 +1266,7 @@ function handleCommentSubmit(text: string, target: ComposerTarget) {
         : createComment("inline", from, to, text);
   }
 
-  writeActive({ comments: addComment(active.comments, comment), pendingPreviewComment: null });
+  writeActive({ comments: addComment(active.comments, comment) });
   renderCommentState();
   flashCommentPassage(comment.id);
   if (!isRailOpen("right")) pulseCommentBadge();
@@ -1312,7 +1310,6 @@ async function loadFile(path: string, mode: LoadFileMode = "append"): Promise<vo
     isRawMode: initialRawMode,
     hasUnsavedChanges: false,
     lastSavedSnapshot: snapshot,
-    pendingPreviewComment: null,
   };
 
   if (mode === "replace") {
@@ -1556,16 +1553,40 @@ function handleDeleteComment(commentId: string) {
   const active = readActive();
   const comment = active?.comments.find((c) => c.id === commentId);
   if (!active || !comment) return;
-  const tabId = active.id;
+  const entry = { tabId: active.id, comment };
+  undoableDeletes.push(entry);
+  // Drop it a little after the Undo toast (5s) is gone.
+  window.setTimeout(() => {
+    undoableDeletes = undoableDeletes.filter((e) => e !== entry);
+  }, 6000);
   writeActive({ comments: active.comments.filter((c) => c.id !== commentId) });
   renderCommentState();
   showToast("Comment deleted", "info", {
-    action: { label: "Undo", onClick: () => restoreComment(tabId, comment) },
+    action: { label: "Undo", onClick: () => restoreComment(entry) },
   });
 }
 
-/** Undo a delete: put the exact comment back into its tab if the tab is still open. */
-function restoreComment(tabId: string, comment: ReviewComment) {
+/**
+ * Deleted comments an Undo toast can still restore. Edits made while the
+ * toast shows remap them like live comments, so Undo lands on the same text.
+ */
+let undoableDeletes: Array<{ tabId: string; comment: ReviewComment }> = [];
+
+function remapUndoableDeletes(tabId: string, mapPos: (pos: number, assoc?: number) => number) {
+  undoableDeletes = undoableDeletes.filter((entry) => {
+    if (entry.tabId !== tabId) return true;
+    // No result means the commented text itself was deleted: Undo then has
+    // nothing to anchor to, so the entry is dropped.
+    const mapped = mapCommentsThroughChanges([entry.comment], mapPos)[0];
+    if (mapped) entry.comment = mapped;
+    return !!mapped;
+  });
+}
+
+/** Undo a delete: put the comment back into its tab if the tab is still open. */
+function restoreComment(entry: { tabId: string; comment: ReviewComment }) {
+  undoableDeletes = undoableDeletes.filter((e) => e !== entry);
+  const { tabId, comment } = entry;
   const tab = tabManager.tabs.find((t) => t.id === tabId);
   if (!tab || tab.comments.some((c) => c.id === comment.id)) return;
   const comments = addComment(tab.comments, comment);

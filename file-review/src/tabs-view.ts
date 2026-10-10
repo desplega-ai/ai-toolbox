@@ -1,4 +1,5 @@
 import type { Tab, TabManager } from "./tabs";
+import { icons } from "./icons";
 
 export interface TabStripCallbacks {
   /** User clicked a tab body to make it active. */
@@ -51,7 +52,7 @@ function renderTab(
 
   const close = document.createElement("span");
   close.className = "tab-close";
-  close.textContent = "×"; // ×
+  close.innerHTML = icons.x;
   close.setAttribute("role", "button");
   close.setAttribute("aria-label", "Close tab");
   btn.appendChild(close);

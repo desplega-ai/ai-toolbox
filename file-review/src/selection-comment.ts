@@ -1,6 +1,6 @@
 import { icons } from "./icons";
 import { alignBlock, blockSourceRange, textOffsetIn } from "./inline-highlights";
-import { renderedRangeToSource } from "./source-align";
+import { renderedRangeToSource, snapToInlineSyntax } from "./source-align";
 
 // A floating "Comment" pill below a text selection in the preview (ported
 // from the comb selection-comment-button). Clicking it, or Cmd+K, opens the
@@ -63,7 +63,8 @@ export function selectionTarget(
       textOffsetIn(block, range.endContainer, range.endOffset)
     );
   if (span) {
-    return { commentType: "inline", start: first.start + span.start, end: first.start + span.end, blocks };
+    const snapped = snapToInlineSyntax(source.slice(first.start, first.end), span.start, span.end);
+    return { commentType: "inline", start: first.start + snapped.start, end: first.start + snapped.end, blocks };
   }
   return { commentType: "line", start: first.start, end: first.end, blocks };
 }
@@ -162,11 +163,18 @@ export function initSelectionComment(previewContainer: HTMLElement, onComment: (
     window.clearTimeout(settleTimer);
     settleTimer = window.setTimeout(evaluate, SETTLE_MS);
   });
-  document.addEventListener("keydown", (e) => {
-    if (e.key !== "Escape" || !pill || pill.hidden) return;
-    dismissed = true;
-    pill.hidden = true;
-  });
+  // Capture + stop: an Escape that hides the pill must not also clear the
+  // selected comment card or the vim active block.
+  document.addEventListener(
+    "keydown",
+    (e) => {
+      if (e.key !== "Escape" || !pill || pill.hidden) return;
+      e.stopImmediatePropagation();
+      dismissed = true;
+      pill.hidden = true;
+    },
+    true
+  );
 
   previewContainer.addEventListener("scroll", position, { passive: true });
   window.addEventListener("resize", position);

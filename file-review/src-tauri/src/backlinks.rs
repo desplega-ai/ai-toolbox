@@ -8,8 +8,11 @@ use serde::Serialize;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::sync::OnceLock;
+use std::time::{Duration, Instant};
 
 const MAX_FILES: usize = 3000;
+const MAX_DIRS: usize = 5000;
+const MAX_WALK: Duration = Duration::from_secs(3);
 const MAX_FILE_BYTES: u64 = 1024 * 1024;
 const MAX_RESULTS: usize = 200;
 const SKIP_DIRS: &[&str] = &[".git", "node_modules", "target", "dist"];
@@ -131,12 +134,37 @@ fn is_markdown(name: &str) -> bool {
     lower.ends_with(".md") || lower.ends_with(".markdown")
 }
 
-/// Markdown files under `root`, skipping hidden and build directories.
-/// Symlinked directories are not followed.
+/// Roots too broad to walk (the filesystem root, the home folder): only
+/// their top level is read, so a file in `~` cannot trigger a disk-wide walk.
+fn is_broad_root(root: &Path) -> bool {
+    root.parent().is_none() || dirs::home_dir().map(|h| h == root).unwrap_or(false)
+}
+
+/// Directory names never entered: build output, VCS, macOS bundles and libraries.
+fn skip_dir(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    name.starts_with('.')
+        || SKIP_DIRS.contains(&name)
+        || name == "Library"
+        || [".app", ".bundle", ".framework", ".photoslibrary", ".musiclibrary"]
+            .iter()
+            .any(|ext| lower.ends_with(ext))
+}
+
+/// Markdown files under `root`, skipping hidden, build and bundle directories.
+/// Symlinked directories are not followed. The walk stops after `MAX_DIRS`
+/// directories or `MAX_WALK` time, whichever comes first.
 fn markdown_files(root: &Path) -> Vec<PathBuf> {
+    let started = Instant::now();
+    let recursive = !is_broad_root(root);
     let mut files = Vec::new();
     let mut stack = vec![root.to_path_buf()];
+    let mut visited = 0;
     while let Some(dir) = stack.pop() {
+        visited += 1;
+        if visited > MAX_DIRS || started.elapsed() > MAX_WALK {
+            break;
+        }
         let Ok(entries) = fs::read_dir(&dir) else {
             continue;
         };
@@ -148,7 +176,7 @@ fn markdown_files(root: &Path) -> Vec<PathBuf> {
                 continue;
             };
             if file_type.is_dir() {
-                if !name.starts_with('.') && !SKIP_DIRS.contains(&name.as_str()) {
+                if recursive && !skip_dir(&name) {
                     stack.push(entry.path());
                 }
             } else if file_type.is_file() && is_markdown(&name) {

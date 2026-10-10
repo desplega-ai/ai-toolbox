@@ -3,6 +3,7 @@ import {
   alignRenderedToSource,
   renderedRangeToSource,
   sourceRangeToRendered,
+  snapToInlineSyntax,
 } from '../src/source-align';
 import { createComment, parseAndStripComments, serializeComments } from '../src/comments';
 import { selectionTarget } from '../src/selection-comment';
@@ -234,5 +235,32 @@ describe('selectionTarget', () => {
     range.setEnd(text, 3);
     const target = selectionTarget(range, container, 'abcde', lineAt)!;
     expect(target).toMatchObject({ commentType: 'line', start: 0, end: 5 });
+  });
+});
+
+describe('snapToInlineSyntax', () => {
+  const src = 'A **bold text**, `inline code` end';
+
+  it('takes a cut code span whole and includes only wrapping emphasis pairs', () => {
+    const start = src.indexOf('bold');
+    const end = src.indexOf('inline') + 'inline'.length;
+    const snapped = snapToInlineSyntax(src, start, end);
+    expect(src.slice(snapped.start, snapped.end)).toBe('bold text**, `inline code`');
+    const whole = snapToInlineSyntax(src, start, src.indexOf('text') + 4);
+    expect(src.slice(whole.start, whole.end)).toBe('**bold text**');
+  });
+
+  it('leaves a span that cuts no syntax unchanged', () => {
+    const start = src.indexOf('end');
+    expect(snapToInlineSyntax(src, start, start + 3)).toEqual({ start, end: start + 3 });
+  });
+
+  it('keeps markers out of code spans so they round-trip', () => {
+    const start = src.indexOf('code');
+    const { start: s, end: e } = snapToInlineSyntax(src, start, start + 4);
+    const saved = serializeComments(src, [createComment('inline', s, e, 'note')]);
+    expect(saved).toContain('<!-- review-start(');
+    expect(saved).toMatch(/-->`inline code`<!--/);
+    expect(parseAndStripComments(saved).cleanContent).toBe(src);
   });
 });

@@ -9,7 +9,7 @@ export interface ComposerTarget {
   sourceEnd: number;
   /** Block kind shown after the line label, e.g. "Paragraph". */
   kind?: string;
-  /** Viewport rect of the passage, read again on every reposition. Null closes the composer. */
+  /** Viewport rect of the passage, read again on every reposition. Null re-anchors on the covering block. */
   anchorRect: () => DOMRect | null;
   /** Excerpt of the passage (see commentExcerpt). */
   quote: string;
@@ -23,7 +23,6 @@ export interface ComposerTarget {
 
 interface ComposerHandlers {
   onSubmit: (text: string, target: ComposerTarget) => void;
-  onClose: () => void;
 }
 
 const GAP = 8;
@@ -103,8 +102,7 @@ export function openComposer(target: ComposerTarget) {
   setPending(target, true);
   el.hidden = false;
   position();
-  // position() closes the composer when the target is out of view.
-  if (current === target) ta.focus({ preventScroll: true });
+  ta.focus({ preventScroll: true });
 }
 
 /** Close without keeping the text. Focus goes back where it was if it is still in the composer. */
@@ -119,10 +117,10 @@ export function closeComposer() {
 
   const focusInside = el.contains(document.activeElement);
   el.hidden = true;
+  el.style.visibility = "";
   const focus = returnFocus;
   returnFocus = null;
   if (focusInside && focus?.isConnected) focus.focus({ preventScroll: true });
-  handlers?.onClose();
 }
 
 function submit() {
@@ -133,6 +131,12 @@ function submit() {
 }
 
 function setPending(target: ComposerTarget, on: boolean) {
+  // recoverAnchor may have marked a re-rendered block.
+  if (!on) {
+    document
+      .querySelectorAll(".comment-pending")
+      .forEach((el) => el.classList.remove("comment-pending"));
+  }
   if (target.pendingRange && setPendingRange(on ? target.pendingRange : null)) return;
   if (target.pendingElement) {
     target.pendingElement.classList.toggle("comment-pending", on);
@@ -171,16 +175,59 @@ function contentBounds(): { top: number; bottom: number; left: number; right: nu
   return { top: rect.top, bottom: rect.bottom, left, right };
 }
 
+/**
+ * Keep the open target on the same text while the document is edited in
+ * source mode. Closes the composer when its text was deleted.
+ */
+export function mapComposerTarget(mapPos: (pos: number, assoc?: number) => number) {
+  if (!current) return;
+  const start = mapPos(current.sourceStart, -1);
+  const end = mapPos(current.sourceEnd, 1);
+  if (end <= start) {
+    closeComposer();
+    return;
+  }
+  current.sourceStart = start;
+  current.sourceEnd = end;
+  schedulePosition();
+}
+
+/**
+ * The anchor element was re-rendered away (the preview re-renders on every
+ * comment change): re-anchor on the block that now covers the target.
+ */
+function recoverAnchor(target: ComposerTarget): DOMRect | null {
+  const wrapper = document.getElementById("preview-wrapper");
+  if (wrapper && wrapper.style.display !== "none") {
+    const blocks = document.querySelectorAll<HTMLElement>('#preview-container [data-commentable="true"]');
+    for (const block of blocks) {
+      const start = Number(block.dataset.sourceStart);
+      const end = Number(block.dataset.sourceEnd);
+      if (start <= target.sourceStart && target.sourceStart < end) {
+        block.classList.add("comment-pending");
+        target.pendingElement = block;
+        target.anchorRect = () => (block.isConnected ? block.getBoundingClientRect() : null);
+        return block.getBoundingClientRect();
+      }
+    }
+    return null;
+  }
+  const coords = getEditorView().coordsAtPos(target.sourceStart);
+  return coords ? new DOMRect(coords.left, coords.top, 0, coords.bottom - coords.top) : null;
+}
+
 function position() {
   frame = 0;
   const el = root();
   if (!el || !current) return;
-  const anchor = current.anchorRect();
+  const anchor = current.anchorRect() ?? recoverAnchor(current);
   const bounds = contentBounds();
+  // Out of view: hide but keep the draft, so scrolling to check context is safe.
   if (!anchor || !bounds || anchor.bottom < bounds.top || anchor.top > bounds.bottom) {
-    closeComposer();
+    el.style.visibility = "hidden";
     return;
   }
+  el.style.visibility = "";
 
   const width = Math.min(MAX_WIDTH, bounds.right - bounds.left);
   el.style.width = `${width}px`;

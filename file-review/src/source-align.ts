@@ -147,6 +147,32 @@ export function renderedRangeToSource(
   return { start: alignment.start[first], end: alignment.end[last] };
 }
 
+/**
+ * Widen an inline comment span so its markers never land inside markdown
+ * syntax: a code span the span cuts into is taken whole (a marker inside one
+ * would show as literal text wherever else the file is rendered), and an
+ * emphasis or strike pair wrapping the whole span is included. A delimiter
+ * touching only one edge stays outside, so pairs are never split.
+ */
+export function snapToInlineSyntax(
+  source: string,
+  start: number,
+  end: number
+): { start: number; end: number } {
+  for (const match of source.matchAll(/(`+)[\s\S]*?\1/g)) {
+    const spanStart = match.index;
+    const spanEnd = spanStart + match[0].length;
+    if (start > spanStart && start < spanEnd) start = spanStart;
+    if (end > spanStart && end < spanEnd) end = spanEnd;
+  }
+  let before = 0;
+  while (start - before > 0 && "*_~".includes(source[start - before - 1])) before++;
+  let after = 0;
+  while (end + after < source.length && "*_~".includes(source[end + after])) after++;
+  const pair = Math.min(before, after);
+  return { start: start - pair, end: end + pair };
+}
+
 /** Rendered span covering the source range [start, end), or null when no rendered text comes from it. */
 export function sourceRangeToRendered(
   alignment: TextAlignment,

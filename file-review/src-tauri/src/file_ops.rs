@@ -116,25 +116,38 @@ pub async fn find_backlinks(path: String) -> Result<Vec<crate::backlinks::Backli
 }
 
 /// Open a URL or local path with the OS default handler.
+/// Windows is left out on purpose: `cmd /c start` would parse `&` in URLs.
 pub fn open_with_system(target: &str) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     let mut cmd = std::process::Command::new("open");
     #[cfg(target_os = "linux")]
     let mut cmd = std::process::Command::new("xdg-open");
-    #[cfg(target_os = "windows")]
-    let mut cmd = {
-        let mut c = std::process::Command::new("cmd");
-        c.args(["/c", "start", ""]);
-        c
-    };
-    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     return Err(format!("Cannot open {} on this platform", target));
 
-    #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
     cmd.arg(target)
         .spawn()
         .map(|_| ())
         .map_err(|e| e.to_string())
+}
+
+/// File types a link click may open with their default app. Anything else
+/// (apps, scripts, installers, .webloc, directories) is only revealed, so a
+/// link in a reviewed document can never launch code.
+const OPENABLE_EXTENSIONS: &[&str] = &[
+    "md", "markdown", "mdx", "txt", "log", "csv", "tsv", "json", "yaml", "yml", "toml", "xml",
+    "pdf", "png", "jpg", "jpeg", "gif", "webp", "svg", "avif", "bmp", "ico", "heic", "tiff",
+    "mp3", "wav", "m4a", "mp4", "mov", "webm",
+];
+
+pub fn is_openable_file(path: &std::path::Path) -> bool {
+    path.is_file()
+        && path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| OPENABLE_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()))
+            .unwrap_or(false)
 }
 
 /// Schemes the app may hand to the OS. Everything else stays blocked.
@@ -151,8 +164,10 @@ pub fn open_external(url: String) -> Result<(), String> {
     open_with_system(parsed.as_str())
 }
 
+/// Open a document or media file with its default app. Other paths are
+/// revealed in Finder instead. Returns "opened" or "revealed".
 #[tauri::command]
-pub fn open_path(path: String) -> Result<(), String> {
+pub fn open_path(path: String) -> Result<String, String> {
     let p = std::path::Path::new(&path);
     if !p.is_absolute() {
         return Err(format!("Not an absolute path: {}", path));
@@ -160,7 +175,13 @@ pub fn open_path(path: String) -> Result<(), String> {
     if !p.exists() {
         return Err(format!("File not found: {}", path));
     }
-    open_with_system(&path)
+    if is_openable_file(p) {
+        open_with_system(&path)?;
+        Ok("opened".to_string())
+    } else {
+        reveal_in_finder(path)?;
+        Ok("revealed".to_string())
+    }
 }
 
 #[tauri::command]

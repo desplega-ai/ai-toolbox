@@ -7,12 +7,6 @@ import type { ReviewComment } from "./comments";
  * Mirrors the shape used in `main.ts` before this refactor so we can drop
  * it in without behavior change.
  */
-export interface PendingPreviewComment {
-  sourceStart: number;
-  sourceEnd: number;
-  element: HTMLElement;
-}
-
 /**
  * Per-tab state. Step-2 activates multiple tabs by snapshotting the active
  * tab's editor content into `doc` before swapping. `cursor` and `scrollTop`
@@ -33,7 +27,6 @@ export interface Tab {
   isRawMode: boolean;
   hasUnsavedChanges: boolean;
   lastSavedSnapshot: string;
-  pendingPreviewComment: PendingPreviewComment | null;
   cursor?: { from: number; to: number };
   scrollTop?: number;
 }

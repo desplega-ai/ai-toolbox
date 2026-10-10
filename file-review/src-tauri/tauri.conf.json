@@ -25,7 +25,26 @@
       "assetProtocol": {
         "enable": true,
         "scope": {
-          "allow": ["**"],
+          "allow": [
+            "**/*.png",
+            "**/*.PNG",
+            "**/*.jpg",
+            "**/*.JPG",
+            "**/*.jpeg",
+            "**/*.JPEG",
+            "**/*.gif",
+            "**/*.GIF",
+            "**/*.webp",
+            "**/*.WEBP",
+            "**/*.svg",
+            "**/*.SVG",
+            "**/*.avif",
+            "**/*.AVIF",
+            "**/*.bmp",
+            "**/*.BMP",
+            "**/*.ico",
+            "**/*.ICO"
+          ],
           "requireLiteralLeadingDot": false
         }
       }

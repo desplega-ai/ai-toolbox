@@ -124,6 +124,9 @@ let backlinksPath: string | null = null;
 let backlinks: Backlink[] | null = null;
 let backlinksFailed = false;
 let backlinksGeneration = 0;
+// Tab switches reuse a recent search instead of walking the disk again.
+const BACKLINK_CACHE_MS = 60_000;
+const backlinkCache = new Map<string, { at: number; search: Promise<Backlink[]> }>();
 
 const listEl = () => document.getElementById("links-list");
 
@@ -162,13 +165,18 @@ function ensureBacklinks(path: string) {
   backlinks = null;
   backlinksFailed = false;
   const generation = ++backlinksGeneration;
-  API.findBacklinks(path)
+  const cached = backlinkCache.get(path);
+  const search =
+    cached && Date.now() - cached.at < BACKLINK_CACHE_MS ? cached.search : API.findBacklinks(path);
+  if (search !== cached?.search) backlinkCache.set(path, { at: Date.now(), search });
+  search
     .then((items) => {
       if (generation !== backlinksGeneration) return;
       backlinks = items;
       renderRelations();
     })
     .catch((error) => {
+      backlinkCache.delete(path);
       if (generation !== backlinksGeneration) return;
       console.error("Failed to find backlinks:", error);
       backlinksFailed = true;
@@ -262,7 +270,8 @@ function renderRelations() {
       const name = link.path.slice(link.path.lastIndexOf("/") + 1);
       const where = `${relativeToFile(link.path, tab.path)}:${link.line}`;
       const title = link.text ? `${link.path}:${link.line}\n${link.text}` : `${link.path}:${link.line}`;
-      return rowEl("link", name, where, title, () => void openDocument(link.path));
+      // Link text first, like outgoing rows: two links from one file stay distinct.
+      return rowEl("link", link.text || name, where, title, () => void openDocument(link.path));
     });
   }
   sections.push(sectionEl("Referenced by", backlinks?.length ?? null, incoming));

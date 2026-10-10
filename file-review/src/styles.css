@@ -99,6 +99,13 @@ body {
   height: 100vh;
 }
 
+/* Mermaid appends an invisible absolute tooltip to <body> that overflows the
+   page, so scrollIntoView shifted the whole app up a few pixels. Fixed
+   positioning keeps it out of the page's scroll size. */
+body > .mermaidTooltip {
+  position: fixed;
+}
+
 /* Toolbar */
 #toolbar {
   padding: 8px 16px;
@@ -883,7 +890,7 @@ body {
 }
 
 #preview-container a {
-  color: var(--accent-color);
+  color: var(--accent-text);
   text-decoration: none;
 }
 

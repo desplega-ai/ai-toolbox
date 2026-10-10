@@ -216,7 +216,10 @@ export async function followHref(href: string): Promise<void> {
         return;
       }
       try {
-        await API.openPath(link.path!);
+        const result = await API.openPath(link.path!);
+        if (result === "revealed") {
+          deps.toast(`Revealed in Finder (not opened): ${link.path}`, "info");
+        }
       } catch (error) {
         deps.toast(`Could not open ${link.path}: ${error instanceof Error ? error.message : error}`, "error");
       }

@@ -76,6 +76,9 @@ export function initLayout(layoutDeps: LayoutDeps) {
         const panel = document.getElementById(other.getAttribute("aria-controls") ?? "");
         if (panel) panel.hidden = !selected;
       });
+      // The heading filter only applies to the Outline panel.
+      const filterBtn = document.getElementById("toc-search-btn");
+      if (filterBtn) filterBtn.hidden = tab.getAttribute("aria-controls") !== "outline-panel";
     });
   });
 

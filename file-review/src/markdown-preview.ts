@@ -1405,35 +1405,37 @@ export function renderMarkdown(content: string): RenderPreviewResult {
   return { html, ranges };
 }
 
+// One delegated listener: it survives re-renders and blocks that are swapped
+// after render (e.g. mermaid syntax-error blocks).
+let clickListenerContainer: HTMLElement | null = null;
+
 function setupElementClickHandlers() {
-  if (!previewContainer) return;
+  if (!previewContainer || clickListenerContainer === previewContainer) return;
+  const container = previewContainer;
 
-  const commentables = previewContainer.querySelectorAll<HTMLElement>('[data-commentable="true"]');
+  container.addEventListener('click', (e) => {
+    if (e.metaKey || e.ctrlKey) return;
 
-  commentables.forEach((el) => {
-    el.addEventListener('click', (e) => {
-      if (e.metaKey || e.ctrlKey) return;
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-commentable="true"]');
+    if (!el || !container.contains(el)) {
+      return;
+    }
 
-      const clicked = (e.target as HTMLElement).closest('[data-commentable="true"]');
-      if (!clicked || clicked !== el) {
-        return;
-      }
+    // A click that ends a text selection is not an activation.
+    if (!window.getSelection()?.isCollapsed) return;
 
-      // A click that ends a text selection is not an activation.
-      if (!window.getSelection()?.isCollapsed) return;
-
-      // An inline passage under the pointer wins over the block's comments.
-      const inline = inlineCommentAt(e.clientX, e.clientY);
-      const commentIds = inline
-        ? [inline]
-        : (el.getAttribute('data-comment-ids') ?? '').split(' ').filter(Boolean);
-      if (commentIds.length > 0) {
-        window.dispatchEvent(new CustomEvent('preview-element-click', {
-          detail: { commentId: commentIds[0], commentIds, element: el }
-        }));
-      }
-    });
+    // An inline passage under the pointer wins over the block's comments.
+    const inline = inlineCommentAt(e.clientX, e.clientY);
+    const commentIds = inline
+      ? [inline]
+      : (el.getAttribute('data-comment-ids') ?? '').split(' ').filter(Boolean);
+    if (commentIds.length > 0) {
+      window.dispatchEvent(new CustomEvent('preview-element-click', {
+        detail: { commentId: commentIds[0], commentIds, element: el }
+      }));
+    }
   });
+  clickListenerContainer = container;
 }
 
 function setupHoverHandlers() {

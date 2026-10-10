@@ -63,6 +63,13 @@ pub struct SetCurrentFileRequest {
     pub path: String,
 }
 
+/// Request body for save_config. The frontend sends `{ config }`, the same
+/// argument shape as the Tauri command.
+#[derive(Deserialize)]
+pub struct SaveConfigRequest {
+    pub config: AppConfig,
+}
+
 /// Request body for parse_comments
 #[derive(Deserialize)]
 pub struct ParseCommentsRequest {
@@ -261,8 +268,8 @@ async fn get_config() -> impl IntoResponse {
 }
 
 /// POST /api/config
-async fn post_config(Json(config): Json<AppConfig>) -> Result<impl IntoResponse, (StatusCode, String)> {
-    save_config_internal(config)
+async fn post_config(Json(req): Json<SaveConfigRequest>) -> Result<impl IntoResponse, (StatusCode, String)> {
+    save_config_internal(req.config)
         .map(|_| Json(()))
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))
 }

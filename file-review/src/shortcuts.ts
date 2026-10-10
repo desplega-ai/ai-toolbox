@@ -1,4 +1,5 @@
 import { loadConfig, getConfigPath, openConfigInEditor } from "./config";
+import { icons } from "./icons";
 
 export interface Shortcut {
   keys: string;
@@ -116,7 +117,7 @@ export async function showShortcutsHelp() {
     <div class="shortcuts-content">
       <div class="shortcuts-header">
         <h3>Keyboard Shortcuts</h3>
-        <button class="close-btn">×</button>
+        <button class="close-btn" aria-label="Close" title="Close">${icons.x}</button>
       </div>
       <div class="shortcuts-list">
         ${shortcutGroups
@@ -224,8 +225,9 @@ export function initShortcuts(handlers: ShortcutHandlers) {
     const key = e.key.toLowerCase();
     const editingText = isEditableTarget(e.target);
 
-    // Keep native clipboard/select-all behavior untouched.
-    if (key === "a" || key === "c" || key === "v" || key === "x") {
+    // Keep native clipboard/select-all behavior untouched. Shifted variants
+    // (cmd+shift+V toggles vim) fall through.
+    if (!e.shiftKey && (key === "a" || key === "c" || key === "v" || key === "x")) {
       return;
     }
 
@@ -266,8 +268,14 @@ export function initShortcuts(handlers: ShortcutHandlers) {
 
     // Layout toggles also work from CodeMirror. Match on `code` because
     // Option changes `key` on macOS (Option+B types "∫"). Skip keys CodeMirror
-    // already consumed, e.g. vim Ctrl+B page up.
-    if (e.code === "KeyB" && !e.shiftKey && !e.defaultPrevented) {
+    // already consumed, e.g. vim Ctrl+B page up, and Ctrl+B in text fields
+    // (emacs-style cursor back).
+    if (
+      e.code === "KeyB" &&
+      !e.shiftKey &&
+      !e.defaultPrevented &&
+      !(editingText && e.ctrlKey && !e.metaKey)
+    ) {
       e.preventDefault();
       if (e.altKey) handlers.toggleRightRail?.();
       else handlers.toggleLeftRail?.();

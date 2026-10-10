@@ -182,6 +182,8 @@ export const API = {
   },
 
   async submitTabStates(states: Array<{ path: string; content: string }>): Promise<void> {
+    // Only the Tauri close handler reads these; web mode has no route.
+    if (!isTauri()) return;
     return this.invoke<void>("submit_tab_states", { states });
   },
 
@@ -289,12 +291,15 @@ export const API = {
     return tauriInvoke<void>("open_external", { url });
   },
 
-  /** Open a local file with its default app. Tauri only. */
-  async openPath(path: string): Promise<void> {
+  /**
+   * Open a document or media file with its default app; other files (apps,
+   * scripts, folders) are only revealed in Finder. Tauri only.
+   */
+  async openPath(path: string): Promise<"opened" | "revealed"> {
     if (!isTauri()) {
       throw new Error("Opening local files is not available in web mode");
     }
-    return tauriInvoke<void>("open_path", { path });
+    return tauriInvoke<"opened" | "revealed">("open_path", { path });
   },
 
   /** URL the webview can load a local file from (preview images). */
