@@ -91,6 +91,13 @@ export function renderComments(comments: ReviewComment[]) {
   const container = document.getElementById("comments-list")!;
   container.innerHTML = "";
 
+  // Count badge on the collapsed comments rail
+  const badge = document.getElementById("comments-rail-count");
+  if (badge) {
+    badge.textContent = String(comments.length);
+    badge.hidden = comments.length === 0;
+  }
+
   if (comments.length === 0) {
     container.innerHTML = '<div class="no-comments">No comments yet</div>';
     return;

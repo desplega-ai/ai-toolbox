@@ -5,6 +5,17 @@ export interface WindowConfig {
   height: number;
 }
 
+export type ReadingWidth = "narrow" | "full";
+
+/** Rail and reading-width state. Rust (config.rs) fills defaults for old files. */
+export interface LayoutConfig {
+  left_open: boolean;
+  left_width: number;
+  right_open: boolean;
+  right_width: number;
+  reading_width: ReadingWidth;
+}
+
 export interface AppConfig {
   theme: "dark" | "light";
   vim_mode: boolean;
@@ -12,6 +23,7 @@ export interface AppConfig {
   markdown_raw: boolean;
   save_on_quit: boolean;
   window: WindowConfig;
+  layout: LayoutConfig;
 }
 
 export async function loadConfig(): Promise<AppConfig> {

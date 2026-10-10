@@ -54,12 +54,19 @@ import {
   onPreviewRendered,
 } from "./markdown-preview";
 import { initMermaid } from "./mermaid";
-import { extractTocEntries, initToc, renderToc } from "./toc";
+import { extractTocEntries, initToc, renderToc, updateTocActive } from "./toc";
 import { PreviewNavigator } from "./preview-nav";
 import { TabManager, type Tab } from "./tabs";
 import { initTabStrip } from "./tabs-view";
 import { icons, hydrateIcons } from "./icons";
 import { initLinkRouter, decoratePreview, invalidateLinkCache } from "./links";
+import {
+  initLayout,
+  applyLayout,
+  setLeftRailAvailable,
+  toggleRail,
+  toggleReadingWidth,
+} from "./layout";
 
 const tabManager = new TabManager();
 
@@ -417,6 +424,12 @@ async function init() {
   updateVimMode(vimEnabled);
   updateVimButton();
 
+  // Rails (outline + comments), separators and reading width
+  initLayout({
+    getConfig: () => appConfig,
+    saveConfig: () => void saveConfig(appConfig),
+  });
+
   // Initialize sidebar handlers
   initSidebar(
     handleDeleteComment,
@@ -440,8 +453,12 @@ async function init() {
     toast: showToast,
   });
 
-  // Initialize ToC (passes active-tab accessor for step-2/3 forward-compat)
-  initToc(readActive);
+  // Initialize ToC: the preview scroller drives the scroll-spy, the editor
+  // cursor drives the active entry in raw mode.
+  initToc(readActive, {
+    getScroller: getPreviewContainer,
+    getCursor: () => getSelection()?.from ?? null,
+  });
 
   // Initialize tab strip
   initTabStrip(tabManager, {
@@ -485,6 +502,9 @@ async function init() {
     zoomOut,
     undo: editorUndo,
     redo: editorRedo,
+    toggleLeftRail: () => toggleRail("left"),
+    toggleRightRail: () => toggleRail("right"),
+    toggleReadingWidth,
   });
 
   // Set version badge
@@ -604,7 +624,10 @@ async function init() {
     ?.addEventListener("click", handleAddCommentShortcut);
 
   // Update comment button title on selection change
-  onSelectionChange(() => updateCommentButton());
+  onSelectionChange(() => {
+    updateCommentButton();
+    if (readActive()?.isRawMode) updateTocActive();
+  });
   onDocumentChange((changes) => {
     if (suppressCommentSync) {
       return;
@@ -679,6 +702,7 @@ async function init() {
     updateVimMode(vimEnabled);
     updateVimButton();
     updateFontSize(appConfig.font_size || 14);
+    applyLayout();
 
     showToast("Config reloaded", "info");
   });
@@ -1066,7 +1090,6 @@ function updateViewMode() {
   const active = readActive();
   const editorContainer = document.getElementById("editor-container")!;
   const previewWrapper = document.getElementById("preview-wrapper")!;
-  const tocPanel = document.getElementById("sidebar-toc-panel");
 
   const isMarkdown = active?.isMarkdownFile ?? false;
   const isRaw = active?.isRawMode ?? false;
@@ -1089,8 +1112,8 @@ function updateViewMode() {
   }
   updateCommentButton();
 
-  // ToC is always visible for markdown files regardless of mode
-  if (tocPanel) tocPanel.style.display = isMarkdown ? "flex" : "none";
+  // The outline rail is available for markdown files regardless of mode
+  setLeftRailAvailable(isMarkdown);
   if (isMarkdown) {
     const entries = extractTocEntries(getEditorContent());
     renderToc(entries, handleTocClick);
@@ -1310,10 +1333,9 @@ function activateTabUI(tab: Tab) {
   } else {
     const editorContainer = document.getElementById("editor-container")!;
     const previewWrapper = document.getElementById("preview-wrapper")!;
-    const tocPanel = document.getElementById("sidebar-toc-panel");
     editorContainer.style.display = "block";
     previewWrapper.style.display = "none";
-    if (tocPanel) tocPanel.style.display = "none";
+    setLeftRailAvailable(false);
   }
 
   if (tab.isRawMode || !tab.isMarkdownFile) {
@@ -1572,8 +1594,7 @@ async function closeTab(id: string) {
     if (commentBtn) commentBtn.style.display = "none";
     const toggleBtn = document.getElementById("markdown-toggle");
     if (toggleBtn) toggleBtn.style.display = "none";
-    const tocPanel = document.getElementById("sidebar-toc-panel");
-    if (tocPanel) tocPanel.style.display = "none";
+    setLeftRailAvailable(false);
     renderComments([]);
   }
 }

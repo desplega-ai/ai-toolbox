@@ -19,6 +19,9 @@ export const shortcuts: Shortcut[] = [
   { keys: "⌘⇧T", description: "Toggle theme (light/dark)" },
   { keys: "⌘M", description: "Toggle markdown view (raw/pretty)" },
   { keys: "⌘⇧V", description: "Toggle vim mode" },
+  { keys: "⌘B", description: "Toggle outline rail" },
+  { keys: "⌘⌥B", description: "Toggle comments rail" },
+  { keys: "⌘⇧E", description: "Toggle reading width (narrow/full)" },
   { keys: "⌘O", description: "Open file" },
   { keys: "⌘+", description: "Zoom in" },
   { keys: "⌘-", description: "Zoom out" },
@@ -149,6 +152,9 @@ export interface ShortcutHandlers {
   zoomOut?: () => void;
   undo?: () => void;
   redo?: () => void;
+  toggleLeftRail?: () => void;
+  toggleRightRail?: () => void;
+  toggleReadingWidth?: () => void;
 }
 
 export function initShortcuts(handlers: ShortcutHandlers) {
@@ -196,6 +202,21 @@ export function initShortcuts(handlers: ShortcutHandlers) {
     if (key === "p" && !e.shiftKey) {
       e.preventDefault();
       handlers.prevTab?.();
+      return;
+    }
+
+    // Layout toggles also work from CodeMirror. Match on `code` because
+    // Option changes `key` on macOS (Option+B types "∫"). Skip keys CodeMirror
+    // already consumed, e.g. vim Ctrl+B page up.
+    if (e.code === "KeyB" && !e.shiftKey && !e.defaultPrevented) {
+      e.preventDefault();
+      if (e.altKey) handlers.toggleRightRail?.();
+      else handlers.toggleLeftRail?.();
+      return;
+    }
+    if (e.code === "KeyE" && e.shiftKey && !e.altKey) {
+      e.preventDefault();
+      handlers.toggleReadingWidth?.();
       return;
     }
 

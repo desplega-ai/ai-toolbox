@@ -290,7 +290,10 @@ function positionHoverButton(element: HTMLElement) {
 
   const rect = element.getBoundingClientRect();
   const containerRect = previewContainer.getBoundingClientRect();
-  const leftPos = Math.max(8, containerRect.left - 32);
+  // Sit in the left gutter of the content column, which the reading width
+  // centers, and stay clear of the heading links at -22px.
+  const paddingLeft = parseFloat(getComputedStyle(previewContainer).paddingLeft) || 0;
+  const leftPos = Math.max(containerRect.left + 4, containerRect.left + paddingLeft - 48);
 
   hoverButton.style.display = 'flex';
   hoverButton.style.position = 'fixed';
