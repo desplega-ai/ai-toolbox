@@ -153,14 +153,14 @@ export interface RenderPreviewResult {
   ranges: CommentableRange[];
 }
 
-interface FrontmatterEntry {
+export interface FrontmatterEntry {
   key: string;
   label: string;
   value: string | string[];
   isArray: boolean;
 }
 
-interface FrontmatterParseResult {
+export interface FrontmatterParseResult {
   entries: FrontmatterEntry[];
   bodyMarkdown: string;
   consumedChars: number;
@@ -361,7 +361,7 @@ function parseArrayValue(rawValue: string): string[] {
     });
 }
 
-function parseLeadingFrontmatter(content: string): FrontmatterParseResult {
+export function parseLeadingFrontmatter(content: string): FrontmatterParseResult {
   const bomOffset = content.startsWith('\uFEFF') ? 1 : 0;
   const working = content.slice(bomOffset);
 

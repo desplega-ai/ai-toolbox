@@ -57,6 +57,7 @@ import { extractTocEntries, initToc, renderToc } from "./toc";
 import { PreviewNavigator } from "./preview-nav";
 import { TabManager, type Tab } from "./tabs";
 import { initTabStrip } from "./tabs-view";
+import { icons, hydrateIcons } from "./icons";
 
 const tabManager = new TabManager();
 
@@ -170,6 +171,7 @@ function setupClosedFilesIndicator() {
           void pushTabStatesToRust();
         } catch (error) {
           console.error("Failed to reopen closed file:", path, error);
+          showToast(`Failed to open ${basename(path)}: ${errorMessage(error)}`, "error");
         }
       });
     });
@@ -222,29 +224,85 @@ function writeActive(patch: Partial<Tab>): void {
   tabManager.update(active.id, patch);
 }
 
+const MAX_VISIBLE_TOASTS = 4;
+
+interface ToastOptions {
+  action?: { label: string; onClick: () => void };
+  duration?: number;
+}
+
 // Toast notifications
-export function showToast(message: string, type: "success" | "info" = "info") {
+export function showToast(
+  message: string,
+  type: "success" | "info" | "error" = "info",
+  opts: ToastOptions = {}
+) {
   const container = document.getElementById("toast-container")!;
   const toast = document.createElement("div");
   toast.className = `toast ${type}`;
-  toast.textContent = message;
-  container.appendChild(toast);
+  if (type === "error") toast.setAttribute("role", "alert");
 
-  setTimeout(() => {
+  const text = document.createElement("span");
+  text.className = "toast-message";
+  text.textContent = message;
+  toast.appendChild(text);
+
+  let timer: number | undefined;
+  const dismiss = () => {
+    if (toast.classList.contains("fade-out")) return;
+    window.clearTimeout(timer);
     toast.classList.add("fade-out");
     setTimeout(() => toast.remove(), 200);
-  }, 2000);
+  };
+
+  if (opts.action) {
+    const { label, onClick } = opts.action;
+    const actionBtn = document.createElement("button");
+    actionBtn.type = "button";
+    actionBtn.className = "toast-action";
+    actionBtn.textContent = label;
+    actionBtn.addEventListener("click", () => {
+      onClick();
+      dismiss();
+    });
+    toast.appendChild(actionBtn);
+  }
+
+  container.appendChild(toast);
+
+  // Drop the oldest toasts beyond the visible cap.
+  const visible = container.querySelectorAll(".toast:not(.fade-out)");
+  for (let i = 0; i < visible.length - MAX_VISIBLE_TOASTS; i++) {
+    visible[i].remove();
+  }
+
+  const duration =
+    opts.duration ?? (type === "error" ? 6000 : opts.action ? 5000 : 2000);
+  timer = window.setTimeout(dismiss, duration);
 }
 
-// Update comment button text based on selection
-function updateCommentButton(hasSelection: boolean) {
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function basename(path: string): string {
+  return path.split("/").pop() || path;
+}
+
+// Context-aware title for the Comment button (label stays "Comment").
+function updateCommentButton() {
   const btn = document.getElementById("add-comment-btn");
-  if (btn) {
-    const label = btn.querySelector(".label");
-    if (label) {
-      label.textContent = hasSelection ? "Comment Selection" : "Comment Line";
-    }
+  if (!btn) return;
+  const active = readActive();
+  let action: string;
+  if (active?.isMarkdownFile && !active.isRawMode) {
+    action = "Comment block or selection";
+  } else {
+    const selection = getSelection();
+    action =
+      selection && selection.from !== selection.to ? "Comment selection" : "Comment line";
   }
+  btn.title = `${action} (⌘K)`;
 }
 
 function withSuppressedCommentSync<T>(fn: () => T): T {
@@ -448,6 +506,7 @@ async function init() {
         opened++;
       } catch (error) {
         console.error("Failed to load CLI arg:", path, error);
+        showToast(`Failed to open ${basename(path)}: ${errorMessage(error)}`, "error");
       }
     }
     if (opened > 0) {
@@ -483,6 +542,7 @@ async function init() {
               await loadFile(path, "append");
             } catch (error) {
               console.error("Failed to load dropped file:", path, error);
+              showToast(`Failed to open ${basename(path)}: ${errorMessage(error)}`, "error");
             }
           }
           if (tabManager.tabs.length > 0) hideEmptyState();
@@ -516,8 +576,13 @@ async function init() {
     ?.addEventListener("click", toggleTheme);
   document.getElementById("vim-toggle")?.addEventListener("click", toggleVim);
   document
-    .getElementById("markdown-toggle")
-    ?.addEventListener("click", toggleMarkdownView);
+    .querySelectorAll<HTMLButtonElement>("#markdown-toggle .segment")
+    .forEach((segment) => {
+      segment.addEventListener("click", () => {
+        const wantRaw = segment.dataset.view === "source";
+        if ((readActive()?.isRawMode ?? false) !== wantRaw) void toggleMarkdownView();
+      });
+    });
   document
     .getElementById("help-btn")
     ?.addEventListener("click", showShortcutsHelp);
@@ -527,8 +592,8 @@ async function init() {
     .getElementById("add-comment-btn")
     ?.addEventListener("click", handleAddCommentShortcut);
 
-  // Update comment button on selection change
-  onSelectionChange(updateCommentButton);
+  // Update comment button title on selection change
+  onSelectionChange(() => updateCommentButton());
   onDocumentChange((changes) => {
     if (suppressCommentSync) {
       return;
@@ -622,7 +687,7 @@ function setupWebModeUI() {
   if (toolbarRight) {
     const badge = document.createElement("span");
     badge.className = "web-mode-badge";
-    badge.textContent = "WEB";
+    badge.textContent = "Web";
     badge.title = "Running in web server mode";
     toolbarRight.insertBefore(badge, toolbarRight.firstChild);
   }
@@ -631,8 +696,9 @@ function setupWebModeUI() {
   if (toolbarRight) {
     const quitBtn = document.createElement("button");
     quitBtn.id = "quit-btn";
+    quitBtn.type = "button";
     quitBtn.title = "Quit and show final report";
-    quitBtn.innerHTML = '<span class="icon">&#x2715;</span> Quit';
+    quitBtn.innerHTML = `<span class="icon">${icons["log-out"]}</span> Quit`;
     quitBtn.addEventListener("click", handleWebQuit);
     toolbarRight.appendChild(quitBtn);
   }
@@ -673,7 +739,7 @@ async function handleWebQuit() {
     showFinalReportModal(result);
   } catch (error) {
     console.error("Failed to quit:", error);
-    showToast("Failed to quit: " + error, "info");
+    showToast(`Failed to quit: ${errorMessage(error)}`, "error");
   }
 }
 
@@ -926,6 +992,7 @@ async function showFilePickerAndLoad() {
       opened++;
     } catch (error) {
       console.error("Failed to load picked file:", path, error);
+      showToast(`Failed to open ${basename(path)}: ${errorMessage(error)}`, "error");
     }
   }
   if (opened > 0) hideEmptyState();
@@ -943,10 +1010,8 @@ async function toggleTheme() {
 
 function updateThemeButton() {
   const btn = document.getElementById("theme-toggle");
-  if (btn) {
-    btn.querySelector("span")!.textContent =
-      currentTheme === "dark" ? "🌙" : "☀️";
-  }
+  const icon = btn?.querySelector(".icon");
+  if (icon) icon.innerHTML = currentTheme === "dark" ? icons.moon : icons.sun;
 }
 
 async function toggleVim() {
@@ -959,9 +1024,7 @@ async function toggleVim() {
 
 function updateVimButton() {
   const btn = document.getElementById("vim-toggle");
-  if (btn) {
-    btn.classList.toggle("active", vimEnabled);
-  }
+  btn?.setAttribute("aria-pressed", String(vimEnabled));
 }
 
 async function zoomIn() {
@@ -992,23 +1055,28 @@ function updateViewMode() {
   const active = readActive();
   const editorContainer = document.getElementById("editor-container")!;
   const previewWrapper = document.getElementById("preview-wrapper")!;
-  const toggleBtn = document.getElementById("markdown-toggle");
   const tocPanel = document.getElementById("sidebar-toc-panel");
 
   const isMarkdown = active?.isMarkdownFile ?? false;
   const isRaw = active?.isRawMode ?? false;
 
+  document
+    .querySelectorAll<HTMLButtonElement>("#markdown-toggle .segment")
+    .forEach((segment) => {
+      const pressed = (segment.dataset.view === "source") === isRaw;
+      segment.setAttribute("aria-pressed", String(pressed));
+    });
+
   if (isRaw) {
     editorContainer.style.display = "block";
     previewWrapper.style.display = "none";
-    toggleBtn?.classList.remove("active");
   } else {
     editorContainer.style.display = "none";
     previewWrapper.style.display = "flex";
-    toggleBtn?.classList.add("active");
     updatePreview(getEditorContent(), active?.comments ?? []);
     previewNav?.reset();
   }
+  updateCommentButton();
 
   // ToC is always visible for markdown files regardless of mode
   if (tocPanel) tocPanel.style.display = isMarkdown ? "flex" : "none";
@@ -1222,6 +1290,7 @@ function activateTabUI(tab: Tab) {
   }
   const commentBtn = document.getElementById("add-comment-btn");
   if (commentBtn) commentBtn.style.display = "flex";
+  updateCommentButton();
 
   renderCommentState();
 
@@ -1369,6 +1438,7 @@ async function revealInFinder(path: string) {
     await API.revealInFinder(path);
   } catch (error) {
     console.error("Failed to reveal in Finder:", error);
+    showToast(`Failed to reveal in Finder: ${errorMessage(error)}`, "error");
   }
 }
 
@@ -1383,6 +1453,9 @@ async function saveFile() {
     showToast("File saved", "success");
   } catch (error) {
     console.error("Failed to save file:", error);
+    showToast(`Failed to save ${basename(active.path)}: ${errorMessage(error)}`, "error", {
+      action: { label: "Retry", onClick: () => void saveFile() },
+    });
   }
 }
 
@@ -1447,6 +1520,7 @@ async function closeTab(id: string) {
         }
       } catch (error) {
         console.error("Failed to save tab before close:", error);
+        showToast(`Failed to save ${label}: ${errorMessage(error)}`, "error");
         return;
       }
     }
@@ -1494,6 +1568,7 @@ async function closeTab(id: string) {
 // Initialize the app
 document.addEventListener("DOMContentLoaded", async () => {
   // Pre-load config to get font size for editor initialization
+  hydrateIcons();
   const config = await loadConfig();
   initEditor(document.getElementById("editor-container")!, config.font_size || 14);
   init();

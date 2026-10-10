@@ -1,5 +1,5 @@
 import { marked } from 'marked';
-import { slugify } from './markdown-preview';
+import { parseLeadingFrontmatter, slugify } from './markdown-preview';
 import type { Tab } from './tabs';
 
 export interface TocEntry {
@@ -24,10 +24,13 @@ export function getActiveTabFromToc(): Tab | null {
 }
 
 export function extractTocEntries(content: string): TocEntry[] {
-  const tokens = marked.lexer(content, { gfm: true, breaks: true });
+  // Skip leading YAML frontmatter exactly like the preview does, otherwise its
+  // closing `---` turns the frontmatter into a setext heading.
+  const { bodyMarkdown, consumedChars } = parseLeadingFrontmatter(content);
+  const tokens = marked.lexer(bodyMarkdown, { gfm: true, breaks: true });
   const entries: TocEntry[] = [];
   const slugCounts = new Map<string, number>();
-  let cursor = 0;
+  let cursor = consumedChars;
 
   for (const token of tokens) {
     const raw = token.raw ?? '';
@@ -36,7 +39,9 @@ export function extractTocEntries(content: string): TocEntry[] {
 
     if (token.type === 'heading') {
       const text = token.text;
-      let slug = slugify(text);
+      // Slug the rendered inline HTML, same as the preview heading renderer,
+      // so ids match for headings with markup or entities.
+      let slug = slugify(marked.parseInline(text, { gfm: true, breaks: true }) as string);
       const count = slugCounts.get(slug) ?? 0;
       slugCounts.set(slug, count + 1);
       if (count > 0) slug = `${slug}-${count}`;

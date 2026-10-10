@@ -10,38 +10,38 @@
   <div id="app">
     <div id="toolbar">
       <div id="toolbar-left">
-        <button id="open-file-btn" class="toolbar-btn" title="Open file (⌘O)">
-          <span class="icon">📂</span> Open File
+        <button id="open-file-btn" class="toolbar-btn" type="button" title="Open file (⌘O)">
+          <span class="icon" data-icon="folder"></span> Open File
         </button>
         <div id="file-name" class="file-name" style="display: none;">
-          <span class="icon">📄</span>
+          <span class="icon" data-icon="file"></span>
           <span class="name"></span>
         </div>
-        <button id="add-comment-btn" style="display: none;" title="Add comment (⌘K)">
-          <span class="label">Comment Line</span>
-          <span class="shortcut">⌘K</span>
+        <button id="add-comment-btn" type="button" style="display: none;" title="Comment line (⌘K)">
+          <span class="icon" data-icon="message-square"></span>
+          <span class="label">Comment</span>
+          <kbd class="shortcut">⌘K</kbd>
         </button>
       </div>
       <div id="toolbar-right">
         <span id="version-badge" class="version-badge"></span>
-        <button id="markdown-toggle" class="toolbar-btn icon-btn" title="Toggle markdown view (⌘M)" style="display: none;">
-          <span>MD</span>
+        <div id="markdown-toggle" class="segmented" role="group" aria-label="View mode" title="Toggle view (⌘M)" style="display: none;">
+          <button type="button" class="segment" data-view="preview" aria-pressed="true">Preview</button>
+          <button type="button" class="segment" data-view="source" aria-pressed="false">Source</button>
+        </div>
+        <button id="vim-toggle" class="toolbar-btn toggle-chip" type="button" aria-pressed="false" title="Toggle Vim mode (⌘⇧V)">Vim</button>
+        <button id="theme-toggle" class="toolbar-btn icon-btn" type="button" aria-label="Toggle theme" title="Toggle theme (⌘⇧T)">
+          <span class="icon" data-icon="moon"></span>
         </button>
-        <button id="vim-toggle" class="toolbar-btn icon-btn" title="Toggle Vim mode (⌘⇧V)">
-          <span>VIM</span>
-        </button>
-        <button id="theme-toggle" class="toolbar-btn icon-btn" title="Toggle theme (⌘T)">
-          <span>🌙</span>
-        </button>
-        <button id="help-btn" class="toolbar-btn icon-btn" title="Shortcuts (⌘/)">
-          <span>?</span>
+        <button id="help-btn" class="toolbar-btn icon-btn" type="button" aria-label="Keyboard shortcuts" title="Shortcuts (⌘/)">
+          <span class="icon" data-icon="help-circle"></span>
         </button>
       </div>
     </div>
     <div id="tab-strip-row" class="tab-strip-row">
       <div id="tab-strip" class="tab-strip" role="tablist"></div>
       <button id="closed-files-btn" class="closed-files-btn" type="button" title="Closed files in this review session" aria-label="Closed files" hidden>
-        <span class="icon">&#9776;</span>
+        <span class="icon" data-icon="file"></span>
         <span id="closed-files-count" class="closed-files-count">0</span>
       </button>
     </div>
@@ -83,7 +83,7 @@
         <div id="sidebar-toc-panel" style="display: none;">
           <div id="toc-header">
             <span>Table of Contents</span>
-            <button id="toc-search-btn" class="toc-search-toggle" title="Filter headings">&#x1F50D;</button>
+            <button id="toc-search-btn" class="toc-search-toggle" type="button" aria-label="Filter headings" title="Filter headings"><span class="icon" data-icon="search"></span></button>
           </div>
           <div id="toc-search-container" style="display: none;">
             <input id="toc-search-input" class="toc-search-input" type="text" placeholder="Filter headings..." />
@@ -96,7 +96,7 @@
     <!-- Empty state when no file is open -->
     <div id="empty-state" style="display: none;">
       <div class="empty-content">
-        <div class="empty-icon">📝</div>
+        <div class="empty-icon" data-icon="file"></div>
         <h2>No file open</h2>
         <p>Open a markdown file to start reviewing</p>
         <button id="empty-open-btn" class="primary-btn">Open File</button>
@@ -104,7 +104,7 @@
       </div>
     </div>
   </div>
-  <div id="toast-container"></div>
+  <div id="toast-container" aria-live="polite"></div>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

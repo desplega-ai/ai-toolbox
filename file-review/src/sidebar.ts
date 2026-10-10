@@ -1,6 +1,7 @@
 import type { ReviewComment } from "./comments";
 import { getEditorView } from "./editor";
 import type { Tab } from "./tabs";
+import { icons } from "./icons";
 
 type CommentDeleteHandler = (commentId: string) => void;
 type CommentClickHandler = (comment: ReviewComment) => void;
@@ -114,8 +115,8 @@ function createCommentCard(comment: ReviewComment): HTMLElement {
     <div class="comment-header">
       <span class="comment-line">Line ${lineNumber}</span>
       <div class="comment-actions">
-        <button class="edit-btn" title="Edit comment">&#x270E;</button>
-        <button class="delete-btn" title="Delete comment">&times;</button>
+        <button class="edit-btn" type="button" aria-label="Edit comment" title="Edit comment">${icons.pencil}</button>
+        <button class="delete-btn" type="button" aria-label="Delete comment" title="Delete comment">${icons.trash}</button>
       </div>
     </div>
     <div class="comment-text">${escapeHtml(comment.text)}</div>
@@ -123,7 +124,7 @@ function createCommentCard(comment: ReviewComment): HTMLElement {
 
   card.addEventListener("click", (e) => {
     const target = e.target as HTMLElement;
-    if (target.classList.contains("delete-btn") || target.classList.contains("edit-btn")) return;
+    if (target.closest(".delete-btn, .edit-btn")) return;
     if (card.querySelector(".comment-edit-container")) return;
     clickHandler?.(comment);
   });

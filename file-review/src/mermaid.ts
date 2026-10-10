@@ -133,13 +133,67 @@ export async function renderMermaidBlocks(
     lastAppliedTheme = currentTheme;
   }
 
+  // Validate each diagram first so syntax errors render our own error block
+  // instead of mermaid's built-in error graphic.
+  const validNodes: HTMLElement[] = [];
+  const invalid: Array<{ node: HTMLElement; source: string; error: unknown }> = [];
+  for (const node of nodes) {
+    const source = nodeSource(node);
+    try {
+      await mermaid.parse(source);
+      validNodes.push(node);
+    } catch (error) {
+      invalid.push({ node, source, error });
+    }
+  }
+
+  if (signal?.aborted) return;
+
+  for (const { node, source, error } of invalid) {
+    node.replaceWith(createSyntaxErrorBlock(node, source, error));
+  }
+
+  if (validNodes.length === 0) return;
+
   try {
-    await mermaid.run({ nodes, suppressErrors: true });
+    await mermaid.run({ nodes: validNodes, suppressErrors: true });
   } catch (err) {
-    // suppressErrors keeps mermaid from throwing on per-diagram syntax errors;
-    // anything else here is unexpected.
+    // Sources were validated above; anything thrown here is unexpected.
     console.error("mermaid.run failed", err);
   }
+}
+
+function nodeSource(node: HTMLElement): string {
+  const src = node.getAttribute("data-src");
+  if (src !== null) {
+    try {
+      return decodeURIComponent(src);
+    } catch {
+      // Malformed data-src: fall back to the escaped text content.
+    }
+  }
+  return node.textContent ?? "";
+}
+
+function createSyntaxErrorBlock(
+  node: HTMLElement,
+  source: string,
+  error: unknown,
+): HTMLElement {
+  const message = error instanceof Error ? error.message : String(error);
+  const block = document.createElement("div");
+  block.className = "mermaid-error";
+  // Keep comment anchoring attributes so the block stays commentable.
+  for (const attr of ["data-commentable", "data-source-start", "data-source-end"]) {
+    const value = node.getAttribute(attr);
+    if (value !== null) block.setAttribute(attr, value);
+  }
+  block.innerHTML =
+    `<div class="mermaid-error-title">Diagram syntax error</div>` +
+    `<pre class="mermaid-error-message">${escapeHtml(message)}</pre>` +
+    `<details class="mermaid-error-source"><summary>Show source</summary>` +
+    `<pre>${escapeHtml(source)}</pre></details>`;
+  return block;
 }
 
 /**
