@@ -1,32 +1,37 @@
 import type { ReviewComment } from "./comments";
-import { getEditorView } from "./editor";
+import { getEditorView, getLineSpan } from "./editor";
 import type { Tab } from "./tabs";
 import { icons } from "./icons";
+import { commentExcerpt, lineChipLabel, nextCommentId } from "./comment-utils";
+import { autoGrowTextarea } from "./composer";
 
 type CommentDeleteHandler = (commentId: string) => void;
 type CommentClickHandler = (comment: ReviewComment) => void;
-type CommentSubmitHandler = (text: string, lineNumber: number) => void;
 type CommentEditHandler = (commentId: string, newText: string) => void;
 type GetActiveTab = () => Tab | null;
 
 let deleteHandler: CommentDeleteHandler | null = null;
 let clickHandler: CommentClickHandler | null = null;
-let submitHandler: CommentSubmitHandler | null = null;
 let editHandler: CommentEditHandler | null = null;
 // Reserved for step-2/3 use; passed in at init for forward compatibility.
 let getActiveTab: GetActiveTab = () => null;
-let pendingLineNumber: number | null = null;
+
+// Bidirectional linking between cards and passages. Painted by one injected
+// stylesheet keyed on comment ids, so it survives preview and rail re-renders.
+let selectedId: string | null = null;
+let hoveredIds: string[] = [];
+let flashIds: string[] = [];
+let flashAlt = false;
+let flashTimer: number | undefined;
 
 export function initSidebar(
   onDelete: CommentDeleteHandler,
   onClick: CommentClickHandler,
-  onSubmit: CommentSubmitHandler,
   onEdit: CommentEditHandler,
   activeTabAccessor: GetActiveTab
 ) {
   deleteHandler = onDelete;
   clickHandler = onClick;
-  submitHandler = onSubmit;
   editHandler = onEdit;
   getActiveTab = activeTabAccessor;
 }
@@ -37,69 +42,205 @@ export function getActiveTabFromSidebar(): Tab | null {
   return getActiveTab();
 }
 
-export function showCommentInput(lineNumber: number, label?: string) {
-  pendingLineNumber = lineNumber;
-  const inputArea = document.getElementById("comment-input-area")!;
-  const lineLabel = document.getElementById("comment-line-label")!;
-  const textarea = document.getElementById(
-    "comment-textarea"
-  ) as HTMLTextAreaElement;
-
-  // Use custom label if provided (for preview mode), otherwise show line number
-  lineLabel.textContent = label ?? `Line ${lineNumber}`;
-  inputArea.style.display = "block";
-  textarea.value = "";
-  textarea.focus();
+function prefersReducedMotion(): boolean {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 }
 
-export function hideCommentInput() {
-  const inputArea = document.getElementById("comment-input-area")!;
-  inputArea.style.display = "none";
-  pendingLineNumber = null;
-
-  // Re-focus the editor
-  getEditorView().focus();
+function isTextField(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el || !(el instanceof HTMLElement)) return false;
+  if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return true;
+  return el.isContentEditable || !!el.closest(".cm-editor");
 }
 
-export function setupCommentInput() {
-  const textarea = document.getElementById(
-    "comment-textarea"
-  ) as HTMLTextAreaElement;
-  const submitBtn = document.getElementById("comment-submit-btn");
-  const cancelBtn = document.getElementById("comment-cancel-btn");
+// Ids come from the marker regex ([a-zA-Z0-9-]); keep selectors safe anyway.
+const safeId = (id: string) => id.replace(/[^a-zA-Z0-9-]/g, "");
 
-  submitBtn?.addEventListener("click", () => {
-    const text = textarea.value.trim();
-    if (text && pendingLineNumber !== null) {
-      submitHandler?.(text, pendingLineNumber);
-      hideCommentInput();
-    }
+function passageSelectors(id: string, suffix = ""): string {
+  const s = safeId(id);
+  return [
+    `#preview-container [data-comment-ids~="${s}"]${suffix}`,
+    `.cm-comment-highlight[data-comment-id="${s}"]${suffix}`,
+  ].join(", ");
+}
+
+function updateFocusStyle() {
+  let style = document.getElementById("comment-focus-style");
+  if (!style) {
+    style = document.createElement("style");
+    style.id = "comment-focus-style";
+    document.head.appendChild(style);
+  }
+  const rules: string[] = [];
+  const emphasized = new Set(hoveredIds);
+  if (selectedId) emphasized.add(selectedId);
+  for (const id of emphasized) {
+    rules.push(
+      `${passageSelectors(id)} { background: var(--comment-focus-bg) !important; outline: 2px solid var(--highlight-border); outline-offset: 1px; }`,
+      `#preview-container tr[data-comment-ids~="${safeId(id)}"] > :is(td, th) { background: var(--comment-focus-bg) !important; }`
+    );
+  }
+  for (const id of hoveredIds) {
+    rules.push(
+      `.comment-card[data-comment-id="${safeId(id)}"] { background: var(--bg-hover); border-color: var(--highlight-border); }`
+    );
+  }
+  // Two identical keyframes, alternated so a repeated flash restarts.
+  const animation = flashAlt ? "comment-flash-alt" : "comment-flash";
+  for (const id of flashIds) {
+    rules.push(`${passageSelectors(id)} { animation: ${animation} 1s ease-out; }`);
+  }
+  style.textContent = rules.join("\n");
+}
+
+/** Briefly flash the passage of a comment in the preview and in CodeMirror. */
+export function flashCommentPassage(id: string) {
+  if (prefersReducedMotion()) return;
+  window.clearTimeout(flashTimer);
+  flashIds = [id];
+  flashAlt = !flashAlt;
+  updateFocusStyle();
+  flashTimer = window.setTimeout(() => {
+    flashIds = [];
+    updateFocusStyle();
+  }, 1000);
+}
+
+function cardFor(id: string): HTMLElement | null {
+  return document.querySelector<HTMLElement>(
+    `#comments-list .comment-card[data-comment-id="${safeId(id)}"]`
+  );
+}
+
+/** Scroll the rail (not its ancestors) so `card` is visible. */
+function scrollCardIntoView(card: HTMLElement, block: "nearest" | "center") {
+  const list = document.getElementById("comments-list");
+  if (!list) return;
+  const listRect = list.getBoundingClientRect();
+  const cardRect = card.getBoundingClientRect();
+  const offset = cardRect.top - listRect.top + list.scrollTop;
+  let top: number;
+  if (block === "center") {
+    top = offset - (list.clientHeight - cardRect.height) / 2;
+  } else if (cardRect.top < listRect.top) {
+    top = offset - 8;
+  } else if (cardRect.bottom > listRect.bottom) {
+    top = offset + cardRect.height - list.clientHeight + 8;
+  } else {
+    return;
+  }
+  list.scrollTo({ top, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+}
+
+function flashCard(card: HTMLElement) {
+  card.classList.remove("highlight-flash");
+  void card.offsetWidth;
+  card.classList.add("highlight-flash");
+  setTimeout(() => card.classList.remove("highlight-flash"), 1000);
+}
+
+function setSelected(id: string | null) {
+  selectedId = id;
+  document.querySelectorAll<HTMLElement>("#comments-list .comment-card").forEach((card) => {
+    if (card.dataset.commentId === id) card.setAttribute("aria-current", "true");
+    else card.removeAttribute("aria-current");
+  });
+  updateFocusStyle();
+}
+
+export function clearCommentSelection() {
+  if (selectedId) setSelected(null);
+}
+
+/**
+ * A highlighted passage was clicked: select the next of its comments (repeated
+ * clicks cycle through them), scroll its card to the center and flash it.
+ */
+export function selectCommentFromPassage(ids: string[]) {
+  const id = nextCommentId(ids, selectedId);
+  if (!id) return;
+  setSelected(id);
+  const card = cardFor(id);
+  if (card) {
+    scrollCardIntoView(card, "center");
+    flashCard(card);
+  }
+}
+
+function setHovered(ids: string[], scrollRail: boolean) {
+  if (ids.length === hoveredIds.length && ids.every((id, i) => id === hoveredIds[i])) return;
+  hoveredIds = ids;
+  updateFocusStyle();
+  const card = scrollRail && ids.length > 0 ? cardFor(ids[0]) : null;
+  if (card) scrollCardIntoView(card, "nearest");
+}
+
+/**
+ * Wire passage hover and click to the cards: hovering a highlighted passage
+ * marks its card, clicking one in CodeMirror selects it, Escape clears the
+ * selection. Preview clicks arrive through the `preview-element-click` event.
+ */
+export function initCommentLinking(preview: HTMLElement, editorDom: HTMLElement) {
+  const track = (root: HTMLElement, selector: string, read: (el: HTMLElement) => string[]) => {
+    root.addEventListener("mouseover", (e) => {
+      const el = (e.target as HTMLElement).closest<HTMLElement>(selector);
+      setHovered(el ? read(el) : [], true);
+    });
+    root.addEventListener("mouseleave", () => setHovered([], false));
+  };
+  track(preview, "[data-comment-ids]", (el) =>
+    (el.dataset.commentIds ?? "").split(" ").filter(Boolean)
+  );
+  track(editorDom, ".cm-comment-highlight", (el) =>
+    el.dataset.commentId ? [el.dataset.commentId] : []
+  );
+
+  editorDom.addEventListener("click", (e) => {
+    const { from, to } = getEditorView().state.selection.main;
+    if (from !== to) return;
+    const el = (e.target as HTMLElement).closest<HTMLElement>(".cm-comment-highlight");
+    if (el?.dataset.commentId) selectCommentFromPassage([el.dataset.commentId]);
   });
 
-  cancelBtn?.addEventListener("click", hideCommentInput);
-
-  textarea?.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      hideCommentInput();
-    } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-      submitBtn?.click();
-    }
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || !selectedId || isTextField(e.target)) return;
+    clearCommentSelection();
   });
+}
+
+/** Pulse the collapsed rail's count badge (a comment was added while it is hidden). */
+export function pulseCommentBadge() {
+  const badge = document.getElementById("comments-rail-count");
+  if (!badge) return;
+  badge.classList.remove("pulse");
+  void badge.offsetWidth;
+  badge.classList.add("pulse");
+  badge.addEventListener("animationend", () => badge.classList.remove("pulse"), { once: true });
 }
 
 export function renderComments(comments: ReviewComment[]) {
   const container = document.getElementById("comments-list")!;
   container.innerHTML = "";
 
-  // Count badge on the collapsed comments rail
-  const badge = document.getElementById("comments-rail-count");
-  if (badge) {
+  // Count badges: rail header and collapsed rail strip
+  for (const id of ["comments-count", "comments-rail-count"]) {
+    const badge = document.getElementById(id);
+    if (!badge) continue;
     badge.textContent = String(comments.length);
     badge.hidden = comments.length === 0;
   }
 
+  if (selectedId && !comments.some((c) => c.id === selectedId)) selectedId = null;
+  hoveredIds = hoveredIds.filter((id) => comments.some((c) => c.id === id));
+  updateFocusStyle();
+
   if (comments.length === 0) {
-    container.innerHTML = '<div class="no-comments">No comments yet</div>';
+    container.innerHTML = `
+      <div class="no-comments">
+        <span class="no-comments-icon">${icons["message-square"]}</span>
+        <p class="no-comments-title">No comments yet</p>
+        <p class="no-comments-hint">Select text or hover a block and click +. ⌘K comments the current line or block.</p>
+      </div>`;
     return;
   }
 
@@ -113,19 +254,25 @@ function createCommentCard(comment: ReviewComment): HTMLElement {
   const card = document.createElement("div");
   card.className = "comment-card";
   card.dataset.commentId = comment.id;
+  if (comment.id === selectedId) card.setAttribute("aria-current", "true");
 
-  // Get line number from position
-  const view = getEditorView();
-  const lineNumber = view.state.doc.lineAt(comment.highlight_start).number;
+  const { start, end } = getLineSpan(comment.highlight_start, comment.highlight_end);
+  const chip = lineChipLabel(start, end);
+  const kind = comment.comment_type === "inline" ? "Inline" : "Line";
+  const quote = commentExcerpt(
+    getEditorView().state.doc.sliceString(comment.highlight_start, comment.highlight_end)
+  );
 
   card.innerHTML = `
     <div class="comment-header">
-      <span class="comment-line">Line ${lineNumber}</span>
+      <button class="comment-line-chip" type="button" title="Go to ${chip}">${chip}</button>
+      <span class="comment-kind">${kind}</span>
       <div class="comment-actions">
         <button class="edit-btn" type="button" aria-label="Edit comment" title="Edit comment">${icons.pencil}</button>
         <button class="delete-btn" type="button" aria-label="Delete comment" title="Delete comment">${icons.trash}</button>
       </div>
     </div>
+    ${quote ? `<div class="comment-quote">${escapeHtml(quote)}</div>` : ""}
     <div class="comment-text">${escapeHtml(comment.text)}</div>
   `;
 
@@ -133,8 +280,13 @@ function createCommentCard(comment: ReviewComment): HTMLElement {
     const target = e.target as HTMLElement;
     if (target.closest(".delete-btn, .edit-btn")) return;
     if (card.querySelector(".comment-edit-container")) return;
+    setSelected(comment.id);
+    flashCommentPassage(comment.id);
     clickHandler?.(comment);
   });
+
+  card.addEventListener("mouseenter", () => setHovered([comment.id], false));
+  card.addEventListener("mouseleave", () => setHovered([], false));
 
   card.querySelector(".edit-btn")?.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -151,7 +303,7 @@ function createCommentCard(comment: ReviewComment): HTMLElement {
 
 function enterEditMode(card: HTMLElement, comment: ReviewComment) {
   const textEl = card.querySelector(".comment-text") as HTMLElement;
-  if (!textEl) return;
+  if (!textEl || card.querySelector(".comment-edit-container")) return;
 
   textEl.style.display = "none";
 
@@ -161,16 +313,19 @@ function enterEditMode(card: HTMLElement, comment: ReviewComment) {
   const textarea = document.createElement("textarea");
   textarea.className = "comment-edit-textarea";
   textarea.value = comment.text;
-  textarea.rows = 3;
+  textarea.rows = 2;
+  textarea.setAttribute("aria-label", "Edit comment");
 
   const actions = document.createElement("div");
   actions.className = "comment-edit-actions";
 
   const cancelBtn = document.createElement("button");
+  cancelBtn.type = "button";
   cancelBtn.className = "cancel-btn";
   cancelBtn.textContent = "Cancel";
 
   const saveBtn = document.createElement("button");
+  saveBtn.type = "button";
   saveBtn.className = "submit-btn";
   saveBtn.textContent = "Save";
 
@@ -179,7 +334,10 @@ function enterEditMode(card: HTMLElement, comment: ReviewComment) {
   container.appendChild(textarea);
   container.appendChild(actions);
   textEl.after(container);
+  autoGrowTextarea(textarea);
   textarea.focus();
+  textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+  textarea.addEventListener("input", () => autoGrowTextarea(textarea));
 
   const doSave = () => {
     const newText = textarea.value.trim();

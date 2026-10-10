@@ -20,7 +20,11 @@
   --success-color: #4ade80;
   --accent-text: #3794ff;
   --highlight-bg: rgba(255, 213, 0, 0.25);
+  --highlight-bg-strong: rgba(255, 213, 0, 0.38);
   --highlight-border: #ffd500;
+  --comment-focus-bg: rgba(255, 213, 0, 0.45);
+  --pending-bg: rgba(55, 148, 255, 0.12);
+  --composer-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   --overlay-backdrop: rgba(0, 0, 0, 0.8);
   --overlay-text: #f5f5f5;
   --overlay-hover: rgba(255, 255, 255, 0.12);
@@ -46,7 +50,11 @@ body.light-theme {
   --success-color: #1a7f37;
   --accent-text: #0066b8;
   --highlight-bg: rgba(255, 213, 0, 0.35);
+  --highlight-bg-strong: rgba(255, 200, 0, 0.5);
   --highlight-border: #e6a700;
+  --comment-focus-bg: rgba(255, 200, 0, 0.6);
+  --pending-bg: rgba(0, 102, 184, 0.08);
+  --composer-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
   --overlay-backdrop: rgba(0, 0, 0, 0.8);
   --overlay-text: #f5f5f5;
   --overlay-hover: rgba(255, 255, 255, 0.12);
@@ -947,6 +955,39 @@ body {
   background: var(--highlight-bg);
 }
 
+/* Several comments on one block */
+#preview-container [data-commentable="true"].review-comment-multi {
+  background: var(--highlight-bg-strong);
+  outline-width: 2px;
+}
+
+#preview-container tr.review-comment-multi > td,
+#preview-container tr.review-comment-multi > th {
+  background: var(--highlight-bg-strong);
+}
+
+/* Target of the open composer (preview block or CodeMirror mark) */
+#preview-container [data-commentable="true"].comment-pending,
+.cm-editor .comment-pending {
+  background: var(--pending-bg);
+  outline: 1px dashed var(--accent-text);
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+
+/* Comment focus flash; two names so a repeated flash restarts (sidebar.ts) */
+@keyframes comment-flash {
+  from {
+    box-shadow: 0 0 0 4px var(--highlight-border);
+  }
+}
+
+@keyframes comment-flash-alt {
+  from {
+    box-shadow: 0 0 0 4px var(--highlight-border);
+  }
+}
+
 /* Commentable element hover effect */
 #preview-container [data-commentable="true"] {
   position: relative;
@@ -1190,51 +1231,7 @@ body.rail-resizing {
   user-select: none;
 }
 
-/* Comment input area */
-#comment-input-area {
-  padding: 12px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-tertiary);
-}
-
-.input-header {
-  margin-bottom: 8px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-
-#comment-textarea {
-  width: 100%;
-  min-height: 80px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  color: var(--text-primary);
-  padding: 10px;
-  resize: vertical;
-  font-family: inherit;
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-#comment-textarea:focus {
-  outline: none;
-  border-color: var(--accent-color);
-}
-
-#comment-textarea::placeholder {
-  color: var(--text-secondary);
-}
-
-.input-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.input-actions button,
+.composer-actions button,
 .comment-edit-actions button {
   padding: 6px 14px;
   border: none;
@@ -1273,16 +1270,21 @@ body.rail-resizing {
 .comment-card {
   background: var(--bg-tertiary);
   border-radius: 6px;
-  padding: 12px;
+  padding: 10px 12px 12px;
   margin-bottom: 8px;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s, border-color 0.15s;
   border: 1px solid transparent;
 }
 
 .comment-card:hover {
   background: var(--bg-hover);
   border-color: var(--border-color);
+}
+
+.comment-card[aria-current="true"] {
+  border-color: var(--accent-text);
+  box-shadow: inset 2px 0 0 var(--accent-text);
 }
 
 .comment-card.highlight-flash {
@@ -1302,17 +1304,66 @@ body.rail-resizing {
 
 .comment-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  gap: 8px;
+  margin-bottom: 6px;
+  min-height: 22px;
 }
 
-.comment-line {
+.comment-line-chip {
+  padding: 1px 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  color: var(--text-medium);
+  font-family: 'SF Mono', Monaco, Consolas, monospace;
+  font-size: 11px;
+  line-height: 16px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.comment-line-chip:hover {
+  border-color: var(--accent-text);
+  color: var(--accent-text);
+}
+
+.comment-line-chip:focus-visible,
+.comment-actions button:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 1px;
+}
+
+.comment-kind {
   font-size: 11px;
   color: var(--text-secondary);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+}
+
+/* Icon actions show on card hover or keyboard focus */
+.comment-card .comment-actions {
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.comment-card:hover .comment-actions,
+.comment-card:focus-within .comment-actions {
+  opacity: 1;
+}
+
+.comment-quote {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  margin-bottom: 6px;
+  padding-left: 8px;
+  border-left: 2px solid color-mix(in srgb, var(--accent-text) 55%, transparent);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .delete-btn {
@@ -1343,14 +1394,158 @@ body.rail-resizing {
   font-size: 13px;
   line-height: 1.5;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   color: var(--text-primary);
 }
 
 .no-comments {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
   color: var(--text-secondary);
   text-align: center;
   padding: 40px 20px;
   font-size: 13px;
+}
+
+.no-comments-icon .icon-svg {
+  width: 28px;
+  height: 28px;
+  stroke-width: 1.5;
+  margin-bottom: 4px;
+}
+
+.no-comments-title {
+  color: var(--text-medium);
+  font-weight: 500;
+}
+
+.no-comments-hint {
+  max-width: 240px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* Count badge next to the rail title */
+.rail-title-count {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  vertical-align: 1px;
+}
+
+/* Collapsed rail badge pulse after a comment is added */
+.rail-count.pulse {
+  animation: rail-count-pulse 0.6s ease-out 2;
+}
+
+@keyframes rail-count-pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 var(--accent-text);
+  }
+  40% {
+    transform: scale(1.3);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+
+/* Floating comment composer (composer.ts) */
+.comment-composer {
+  position: fixed;
+  z-index: 1500;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: var(--composer-shadow);
+}
+
+.composer-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-medium);
+}
+
+.comment-composer .comment-quote {
+  margin-bottom: 0;
+}
+
+.composer-textarea {
+  width: 100%;
+  min-height: 60px;
+  max-height: 240px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  padding: 8px 10px;
+  resize: none;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.composer-textarea:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+.composer-textarea::placeholder {
+  color: var(--text-secondary);
+}
+
+.composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.composer-hint {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.composer-hint kbd {
+  font-family: inherit;
+  font-size: 11px;
+  padding: 0 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  background: var(--bg-tertiary);
+}
+
+.composer-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .comment-card,
+  .comment-card .comment-actions,
+  .comment-line-chip {
+    transition: none;
+  }
+
+  .comment-card.highlight-flash,
+  .rail-count.pulse {
+    animation: none;
+  }
 }
 
 /* Comment highlight in editor */
@@ -2002,12 +2197,13 @@ body.light-theme #preview-container .hljs-operator { color: #1e1e1e; }
 .comment-edit-textarea {
   width: 100%;
   min-height: 60px;
+  max-height: 320px;
   background: var(--bg-primary);
   border: 1px solid var(--accent-color);
   border-radius: 4px;
   color: var(--text-primary);
   padding: 8px;
-  resize: vertical;
+  resize: none;
   font-family: inherit;
   font-size: 13px;
   line-height: 1.5;

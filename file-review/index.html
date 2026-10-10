@@ -89,25 +89,9 @@
       <aside id="sidebar" class="rail rail-right">
         <div id="sidebar-comments-panel" class="rail-panel">
           <div id="sidebar-header" class="rail-header">
-            <span class="rail-title">Comments</span>
+            <span class="rail-title">Comments <span id="comments-count" class="rail-title-count" hidden>0</span></span>
             <div class="rail-header-actions">
               <button class="rail-icon-btn" type="button" data-rail-toggle="right" aria-label="Hide comments" title="Hide comments (⌘⌥B)"><span class="icon" data-icon="panel-right"></span></button>
-            </div>
-          </div>
-
-          <!-- Comment input area (hidden by default) -->
-          <div id="comment-input-area" style="display: none;">
-            <div class="input-header">
-              <span id="comment-line-label">Line 0</span>
-            </div>
-            <textarea
-              id="comment-textarea"
-              placeholder="Enter your comment... (⌘↵ to submit)"
-              rows="4"
-            ></textarea>
-            <div class="input-actions">
-              <button id="comment-cancel-btn" class="cancel-btn">Cancel</button>
-              <button id="comment-submit-btn" class="submit-btn">Add Comment</button>
             </div>
           </div>
 
@@ -128,6 +112,19 @@
         <p>Open a markdown file to start reviewing</p>
         <button id="empty-open-btn" class="primary-btn">Open File</button>
         <div class="shortcut-hint">or press ⌘O</div>
+      </div>
+    </div>
+  </div>
+  <!-- Floating comment composer, anchored next to its target -->
+  <div id="comment-composer" class="comment-composer" role="dialog" aria-label="Add comment" hidden>
+    <div class="composer-label"></div>
+    <div class="comment-quote composer-quote" hidden></div>
+    <textarea class="composer-textarea" placeholder="Add a comment" rows="2" aria-label="Comment"></textarea>
+    <div class="composer-footer">
+      <span class="composer-hint"><kbd>⌘↵</kbd> to submit, <kbd>Esc</kbd> to cancel</span>
+      <div class="composer-actions">
+        <button type="button" class="cancel-btn composer-cancel">Cancel</button>
+        <button type="button" class="submit-btn composer-submit">Comment</button>
       </div>
     </div>
   </div>

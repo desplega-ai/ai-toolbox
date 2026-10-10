@@ -7,6 +7,7 @@ import {
   getEditorState,
   setEditorState,
   getSelection,
+  getRangeRect,
   scrollToPosition,
   updateTheme,
   updateVimMode,
@@ -30,10 +31,13 @@ import {
 import {
   initSidebar,
   renderComments,
-  showCommentInput,
-  hideCommentInput,
-  setupCommentInput,
+  initCommentLinking,
+  selectCommentFromPassage,
+  flashCommentPassage,
+  pulseCommentBadge,
 } from "./sidebar";
+import { initComposer, openComposer, closeComposer, type ComposerTarget } from "./composer";
+import { commentExcerpt } from "./comment-utils";
 import { showFilePicker } from "./file-picker";
 import { initShortcuts, showShortcutsHelp } from "./shortcuts";
 import { type Theme } from "./theme";
@@ -64,6 +68,7 @@ import {
   initLayout,
   applyLayout,
   setLeftRailAvailable,
+  isRailOpen,
   toggleRail,
   toggleReadingWidth,
 } from "./layout";
@@ -431,17 +436,17 @@ async function init() {
   });
 
   // Initialize sidebar handlers
-  initSidebar(
-    handleDeleteComment,
-    handleCommentClick,
-    handleCommentSubmit,
-    handleEditComment,
-    readActive
-  );
-  setupCommentInput();
+  initSidebar(handleDeleteComment, handleCommentClick, handleEditComment, readActive);
+  initComposer({
+    onSubmit: handleCommentSubmit,
+    onClose: () => {
+      if (readActive()?.pendingPreviewComment) writeActive({ pendingPreviewComment: null });
+    },
+  });
 
   // Initialize markdown preview
   initPreview(document.getElementById("preview-container")!, readActive, showToast);
+  initCommentLinking(document.getElementById("preview-container")!, getEditorView().dom);
   initMermaid(() => currentTheme, showToast);
   onPreviewRendered(decoratePreview);
   initLinkRouter({
@@ -516,6 +521,7 @@ async function init() {
   // the incoming tab's content. `subscribeActiveChange` fires synchronously
   // BEFORE the regular subscribe() listeners (tab-strip render).
   tabManager.subscribeActiveChange((from, to) => {
+    closeComposer();
     if (from) snapshotActiveDocFor(from);
     if (to) activateTab(to);
     else clearActiveDisplay();
@@ -660,34 +666,10 @@ async function init() {
     event.returnValue = "";
   });
 
-  // Listen for preview comment clicks (when clicking on highlighted text)
-  window.addEventListener("preview-comment-click", ((e: CustomEvent<{ commentId: string }>) => {
-    const active = readActive();
-    const comment = active?.comments.find(c => c.id === e.detail.commentId);
-    if (comment) {
-      // Highlight the comment card in sidebar
-      const card = document.querySelector(`[data-comment-id="${comment.id}"]`);
-      if (card) {
-        card.scrollIntoView({ behavior: "smooth", block: "center" });
-        card.classList.add("highlight-flash");
-        setTimeout(() => card.classList.remove("highlight-flash"), 1000);
-      }
-    }
-  }) as EventListener);
-
-  // Listen for preview element clicks (when clicking on commentable element with a comment)
-  window.addEventListener("preview-element-click", ((e: CustomEvent<{ commentId: string; element: HTMLElement }>) => {
-    const active = readActive();
-    const comment = active?.comments.find(c => c.id === e.detail.commentId);
-    if (comment) {
-      // Scroll and highlight the comment card in sidebar
-      const card = document.querySelector(`[data-comment-id="${comment.id}"]`);
-      if (card) {
-        card.scrollIntoView({ behavior: "smooth", block: "center" });
-        card.classList.add("highlight-flash");
-        setTimeout(() => card.classList.remove("highlight-flash"), 1000);
-      }
-    }
+  // A click on a highlighted preview block selects its comment card; repeated
+  // clicks cycle through every comment on the block.
+  window.addEventListener("preview-element-click", ((e: CustomEvent<{ commentIds: string[] }>) => {
+    selectCommentFromPassage(e.detail.commentIds);
   }) as EventListener);
 
   // Listen for config reload requests
@@ -1078,6 +1060,7 @@ async function toggleMarkdownView() {
   const active = readActive();
   if (!active?.isMarkdownFile) return;
 
+  closeComposer();
   const newRawMode = !active.isRawMode;
   writeActive({ isRawMode: newRawMode });
   appConfig.markdown_raw = newRawMode;
@@ -1131,28 +1114,54 @@ function handleAddCommentShortcut() {
       const sourceEnd = parseInt(activeEl.dataset.sourceEnd ?? '0', 10);
       handlePreviewAddComment(sourceStart, sourceEnd, activeEl);
     }
-    // No active block — nothing to comment on
+    // No active block: nothing to comment on
     return;
   }
 
   // Raw mode: use CodeMirror editor position
   const selection = getSelection();
   const view = getEditorView();
+  let from = selection?.from ?? 0;
+  let to = selection?.to ?? 0;
 
   // If no selection, select the current line
-  if (!selection || selection.from === selection.to) {
-    const pos = selection?.from ?? 0;
-    const line = view.state.doc.lineAt(pos);
+  if (from === to) {
+    const line = view.state.doc.lineAt(from);
+    if (line.from === line.to) {
+      showToast("Nothing to comment on an empty line", "info");
+      return;
+    }
     // Select the entire line content (excluding newline)
     view.dispatch({
       selection: { anchor: line.from, head: line.to },
     });
-    showCommentInput(line.number);
-    return;
+    from = line.from;
+    to = line.to;
   }
 
-  const line = view.state.doc.lineAt(selection.from);
-  showCommentInput(line.number);
+  if (active?.pendingPreviewComment) writeActive({ pendingPreviewComment: null });
+  openComposer({
+    sourceStart: from,
+    sourceEnd: to,
+    anchorRect: () => getRangeRect(from, to),
+    quote: commentExcerpt(view.state.doc.sliceString(from, to)),
+  });
+}
+
+/** Composer label for a preview block, e.g. "Paragraph". */
+function blockKindLabel(element: HTMLElement): string {
+  const tagName = element.tagName.toLowerCase();
+  const cls = element.classList;
+  if (cls.contains('preview-line')) return 'Line';
+  if (cls.contains('code-line')) return 'Code line';
+  if (cls.contains('mermaid')) return 'Diagram';
+  if (cls.contains('li-line') || tagName === 'li') return 'List item';
+  if (cls.contains('bq-line') || tagName === 'blockquote') return 'Blockquote';
+  if (tagName === 'p') return 'Paragraph';
+  if (/^h[1-6]$/.test(tagName)) return 'Heading';
+  if (tagName === 'tr') return 'Table row';
+  if (tagName === 'pre') return 'Code block';
+  return 'Block';
 }
 
 /**
@@ -1166,76 +1175,49 @@ function handlePreviewAddComment(
   // Store pending preview comment info on the active tab
   writeActive({ pendingPreviewComment: { sourceStart, sourceEnd, element } });
 
-  // Show comment input in sidebar with element type label
-  const tagName = element.tagName.toLowerCase();
-  const label = (tagName === 'p' && element.classList.contains('preview-line')) ? 'Line' :
-    tagName === 'p' ? 'Paragraph' :
-    tagName.match(/^h[1-6]$/) ? 'Heading' :
-    tagName === 'li' ? 'List item' :
-    tagName === 'tr' ? 'Table row' :
-    tagName === 'blockquote' ? 'Blockquote' :
-    tagName === 'pre' ? 'Code block' : 'Element';
-
-  showCommentInput(0, label);
+  openComposer({
+    sourceStart,
+    sourceEnd,
+    kind: blockKindLabel(element),
+    anchorRect: () => (element.isConnected ? element.getBoundingClientRect() : null),
+    quote: commentExcerpt(getEditorView().state.doc.sliceString(sourceStart, sourceEnd)),
+    pendingElement: element,
+  });
 }
 
-async function handleCommentSubmit(text: string, _lineNumber: number) {
+function handleCommentSubmit(text: string, target: ComposerTarget) {
   const active = readActive();
-  if (!active) {
-    hideCommentInput();
-    return;
-  }
+  if (!active) return;
 
-  // Handle preview mode comment
-  if (active.pendingPreviewComment) {
-    const { sourceStart, sourceEnd, element } = active.pendingPreviewComment;
-    const next = addComment(
-      active.comments,
-      createComment("line", sourceStart, sourceEnd, text)
-    );
-    writeActive({ comments: next, pendingPreviewComment: null });
-    renderCommentState();
-
-    // Flash the element for visual feedback
-    flashElement(element);
-    showToast("Comment added", "success");
-    hideCommentInput();
-    return;
-  }
-
-  // Handle raw mode comment (with selection)
-  const selection = getSelection();
-  if (!selection || selection.from === selection.to) {
-    hideCommentInput();
-    return;
-  }
-
-  const view = getEditorView();
-
-  // Check if selection spans multiple lines or is a full line selection
-  const startLine = view.state.doc.lineAt(selection.from);
-  const endLine = view.state.doc.lineAt(selection.to);
-  const isMultiLine = startLine.number !== endLine.number;
-  const isFullLineSelection =
-    selection.from === startLine.from && selection.to === startLine.to;
-
-  let next: ReviewComment[];
-  if (isMultiLine || isFullLineSelection) {
-    // For multi-line or full-line selections, use line-based comments.
-    const lineStart = startLine.from;
-    const lineEnd = endLine.to;
-    next = addComment(active.comments, createComment("line", lineStart, lineEnd, text));
+  let comment: ReviewComment;
+  const pending = active.pendingPreviewComment;
+  if (pending && pending.element === target.pendingElement) {
+    // Preview block comment
+    comment = createComment("line", pending.sourceStart, pending.sourceEnd, text);
   } else {
-    next = addComment(
-      active.comments,
-      createComment("inline", selection.from, selection.to, text)
-    );
+    // Raw mode comment on the range captured when the composer opened
+    const { sourceStart: from, sourceEnd: to } = target;
+    if (from === to) return;
+    const doc = getEditorView().state.doc;
+
+    // Check if the range spans multiple lines or is a full line
+    const startLine = doc.lineAt(from);
+    const endLine = doc.lineAt(to);
+    const isMultiLine = startLine.number !== endLine.number;
+    const isFullLineSelection = from === startLine.from && to === startLine.to;
+
+    // For multi-line or full-line selections, use line-based comments.
+    comment =
+      isMultiLine || isFullLineSelection
+        ? createComment("line", startLine.from, endLine.to, text)
+        : createComment("inline", from, to, text);
   }
 
-  writeActive({ comments: next });
+  writeActive({ comments: addComment(active.comments, comment), pendingPreviewComment: null });
   renderCommentState();
+  flashCommentPassage(comment.id);
+  if (!isRailOpen("right")) pulseCommentBadge();
   showToast("Comment added", "success");
-  focusEditor();
 }
 
 type LoadFileMode = "replace" | "append";
@@ -1496,10 +1478,28 @@ async function saveFile() {
 
 function handleDeleteComment(commentId: string) {
   const active = readActive();
-  if (!active) return;
+  const comment = active?.comments.find((c) => c.id === commentId);
+  if (!active || !comment) return;
+  const tabId = active.id;
   writeActive({ comments: active.comments.filter((c) => c.id !== commentId) });
   renderCommentState();
-  showToast("Comment removed", "info");
+  showToast("Comment deleted", "info", {
+    action: { label: "Undo", onClick: () => restoreComment(tabId, comment) },
+  });
+}
+
+/** Undo a delete: put the exact comment back into its tab if the tab is still open. */
+function restoreComment(tabId: string, comment: ReviewComment) {
+  const tab = tabManager.tabs.find((t) => t.id === tabId);
+  if (!tab || tab.comments.some((c) => c.id === comment.id)) return;
+  const comments = addComment(tab.comments, comment);
+  if (tab.id === tabManager.activeId) {
+    writeActive({ comments });
+    renderCommentState();
+  } else {
+    const dirty = !!tab.path && serializeComments(tab.doc, comments) !== tab.lastSavedSnapshot;
+    tabManager.update(tab.id, { comments, hasUnsavedChanges: dirty });
+  }
 }
 
 function handleEditComment(commentId: string, newText: string) {

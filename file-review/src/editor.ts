@@ -9,7 +9,7 @@ import { EditorState, Compartment, Prec, type ChangeDesc } from "@codemirror/sta
 import { markdown } from "@codemirror/lang-markdown";
 import { defaultKeymap, history, historyKeymap, undo, redo } from "@codemirror/commands";
 import { vim, Vim } from "@replit/codemirror-vim";
-import { commentHighlightField } from "./comments";
+import { commentHighlightField, pendingHighlightField } from "./comments";
 import { getThemeExtension, type Theme } from "./theme";
 
 let editorView: EditorView;
@@ -44,6 +44,7 @@ export function initEditor(container: HTMLElement, fontSize: number = 14) {
       highlightActiveLine(),
       markdown(),
       commentHighlightField,
+      pendingHighlightField,
       EditorView.updateListener.of((update) => {
         if (!update.docChanged) return;
         docChangeCallbacks.forEach((callback) => callback(update.changes));
@@ -131,6 +132,25 @@ export function scrollToPosition(pos: number) {
 
 export function focusEditor() {
   editorView.focus();
+}
+
+/** 1-based first and last line of `from..to`. An end at a line start stays on the line before. */
+export function getLineSpan(from: number, to: number): { start: number; end: number } {
+  const doc = editorView.state.doc;
+  const start = doc.lineAt(Math.min(from, doc.length)).number;
+  const end = doc.lineAt(Math.min(Math.max(from, to - 1), doc.length)).number;
+  return { start, end: Math.max(start, end) };
+}
+
+/** Viewport rect of `from..to` in the editor, or null when neither end is rendered. */
+export function getRangeRect(from: number, to: number): DOMRect | null {
+  const a = editorView.coordsAtPos(from, 1);
+  const b = editorView.coordsAtPos(to, -1);
+  const first = a ?? b;
+  const last = b ?? a;
+  if (!first || !last) return null;
+  const right = Math.max(first.right, last.right);
+  return new DOMRect(first.left, first.top, Math.max(0, right - first.left), last.bottom - first.top);
 }
 
 export function hasSelection(): boolean {

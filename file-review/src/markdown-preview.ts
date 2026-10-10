@@ -1143,12 +1143,18 @@ function rangesOverlap(
   return aStart < bEnd && aEnd > bStart;
 }
 
-function applyCommentHighlights(root: ParentNode, comments: ReviewComment[]) {
+/**
+ * Mark every commentable block that overlaps a comment. `data-comment-ids`
+ * lists all overlapping ids (space separated, for `~=` selectors);
+ * `data-comment-id` keeps the first one for older callers.
+ */
+export function applyCommentHighlights(root: ParentNode, comments: ReviewComment[]) {
   const elements = root.querySelectorAll<HTMLElement>('[data-commentable="true"]');
 
   elements.forEach((el) => {
-    el.classList.remove('review-comment-highlight');
+    el.classList.remove('review-comment-highlight', 'review-comment-multi');
     el.removeAttribute('data-comment-id');
+    el.removeAttribute('data-comment-ids');
 
     const sourceStart = Number.parseInt(el.dataset.sourceStart ?? '', 10);
     const sourceEnd = Number.parseInt(el.dataset.sourceEnd ?? '', 10);
@@ -1156,15 +1162,17 @@ function applyCommentHighlights(root: ParentNode, comments: ReviewComment[]) {
       return;
     }
 
-    const matched = comments.find((comment) =>
+    const matched = comments.filter((comment) =>
       rangesOverlap(comment.highlight_start, comment.highlight_end, sourceStart, sourceEnd)
     );
-    if (!matched) {
+    if (matched.length === 0) {
       return;
     }
 
     el.classList.add('review-comment-highlight');
-    el.setAttribute('data-comment-id', matched.id);
+    el.classList.toggle('review-comment-multi', matched.length > 1);
+    el.setAttribute('data-comment-id', matched[0].id);
+    el.setAttribute('data-comment-ids', matched.map((c) => c.id).join(' '));
   });
 }
 
@@ -1465,10 +1473,10 @@ function setupElementClickHandlers() {
         return;
       }
 
-      const commentId = el.getAttribute('data-comment-id');
-      if (commentId) {
+      const commentIds = (el.getAttribute('data-comment-ids') ?? '').split(' ').filter(Boolean);
+      if (commentIds.length > 0) {
         window.dispatchEvent(new CustomEvent('preview-element-click', {
-          detail: { commentId, element: el }
+          detail: { commentId: commentIds[0], commentIds, element: el }
         }));
       }
     });
@@ -1698,8 +1706,9 @@ export function updatePreview(content: string, comments: ReviewComment[]) {
 export function scrollPreviewToComment(commentId: string) {
   if (!previewContainer) return;
 
-  const element = previewContainer.querySelector(`[data-comment-id="${commentId}"]`);
-  element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const element = previewContainer.querySelector(`[data-comment-ids~="${commentId}"]`);
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+  element?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
 }
 
 export function getPreviewContainer(): HTMLElement | null {

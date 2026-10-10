@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'bun:test';
+import type { ReviewComment } from '../src/comments';
 import {
+  applyCommentHighlights,
   collectCommentableRanges,
   initPreview,
   renderMarkdown,
@@ -459,6 +461,75 @@ describe('heading links', () => {
     expect(btn.getAttribute('aria-label')).toBe('Copy link to heading');
     expect(heading.textContent).toBe('Hello World');
     expect(heading.dataset.commentable).toBe('true');
+    container.remove();
+  });
+});
+
+function comment(id: string, start: number, end: number): ReviewComment {
+  return { id, text: id, comment_type: 'line', marker_pos: start, highlight_start: start, highlight_end: end };
+}
+
+describe('comment highlights', () => {
+  const markdown = 'First para.\n\nSecond para.\n';
+  const second = markdown.indexOf('Second');
+
+  it('records every overlapping comment id on a block', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    initPreview(container);
+    updatePreview(markdown, [
+      comment('aaa', second, second + 12),
+      comment('bbb', second + 7, second + 12),
+    ]);
+
+    const [first, block] = Array.from(container.querySelectorAll<HTMLElement>('p'));
+    expect(first.hasAttribute('data-comment-ids')).toBe(false);
+    expect(first.classList.contains('review-comment-highlight')).toBe(false);
+    expect(block.getAttribute('data-comment-ids')).toBe('aaa bbb');
+    expect(block.getAttribute('data-comment-id')).toBe('aaa');
+    expect(block.classList.contains('review-comment-highlight')).toBe(true);
+    expect(block.classList.contains('review-comment-multi')).toBe(true);
+    container.remove();
+  });
+
+  it('uses the single style for one comment and clears stale marks', () => {
+    const root = document.createElement('div');
+    root.innerHTML =
+      '<p data-commentable="true" data-source-start="0" data-source-end="10" data-comment-ids="old x" class="review-comment-multi">x</p>';
+    const el = root.firstElementChild as HTMLElement;
+
+    applyCommentHighlights(root, [comment('one', 2, 4)]);
+    expect(el.getAttribute('data-comment-ids')).toBe('one');
+    expect(el.classList.contains('review-comment-multi')).toBe(false);
+
+    applyCommentHighlights(root, []);
+    expect(el.hasAttribute('data-comment-ids')).toBe(false);
+    expect(el.hasAttribute('data-comment-id')).toBe(false);
+    expect(el.classList.contains('review-comment-highlight')).toBe(false);
+  });
+
+  it('dispatches preview-element-click with all comment ids', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    initPreview(container);
+    updatePreview(markdown, [
+      comment('aaa', second, second + 12),
+      comment('bbb', second, second + 6),
+    ]);
+
+    let detail: { commentId: string; commentIds: string[]; element: HTMLElement } | null = null;
+    const listener = (e: Event) => {
+      detail = (e as CustomEvent).detail;
+    };
+    window.addEventListener('preview-element-click', listener);
+    const block = container.querySelectorAll<HTMLElement>('p')[1];
+    block.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    window.removeEventListener('preview-element-click', listener);
+
+    expect(detail).not.toBeNull();
+    expect(detail!.commentId).toBe('aaa');
+    expect(detail!.commentIds).toEqual(['aaa', 'bbb']);
+    expect(detail!.element).toBe(block);
     container.remove();
   });
 });

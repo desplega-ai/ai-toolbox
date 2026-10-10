@@ -73,6 +73,30 @@ export const commentHighlightField = StateField.define<DecorationSet>({
   provide: (f) => EditorView.decorations.from(f),
 });
 
+// The passage the floating composer is writing a comment on (null clears it).
+export const setPendingHighlight = StateEffect.define<{ from: number; to: number } | null>();
+
+const pendingMark = Decoration.mark({ class: "comment-pending" });
+
+export const pendingHighlightField = StateField.define<DecorationSet>({
+  create() {
+    return Decoration.none;
+  },
+  update(decorations, tr) {
+    decorations = decorations.map(tr.changes);
+    for (const effect of tr.effects) {
+      if (!effect.is(setPendingHighlight)) continue;
+      const range = effect.value;
+      decorations =
+        range && range.to > range.from
+          ? Decoration.set([pendingMark.range(range.from, range.to)])
+          : Decoration.none;
+    }
+    return decorations;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
 function clampOffset(offset: number, max: number): number {
   return Math.max(0, Math.min(offset, max));
 }
