@@ -19,6 +19,41 @@ use tauri::{
     Emitter, Manager,
 };
 
+/// True for the origins that serve the app itself: the bundled frontend
+/// (tauri://localhost, http(s)://tauri.localhost) and, under `tauri dev`,
+/// the dev server from `build.devUrl`.
+fn is_app_url(url: &tauri::Url, dev_url: Option<&tauri::Url>) -> bool {
+    match (url.scheme(), url.host_str()) {
+        ("tauri", Some("localhost")) => true,
+        ("http" | "https", Some("tauri.localhost")) => true,
+        _ => {
+            tauri::is_dev()
+                && dev_url.is_some_and(|dev| {
+                    dev.scheme() == url.scheme()
+                        && dev.host_str() == url.host_str()
+                        && dev.port_or_known_default() == url.port_or_known_default()
+                })
+        }
+    }
+}
+
+/// Safety net so nothing can navigate the webview away from the app. The
+/// frontend link router handles clicks first; anything that slips through
+/// is blocked here, and web or mail links open in the system default app.
+fn nav_guard<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    tauri::plugin::Builder::new("nav-guard")
+        .on_navigation(|webview, url| {
+            if is_app_url(url, webview.config().build.dev_url.as_ref()) {
+                return true;
+            }
+            if file_ops::is_external_scheme(url.scheme()) {
+                let _ = file_ops::open_with_system(url.as_str());
+            }
+            false
+        })
+        .build()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run(
     file_paths: Vec<String>,
@@ -34,6 +69,7 @@ pub fn run(
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(nav_guard())
         .setup(move |app| {
             // Seed AppState: current_file = first arg (single-file flows still
             // work); initial_files = all args (JS opens a tab per path).
@@ -313,6 +349,9 @@ pub fn run(
             file_ops::get_initial_files,
             file_ops::submit_tab_states,
             file_ops::reveal_in_finder,
+            file_ops::file_exists,
+            file_ops::open_external,
+            file_ops::open_path,
             file_ops::is_stdin_mode,
             file_ops::get_version,
             comments::parse_comments,

@@ -103,6 +103,59 @@ pub fn reveal_in_finder(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn file_exists(path: String) -> bool {
+    std::path::Path::new(&path).exists()
+}
+
+/// Open a URL or local path with the OS default handler.
+pub fn open_with_system(target: &str) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    let mut cmd = std::process::Command::new("open");
+    #[cfg(target_os = "linux")]
+    let mut cmd = std::process::Command::new("xdg-open");
+    #[cfg(target_os = "windows")]
+    let mut cmd = {
+        let mut c = std::process::Command::new("cmd");
+        c.args(["/c", "start", ""]);
+        c
+    };
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    return Err(format!("Cannot open {} on this platform", target));
+
+    #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
+    cmd.arg(target)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+/// Schemes the app may hand to the OS. Everything else stays blocked.
+pub fn is_external_scheme(scheme: &str) -> bool {
+    matches!(scheme, "http" | "https" | "mailto")
+}
+
+#[tauri::command]
+pub fn open_external(url: String) -> Result<(), String> {
+    let parsed = tauri::Url::parse(&url).map_err(|e| e.to_string())?;
+    if !is_external_scheme(parsed.scheme()) {
+        return Err(format!("Unsupported URL scheme: {}", parsed.scheme()));
+    }
+    open_with_system(parsed.as_str())
+}
+
+#[tauri::command]
+pub fn open_path(path: String) -> Result<(), String> {
+    let p = std::path::Path::new(&path);
+    if !p.is_absolute() {
+        return Err(format!("Not an absolute path: {}", path));
+    }
+    if !p.exists() {
+        return Err(format!("File not found: {}", path));
+    }
+    open_with_system(&path)
+}
+
+#[tauri::command]
 pub fn is_stdin_mode(state: State<'_, AppState>) -> bool {
     state.stdin_mode
 }

@@ -12,7 +12,7 @@ use crate::config::{load_config as load_config_internal, save_config as save_con
 use crate::file_ops::AppState;
 use axum::{
     body::Body,
-    extract::{Extension, Json, Path},
+    extract::{Extension, Json, Path, Query},
     http::{header, Response, StatusCode},
     response::IntoResponse,
     routing::{get, post},
@@ -94,6 +94,22 @@ pub struct RemoveCommentRequest {
     pub comment_id: String,
 }
 
+/// Request body for file_exists
+#[derive(Deserialize)]
+pub struct FileExistsRequest {
+    pub path: String,
+}
+
+/// Query for GET /api/asset
+#[derive(Deserialize)]
+pub struct LocalAssetQuery {
+    pub path: String,
+}
+
+/// Extensions /api/asset is allowed to serve. Keeps the endpoint from
+/// becoming a generic file reader for anything but preview images.
+const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "svg", "avif", "bmp", "ico"];
+
 /// Response for insert comment operations
 #[derive(Serialize)]
 pub struct InsertCommentResponse {
@@ -126,6 +142,8 @@ pub fn create_router(state: Arc<WebState>) -> Router {
         .route("/api/insert-wrapped-comment", post(insert_wrapped_comment))
         .route("/api/insert-nextline-comment", post(insert_nextline_comment))
         .route("/api/remove-comment", post(remove_comment))
+        .route("/api/file-exists", post(file_exists))
+        .route("/api/asset", get(serve_local_asset))
         .route("/api/quit", post(quit))
         // Web mode indicator
         .route("/api/is-web-mode", get(is_web_mode))
@@ -268,6 +286,48 @@ async fn insert_nextline_comment(
 async fn remove_comment(Json(req): Json<RemoveCommentRequest>) -> impl IntoResponse {
     let content = remove_comment_internal(req.content, req.comment_id);
     Json(content)
+}
+
+/// POST /api/file-exists
+async fn file_exists(Json(req): Json<FileExistsRequest>) -> impl IntoResponse {
+    Json(std::path::Path::new(&req.path).exists())
+}
+
+/// GET /api/asset?path=<absolute path> - serve a local image for the preview
+async fn serve_local_asset(Query(query): Query<LocalAssetQuery>) -> Response<Body> {
+    let status_response = |status: StatusCode, msg: &str| {
+        Response::builder()
+            .status(status)
+            .body(Body::from(msg.to_string()))
+            .unwrap()
+    };
+
+    let canonical = match std::fs::canonicalize(&query.path) {
+        Ok(p) => p,
+        Err(_) => return status_response(StatusCode::NOT_FOUND, "Not found"),
+    };
+    let is_image = canonical
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| IMAGE_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()))
+        .unwrap_or(false);
+    if !is_image {
+        return status_response(StatusCode::FORBIDDEN, "Only image files can be served");
+    }
+
+    match std::fs::read(&canonical) {
+        Ok(bytes) => {
+            let mime = mime_guess::from_path(&canonical)
+                .first_or_octet_stream()
+                .to_string();
+            Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, mime)
+                .body(Body::from(bytes))
+                .unwrap()
+        }
+        Err(_) => status_response(StatusCode::NOT_FOUND, "Not found"),
+    }
 }
 
 /// GET /api/is-web-mode - Returns true to indicate we're in web mode

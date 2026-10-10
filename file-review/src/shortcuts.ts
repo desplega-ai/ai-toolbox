@@ -30,6 +30,8 @@ export const shortcuts: Shortcut[] = [
   { keys: "⌃D / ⌃U", description: "Preview: page down/up (vim)" },
   { keys: "/ or ⌘F", description: "Preview: search" },
   { keys: "n / N", description: "Preview: next/prev match (vim)" },
+  { keys: "+ / - / 0", description: "Image viewer: zoom in/out, fit" },
+  { keys: "← / →", description: "Image viewer: previous/next image" },
 ];
 
 let helpModalVisible = false;

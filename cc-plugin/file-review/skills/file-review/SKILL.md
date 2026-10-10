@@ -155,6 +155,8 @@ Propose all candidates (recent files + pending batches) via a single **multi-sel
 
 Preview-mode vim navigation (`j`/`k` next/prev block, `gg`/`G` first/last, `Ctrl+D`/`Ctrl+U` page, `/` or `Cmd+F` search, `n`/`N` next/prev match) is listed in the in-app `Cmd+/` shortcuts modal.
 
+In the preview, links route inside the app: `#heading` scrolls, links to `.md`/`.markdown`/`.mdx`/`.txt` files open as tabs, other local files open in their default app (Tauri only), and web links open in the system browser. Clicking an image opens a viewer: `Esc` close, `+`/`-` zoom, `0` fit, `←`/`→` previous/next image.
+
 ### Binary / CLI Reference
 
 `file-review [OPTIONS] [FILE]...` — mirrors `file-review --help` (`main.rs:280-318`).

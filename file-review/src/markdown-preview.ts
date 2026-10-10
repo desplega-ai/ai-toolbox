@@ -1551,6 +1551,13 @@ function addCopyButtons() {
   });
 }
 
+let afterRenderHook: ((container: HTMLElement) => void) | null = null;
+
+/** Run `hook` after every preview render (link and image decoration). */
+export function onPreviewRendered(hook: (container: HTMLElement) => void): void {
+  afterRenderHook = hook;
+}
+
 // Cancel any in-flight mermaid render whenever a fresh `updatePreview` runs —
 // only the latest call's diagrams should land in the DOM.
 let activeMermaidController: AbortController | null = null;
@@ -1582,6 +1589,7 @@ export function updatePreview(content: string, comments: ReviewComment[]) {
   void renderMermaidBlocks(previewContainer, activeMermaidController.signal);
 
   addCopyButtons();
+  afterRenderHook?.(previewContainer);
 }
 
 export function scrollPreviewToComment(commentId: string) {

@@ -8,6 +8,7 @@
  * In web mode, we call /api/is-web-mode to confirm.
  */
 
+import { convertFileSrc } from "@tauri-apps/api/core";
 import type { ReviewComment } from "./comments";
 import type { AppConfig } from "./config";
 
@@ -83,6 +84,7 @@ function commandToEndpoint(cmd: string): string {
     insert_wrapped_comment: "/api/insert-wrapped-comment",
     insert_nextline_comment: "/api/insert-nextline-comment",
     remove_comment: "/api/remove-comment",
+    file_exists: "/api/file-exists",
   };
 
   return mapping[cmd] || `/api/${cmd.replace(/_/g, "-")}`;
@@ -260,6 +262,33 @@ export const API = {
       return;
     }
     return tauriInvoke<void>("reveal_in_finder", { path });
+  },
+
+  async fileExists(path: string): Promise<boolean> {
+    return this.invoke<boolean>("file_exists", { path });
+  },
+
+  /** Open an http(s) or mailto URL outside the app. */
+  async openExternal(url: string): Promise<void> {
+    if (!isTauri()) {
+      window.open(url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    return tauriInvoke<void>("open_external", { url });
+  },
+
+  /** Open a local file with its default app. Tauri only. */
+  async openPath(path: string): Promise<void> {
+    if (!isTauri()) {
+      throw new Error("Opening local files is not available in web mode");
+    }
+    return tauriInvoke<void>("open_path", { path });
+  },
+
+  /** URL the webview can load a local file from (preview images). */
+  assetUrl(path: string): string {
+    if (isTauri()) return convertFileSrc(path);
+    return `/api/asset?path=${encodeURIComponent(path)}`;
   },
 
   async getConfigPath(): Promise<string> {

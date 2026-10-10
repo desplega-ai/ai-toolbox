@@ -51,6 +51,7 @@ import {
   flashElement,
   getPreviewContainer,
   refreshMermaidForTheme,
+  onPreviewRendered,
 } from "./markdown-preview";
 import { initMermaid } from "./mermaid";
 import { extractTocEntries, initToc, renderToc } from "./toc";
@@ -58,6 +59,7 @@ import { PreviewNavigator } from "./preview-nav";
 import { TabManager, type Tab } from "./tabs";
 import { initTabStrip } from "./tabs-view";
 import { icons, hydrateIcons } from "./icons";
+import { initLinkRouter, decoratePreview, invalidateLinkCache } from "./links";
 
 const tabManager = new TabManager();
 
@@ -428,6 +430,15 @@ async function init() {
   // Initialize markdown preview
   initPreview(document.getElementById("preview-container")!, readActive);
   initMermaid(() => currentTheme);
+  onPreviewRendered(decoratePreview);
+  initLinkRouter({
+    getActiveTab: readActive,
+    openDoc: async (path) => {
+      await loadFile(path, "append");
+      hideEmptyState();
+    },
+    toast: showToast,
+  });
 
   // Initialize ToC (passes active-tab accessor for step-2/3 forward-compat)
   initToc(readActive);
@@ -1331,6 +1342,7 @@ function activateTab(tabId: string) {
   const tab = tabManager.tabs.find((t) => t.id === tabId);
   if (!tab) return;
   void API.setCurrentFile(tab.path ?? "");
+  invalidateLinkCache();
   activateTabUI(tab);
 }
 
@@ -1450,6 +1462,7 @@ async function saveFile() {
     const contentWithComments = getSerializedContentForPersistence();
     await API.writeFile(active.path, contentWithComments);
     markSnapshotAsSaved(contentWithComments);
+    invalidateLinkCache();
     showToast("File saved", "success");
   } catch (error) {
     console.error("Failed to save file:", error);
