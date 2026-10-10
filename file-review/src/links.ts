@@ -265,7 +265,11 @@ export function decoratePreview(container: HTMLElement): void {
   const generation = ++renderGeneration;
   const current = currentPath();
 
-  container.querySelectorAll("a[href]").forEach((anchor) => {
+  container.querySelectorAll<HTMLAnchorElement>("a[data-fm-path]").forEach((anchor) => {
+    void resolveFrontmatterPath(anchor, current, generation);
+  });
+
+  container.querySelectorAll("a[href]:not([data-fm-path])").forEach((anchor) => {
     const href = anchor.getAttribute("href") ?? "";
     const link = resolveHref(href, current);
     if (!anchor.getAttribute("title")) anchor.setAttribute("title", describeLink(link, href));
@@ -290,6 +294,41 @@ export function decoratePreview(container: HTMLElement): void {
     img.dataset.path = link.path;
     img.src = API.assetUrl(link.path);
   });
+}
+
+/**
+ * Folders a frontmatter path may be relative to: the file's own folder, then
+ * each ancestor. Plans write paths like "thoughts/x/research.md" relative to
+ * the repo root, not to the plan file.
+ */
+export function frontmatterPathCandidates(raw: string, currentFilePath: string | null): string[] {
+  const first = resolveHref(raw, currentFilePath);
+  if (first.kind !== "doc" && first.kind !== "file") return [];
+  const candidates = [first.path!];
+  if (raw.startsWith("/") || !currentFilePath) return candidates;
+  const relative = raw.replace(/^\.\//, "");
+  let dir = currentFilePath.slice(0, currentFilePath.lastIndexOf("/"));
+  while (dir.lastIndexOf("/") > 0) {
+    dir = dir.slice(0, dir.lastIndexOf("/"));
+    const candidate = `${dir}/${relative}`;
+    if (!candidates.includes(candidate)) candidates.push(candidate);
+  }
+  return candidates;
+}
+
+async function resolveFrontmatterPath(anchor: HTMLAnchorElement, current: string | null, generation: number) {
+  const raw = anchor.dataset.fmPath ?? "";
+  const candidates = frontmatterPathCandidates(raw, current);
+  for (const path of candidates) {
+    if (!(await checkExists(path))) continue;
+    if (generation !== renderGeneration) return;
+    anchor.setAttribute("href", path);
+    anchor.setAttribute("title", path);
+    return;
+  }
+  if (generation !== renderGeneration || candidates.length === 0) return;
+  anchor.classList.add("link-broken");
+  anchor.setAttribute("title", `Not found: ${raw}`);
 }
 
 function showMissingImage(img: HTMLImageElement): void {

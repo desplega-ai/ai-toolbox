@@ -186,6 +186,7 @@ Cmd+S, Cmd+W, Cmd+T, Cmd+1…9, Cmd+N/P, Cmd+B, Cmd+Option+B and Cmd+Shift+E als
 - **Comment composer.** A floating composer opens next to the target. The target is marked as pending until you submit or cancel.
 - **Highlights.** Inline comments highlight only their text. Line comments highlight their blocks. Overlapping comments get a stronger style. Click a passage to select its card. Click it again to cycle through overlapping comments.
 - **Links.** `#heading` links scroll to the heading. Links to `.md`, `.markdown`, `.mdx` and `.txt` files open as tabs (then scroll to the `#fragment`). Other local documents and media (PDF, images, text, audio, video) open in their default app. Any other file type (apps, scripts, installers, folders) is only revealed in Finder, so a link can never launch code. Native only; web mode shows an info toast. `http`, `https` and `mailto` links open in the system browser. Broken local links are marked. External links get an icon.
+- **Frontmatter.** Leading YAML frontmatter shows as a collapsible **Properties** card above the document. Collapsed, it is one line with the status badge, the date and the first tags. Expanded, it lists every field: status as a colored badge, dates in readable form, commit hashes shortened (click to copy), URLs and file paths as links (paths resolve from the file's folder, then from each parent folder). Inline `[a, b]` and block `- item` lists both show as chips.
 - **Local images.** Relative and absolute image paths resolve against the file. Missing images show an "Image not found" placeholder. Click an image to open the **lightbox**: zoom (wheel, pinch, buttons, keys), drag to pan, copy path, reveal in Finder (native only).
 - **Diagram tools.** Each rendered mermaid diagram has a hover toolbar: **Expand** (opens the lightbox), **Copy source**, **Download SVG** (save dialog natively, browser download in web mode). Syntax errors show the message with a "Show source" disclosure.
 - **Callouts.** GitHub alerts `> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]` and `[!CAUTION]` render as colored callouts.
@@ -289,8 +290,9 @@ Persistent settings live in `~/.file-reviewer.json` (`AppConfig` in `src-tauri/s
 | `right_open` | bool | `true` | Comments rail open |
 | `right_width` | number | `340` | Comments rail width, clamped to 260..560 |
 | `reading_width` | string | `"narrow"` | `"narrow"` (80ch column) or `"full"` |
+| `properties_open` | bool | `false` | Frontmatter "Properties" card expanded in the preview |
 
-The app saves `layout` when you resize or toggle a rail or the reading width. `file-review --help` prints the config path and current contents. The in-app `Cmd+/` modal shows the current settings with **Edit Config** and **Reload** buttons.
+The app saves `layout` when you resize or toggle a rail, the reading width, or the Properties card. `file-review --help` prints the config path and current contents. The in-app `Cmd+/` modal shows the current settings with **Edit Config** and **Reload** buttons.
 
 ---
 

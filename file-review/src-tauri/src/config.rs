@@ -33,6 +33,8 @@ pub struct LayoutConfig {
     pub right_width: u32,
     /// "narrow" or "full".
     pub reading_width: String,
+    /// Whether the preview's frontmatter "Properties" card is expanded.
+    pub properties_open: bool,
 }
 
 impl Default for LayoutConfig {
@@ -43,6 +45,7 @@ impl Default for LayoutConfig {
             right_open: true,
             right_width: 340,
             reading_width: "narrow".to_string(),
+            properties_open: false,
         }
     }
 }
@@ -70,6 +73,7 @@ impl LayoutConfig {
             right_open: flag("right_open", defaults.right_open),
             right_width: width("right_width", 260, 560, defaults.right_width),
             reading_width: reading_width.to_string(),
+            properties_open: flag("properties_open", defaults.properties_open),
         }
     }
 }

@@ -63,6 +63,7 @@ import {
   refreshMermaidForTheme,
   onPreviewRendered,
 } from "./markdown-preview";
+import { initFrontmatter, setPropertiesOpen } from "./frontmatter";
 import { initMermaid } from "./mermaid";
 import { extractTocEntries, initToc, renderToc, updateTocActive } from "./toc";
 import { PreviewNavigator } from "./preview-nav";
@@ -454,6 +455,14 @@ async function init() {
 
   // Initialize markdown preview
   initPreview(document.getElementById("preview-container")!, readActive, showToast);
+  setPropertiesOpen(appConfig.layout.properties_open);
+  initFrontmatter(document.getElementById("preview-container")!, {
+    onToggle: (open) => {
+      appConfig.layout.properties_open = open;
+      void saveConfig(appConfig);
+    },
+    toast: showToast,
+  });
   initCommentLinking(document.getElementById("preview-container")!, getEditorView().dom);
   initMermaid(() => currentTheme, showToast);
   onPreviewRendered((container) => {

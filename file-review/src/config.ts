@@ -14,6 +14,8 @@ export interface LayoutConfig {
   right_open: boolean;
   right_width: number;
   reading_width: ReadingWidth;
+  /** Frontmatter "Properties" card expanded in the preview. */
+  properties_open: boolean;
 }
 
 export interface AppConfig {

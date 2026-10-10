@@ -1006,11 +1006,13 @@ describe('renderMarkdown frontmatter', () => {
     const { html, ranges } = renderMarkdown(markdown);
 
     expect(html).toContain('class="frontmatter-card"');
-    expect(html).toContain('Metadata');
+    expect(html).toContain('Properties');
     expect(html).toContain('Date');
     expect(html).toContain('Last Updated By');
-    expect(html).toContain('2026-01-30T12:00:00-08:00');
-    expect(html).toContain('&quot;arewedoomedyet.dev&quot;');
+    expect(html).toContain('datetime="2026-01-30T12:00:00-08:00"');
+    expect(html).toContain('Jan 30, 2026 12:00');
+    expect(html).toContain('>arewedoomedyet.dev<');
+    expect(html).not.toContain('&quot;arewedoomedyet.dev&quot;');
     expect(html).toContain('class="frontmatter-chip">research</span>');
     expect(html).toContain('class="frontmatter-chip">vercel</span>');
     expect(html).toContain('class="frontmatter-chip">convex</span>');

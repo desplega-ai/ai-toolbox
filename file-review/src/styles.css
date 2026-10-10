@@ -601,6 +601,7 @@ body > .mermaidTooltip {
   color: var(--text-primary);
 }
 
+/* Frontmatter "Properties" card: collapsed to one summary line by default */
 #preview-container .frontmatter-card {
   margin-bottom: 1.5em;
   border: 1px solid var(--border-color);
@@ -609,53 +610,123 @@ body > .mermaidTooltip {
   overflow: hidden;
 }
 
+#preview-container .frontmatter-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 6px 12px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+#preview-container .frontmatter-summary::-webkit-details-marker {
+  display: none;
+}
+
+#preview-container .frontmatter-summary:hover {
+  background: var(--bg-tertiary);
+}
+
+#preview-container .frontmatter-summary:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: -2px;
+}
+
+#preview-container .frontmatter-chevron {
+  display: inline-flex;
+  color: var(--text-secondary);
+  transition: transform 0.15s ease;
+}
+
+#preview-container .frontmatter-chevron .icon-svg {
+  width: 14px;
+  height: 14px;
+}
+
+#preview-container .frontmatter-card[open] .frontmatter-chevron {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #preview-container .frontmatter-chevron {
+    transition: none;
+  }
+}
+
 #preview-container .frontmatter-title {
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border-color);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--text-secondary);
 }
 
+#preview-container .frontmatter-glance {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+#preview-container .frontmatter-glance .frontmatter-chip-list {
+  flex-wrap: nowrap;
+}
+
+#preview-container .frontmatter-card[open] .frontmatter-glance {
+  visibility: hidden;
+}
+
+#preview-container .frontmatter-count {
+  margin-left: auto;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
 #preview-container .frontmatter-grid {
   display: grid;
+  border-top: 1px solid var(--border-color);
 }
 
 #preview-container .frontmatter-row {
   display: grid;
-  grid-template-columns: minmax(140px, 220px) 1fr;
+  grid-template-columns: minmax(110px, 160px) 1fr;
   gap: 12px;
-  padding: 10px 14px;
-  border-top: 1px solid var(--border-color);
+  align-items: baseline;
+  padding: 7px 12px 7px 36px;
 }
 
-#preview-container .frontmatter-row:first-child {
-  border-top: none;
+#preview-container .frontmatter-row + .frontmatter-row {
+  border-top: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
 }
 
 #preview-container .frontmatter-label {
   color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
 }
 
 #preview-container .frontmatter-value {
+  min-width: 0;
   font-size: 13px;
   color: var(--text-primary);
-}
-
-#preview-container .frontmatter-text {
-  font-family: 'SF Mono', Monaco, Consolas, monospace;
-  font-size: 12px;
   overflow-wrap: anywhere;
 }
 
 #preview-container .frontmatter-chip-list {
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
 }
 
 #preview-container .frontmatter-chip {
@@ -664,9 +735,61 @@ body > .mermaidTooltip {
   border: 1px solid var(--border-color);
   background: var(--bg-tertiary);
   border-radius: 999px;
-  padding: 2px 8px;
+  padding: 0 8px;
+  font-size: 11px;
+  line-height: 18px;
+}
+
+#preview-container .fm-more {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+#preview-container .fm-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+#preview-container .fm-status-success {
+  background: color-mix(in srgb, var(--success-color) 16%, transparent);
+  color: var(--success-color);
+}
+
+#preview-container .fm-status-progress {
+  background: color-mix(in srgb, var(--accent-text) 16%, transparent);
+  color: var(--accent-text);
+}
+
+#preview-container .fm-status-danger {
+  background: color-mix(in srgb, var(--danger-color) 16%, transparent);
+  color: var(--danger-color);
+}
+
+#preview-container .fm-date {
+  font-variant-numeric: tabular-nums;
+}
+
+#preview-container .fm-commit {
+  padding: 0 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-family: 'SF Mono', Monaco, Consolas, monospace;
   font-size: 12px;
-  line-height: 1.4;
+  line-height: 18px;
+  cursor: copy;
+}
+
+#preview-container .fm-commit:hover {
+  background: var(--bg-hover);
 }
 
 #preview-container .frontmatter-empty {
