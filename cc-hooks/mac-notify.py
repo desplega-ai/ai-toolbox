@@ -3,39 +3,46 @@
 """
 MacOS Notification Script for Claude AI
 
-Uses PyObjC for fast native notifications (~1-5ms) with osascript fallback (~100-200ms).
+Uses pymacos when installed, with an osascript fallback. Both pass the text as
+arguments, so quotes, apostrophes and emoji in the message go through as they are.
 """
 
 import json
 import sys
 import os
+import subprocess
 
-# Try PyObjC import (fast path)
+# pymacos: posts the notification and raises a clear error when notifications
+# are turned off for Script Editor, which macOS would otherwise drop silently.
 try:
-    from Foundation import NSUserNotification, NSUserNotificationCenter, NSUserNotificationDefaultSoundName
-    HAS_PYOBJC = True
+    import macos
+    HAS_PYMACOS = True
 except ImportError:
-    HAS_PYOBJC = False
+    HAS_PYMACOS = False
 
 
-def notify_pyobjc(title, subtitle, message):
-    """Send notification via PyObjC (~1-5ms)."""
-    notification = NSUserNotification.alloc().init()
-    notification.setTitle_(title)
-    notification.setSubtitle_(subtitle)
-    notification.setInformativeText_(message)
-    notification.setSoundName_(NSUserNotificationDefaultSoundName)
-    NSUserNotificationCenter.defaultUserNotificationCenter().deliverNotification_(notification)
+def notify_pymacos(title, subtitle, message, sound="Glass"):
+    """Send notification via pymacos."""
+    macos.notify(message, title=title, subtitle=subtitle, sound=sound)
 
 
 def notify_osascript(title, subtitle, message, sound="Glass"):
-    """Fallback: Send notification via osascript (~100-200ms)."""
-    # Escape quotes and backslashes for AppleScript
-    title = title.replace('\\', '\\\\').replace('"', '\\"')
-    subtitle = subtitle.replace('\\', '\\\\').replace('"', '\\"')
-    message = message.replace('\\', '\\\\').replace('"', '\\"')
-    apple_script = f'display notification "{message}" with title "{title}" subtitle "{subtitle}" sound name "{sound}"'
-    os.system(f"osascript -e '{apple_script}'")
+    """Fallback: Send notification via osascript."""
+    # The text goes in as arguments (on run argv), never into the script or a shell
+    # command, so nothing in it needs escaping.
+    statement = (
+        "display notification (item 3 of argv) with title (item 1 of argv) "
+        "subtitle (item 2 of argv) sound name (item 4 of argv)"
+    )
+    result = subprocess.run(
+        ["osascript", "-e", "on run argv", "-e", statement, "-e", "end run", title, subtitle, message, sound],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        # osascript explains the failure on stderr ("execution error: ..."), which
+        # says more than the exit status alone.
+        raise RuntimeError(result.stderr.strip() or f"osascript exited with status {result.returncode}")
 
 
 # Main execution
@@ -56,8 +63,8 @@ try:
 
     title = f"👀 Claude - {notification_type.replace('_', ' ').title()}"
 
-    if HAS_PYOBJC:
-        notify_pyobjc(title, cwd, message)
+    if HAS_PYMACOS:
+        notify_pymacos(title, cwd, message)
     else:
         notify_osascript(title, cwd, message)
 

@@ -1,1 +1,1 @@
-pyobjc-framework-Cocoa>=10.0
+pymacos>=1.19
