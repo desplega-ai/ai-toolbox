@@ -5,36 +5,86 @@ export interface Shortcut {
   description: string;
 }
 
-export const shortcuts: Shortcut[] = [
-  { keys: "⌘K", description: "Add comment to selection" },
-  { keys: "⌘S", description: "Save file" },
-  { keys: "⌘Z", description: "Undo" },
-  { keys: "⌘⇧Z", description: "Redo" },
-  { keys: "⌘Q", description: "Quit application" },
-  { keys: "⌘/", description: "Toggle shortcuts help" },
-  { keys: "⌘T", description: "New tab (open file)" },
-  { keys: "⌘W", description: "Close active tab" },
-  { keys: "⌘1…9", description: "Switch to Nth tab" },
-  { keys: "⌘N / ⌘P", description: "Next / previous tab" },
-  { keys: "⌘⇧T", description: "Toggle theme (light/dark)" },
-  { keys: "⌘M", description: "Toggle markdown view (raw/pretty)" },
-  { keys: "⌘⇧V", description: "Toggle vim mode" },
-  { keys: "⌘B", description: "Toggle outline rail" },
-  { keys: "⌘⌥B", description: "Toggle comments rail" },
-  { keys: "⌘⇧E", description: "Toggle reading width (narrow/full)" },
-  { keys: "⌘O", description: "Open file" },
-  { keys: "⌘+", description: "Zoom in" },
-  { keys: "⌘-", description: "Zoom out" },
-  { keys: "^Q", description: "Vim visual block mode" },
-  { keys: "^D", description: "Vim half-page down" },
-  { keys: "^U", description: "Vim half-page up" },
-  { keys: "j / k", description: "Preview: next/prev block (vim)" },
-  { keys: "gg / G", description: "Preview: first/last block (vim)" },
-  { keys: "⌃D / ⌃U", description: "Preview: page down/up (vim)" },
-  { keys: "/ or ⌘F", description: "Preview: search" },
-  { keys: "n / N", description: "Preview: next/prev match (vim)" },
-  { keys: "+ / - / 0", description: "Image viewer: zoom in/out, fit" },
-  { keys: "← / →", description: "Image viewer: previous/next image" },
+export interface ShortcutGroup {
+  title: string;
+  shortcuts: Shortcut[];
+}
+
+// Rendered as sections in the help modal. Keep in sync with the handlers
+// below, preview-nav.ts, lightbox.ts, composer.ts, sidebar.ts and layout.ts.
+export const shortcutGroups: ShortcutGroup[] = [
+  {
+    title: "Comments",
+    shortcuts: [
+      { keys: "⌘K", description: "Comment on selection, active block or line" },
+      { keys: "⌘ click", description: "Comment on a preview block" },
+      { keys: "⌘↵", description: "Submit comment or save edit" },
+      { keys: "Esc", description: "Cancel comment, clear selected comment" },
+    ],
+  },
+  {
+    title: "Navigation",
+    shortcuts: [
+      { keys: "⌘F", description: "Search the preview" },
+      { keys: "↵ / ⇧↵", description: "Next / previous match (in search)" },
+      { keys: "Esc", description: "Close search" },
+    ],
+  },
+  {
+    title: "View",
+    shortcuts: [
+      { keys: "⌘M", description: "Toggle preview / source" },
+      { keys: "⌘B", description: "Toggle outline rail" },
+      { keys: "⌘⌥B", description: "Toggle comments rail" },
+      { keys: "← / →", description: "Resize focused rail divider" },
+      { keys: "⌘⇧E", description: "Toggle reading width (narrow/full)" },
+      { keys: "⌘⇧T", description: "Toggle theme (light/dark)" },
+      { keys: "⌘+ / ⌘-", description: "Zoom in / out" },
+      { keys: "⌘/", description: "Toggle shortcuts help" },
+    ],
+  },
+  {
+    title: "Tabs",
+    shortcuts: [
+      { keys: "⌘T", description: "New tab (open file)" },
+      { keys: "⌘W", description: "Close active tab" },
+      { keys: "⌘1…9", description: "Switch to Nth tab" },
+      { keys: "⌘N / ⌘P", description: "Next / previous tab" },
+    ],
+  },
+  {
+    title: "File",
+    shortcuts: [
+      { keys: "⌘O", description: "Open file" },
+      { keys: "⌘S", description: "Save file" },
+      { keys: "⌘Z / ⌘⇧Z", description: "Undo / redo" },
+      { keys: "⌘Q", description: "Quit application" },
+      { keys: "S / Q / C / Esc", description: "Unsaved dialog: save, quit, close tab, cancel" },
+    ],
+  },
+  {
+    title: "Lightbox",
+    shortcuts: [
+      { keys: "+ / -", description: "Zoom in / out" },
+      { keys: "0", description: "Fit to screen" },
+      { keys: "← / →", description: "Previous / next image" },
+      { keys: "Double-click", description: "Toggle fit and 100%" },
+      { keys: "Esc", description: "Close viewer" },
+    ],
+  },
+  {
+    title: "Vim",
+    shortcuts: [
+      { keys: "⌘⇧V", description: "Toggle vim mode" },
+      { keys: "j / k", description: "Preview: next / previous block" },
+      { keys: "gg / G", description: "Preview: first / last block" },
+      { keys: "⌃D / ⌃U", description: "Page down / up (preview and editor)" },
+      { keys: "/", description: "Preview: search" },
+      { keys: "n / N", description: "Preview: next / previous match" },
+      { keys: "Esc", description: "Preview: clear active block" },
+      { keys: "⌃Q", description: "Editor: visual block mode" },
+    ],
+  },
 ];
 
 let helpModalVisible = false;
@@ -69,13 +119,22 @@ export async function showShortcutsHelp() {
         <button class="close-btn">×</button>
       </div>
       <div class="shortcuts-list">
-        ${shortcuts
+        ${shortcutGroups
           .map(
-            (s) => `
-          <div class="shortcut-item">
-            <kbd>${s.keys}</kbd>
-            <span>${s.description}</span>
-          </div>
+            (group) => `
+          <section class="shortcuts-group">
+            <h4>${group.title}</h4>
+            ${group.shortcuts
+              .map(
+                (s) => `
+              <div class="shortcut-item">
+                <kbd>${s.keys}</kbd>
+                <span>${s.description}</span>
+              </div>
+            `
+              )
+              .join("")}
+          </section>
         `
           )
           .join("")}

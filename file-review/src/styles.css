@@ -1722,7 +1722,8 @@ body.rail-resizing {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  width: 400px;
+  width: 440px;
+  max-width: calc(100vw - 32px);
   max-height: 80vh;
   overflow: auto;
 }
@@ -1751,14 +1752,24 @@ body.rail-resizing {
 }
 
 .shortcuts-list {
-  padding: 12px 16px;
+  padding: 4px 16px 12px;
+}
+
+.shortcuts-group h4 {
+  margin: 16px 0 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
 }
 
 .shortcut-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 0;
+  gap: 16px;
+  padding: 8px 0;
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -1775,11 +1786,13 @@ body.rail-resizing {
   font-size: 12px;
   min-width: 50px;
   text-align: center;
+  white-space: nowrap;
 }
 
 .shortcut-item span {
   color: var(--text-secondary);
   font-size: 13px;
+  text-align: right;
 }
 
 /* Settings section in shortcuts modal */
