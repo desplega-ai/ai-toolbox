@@ -1501,7 +1501,10 @@ function schedulePushTabStates() {
 async function pushTabStatesToRust(): Promise<void> {
   const active = tabManager.getActive();
   if (active) {
-    tabManager.update(active.id, { doc: getEditorContent() });
+    // Plain assignment, not tabManager.update(): this runs from a tab
+    // subscriber, and notifying again re-scheduled this push every 150ms,
+    // rebuilding the tab strip under the pointer so tab clicks were lost.
+    active.doc = getEditorContent();
   }
   const openStates = tabManager.tabs
     .filter((t) => t.path !== null)

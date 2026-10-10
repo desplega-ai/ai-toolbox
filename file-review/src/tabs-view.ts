@@ -58,8 +58,9 @@ function renderTab(
   btn.appendChild(close);
 
   btn.addEventListener("click", (e) => {
-    const target = e.target as HTMLElement;
-    if (target.classList.contains("tab-close")) {
+    // closest(): the click lands on the close icon's <svg>/<path>, not the span.
+    const target = e.target as Element;
+    if (target.closest(".tab-close")) {
       e.stopPropagation();
       callbacks.onClose(tab.id);
       return;
