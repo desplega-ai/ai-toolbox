@@ -436,7 +436,8 @@ function renderCommentState() {
   const content = getEditorContent();
   if (active?.isMarkdownFile && !active.isRawMode) {
     updatePreview(content, comments);
-    previewNav?.reset();
+    // Same document: keep the vim active block so j/k continue from it.
+    previewNav?.refresh();
   }
   if (active?.isMarkdownFile) {
     const entries = extractTocEntries(content);

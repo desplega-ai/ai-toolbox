@@ -5,6 +5,8 @@ const DEFAULT_PAGE_SIZE = 5;
 
 export class PreviewNavigator {
   private activeIndex = -1;
+  /** Source offset of the active block; survives re-renders (see refresh). */
+  private activeSourceStart: number | null = null;
   private searchVisible = false;
   private searchMarks: HTMLElement[] = [];
   private currentMatchIndex = -1;
@@ -177,6 +179,7 @@ export class PreviewNavigator {
 
     this.activeIndex = index;
     const el = elements[index];
+    this.activeSourceStart = Number(el.dataset.sourceStart);
     el.classList.add('preview-active');
     if (opts.scroll !== false) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -188,6 +191,7 @@ export class PreviewNavigator {
     const container = this.getPreviewContainer();
     container?.querySelectorAll('.preview-active').forEach(el => el.classList.remove('preview-active'));
     this.activeIndex = -1;
+    this.activeSourceStart = null;
   }
 
   // --- Search ---
@@ -380,7 +384,38 @@ export class PreviewNavigator {
   reset() {
     this.clearActiveBlock();
     this.activeIndex = -1;
+    this.rerunSearch();
+  }
 
+  /**
+   * The same document re-rendered (e.g. after adding a comment): keep the
+   * active block, found again by its source range, so j/k continue from it
+   * instead of from the top. Falls back to the nearest block before it.
+   */
+  refresh() {
+    const key = this.activeSourceStart;
+    if (key === null) {
+      this.reset();
+      return;
+    }
+    const elements = this.getCommentableElements();
+    let index = elements.findIndex((el) => Number(el.dataset.sourceStart) === key);
+    if (index === -1) {
+      elements.forEach((el, i) => {
+        if (Number(el.dataset.sourceStart) <= key) index = i;
+      });
+    }
+    if (index === -1) {
+      this.reset();
+      return;
+    }
+    this.activeIndex = index;
+    this.activeSourceStart = Number(elements[index].dataset.sourceStart);
+    elements[index].classList.add('preview-active');
+    this.rerunSearch();
+  }
+
+  private rerunSearch() {
     if (this.searchVisible) {
       const input = document.getElementById('preview-search-input') as HTMLInputElement | null;
       const query = input?.value || '';
