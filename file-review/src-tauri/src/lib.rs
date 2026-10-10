@@ -1,3 +1,4 @@
+pub mod backlinks;
 pub mod comments;
 pub mod config;
 pub mod file_ops;
@@ -350,6 +351,7 @@ pub fn run(
             file_ops::submit_tab_states,
             file_ops::reveal_in_finder,
             file_ops::file_exists,
+            file_ops::find_backlinks,
             file_ops::open_external,
             file_ops::open_path,
             file_ops::is_stdin_mode,

@@ -18,6 +18,13 @@ interface InsertCommentResponse {
   id: string;
 }
 
+/** A link to the current file from another markdown file (1-based line). */
+export interface Backlink {
+  path: string;
+  line: number;
+  text: string;
+}
+
 export interface QuitResponse {
   success: boolean;
   output: string;
@@ -266,6 +273,11 @@ export const API = {
 
   async fileExists(path: string): Promise<boolean> {
     return this.invoke<boolean>("file_exists", { path });
+  },
+
+  /** Markdown files that link to `path`, searched from the nearest git root (else its folder). */
+  async findBacklinks(path: string): Promise<Backlink[]> {
+    return this.invoke<Backlink[]>("find_backlinks", { path });
   },
 
   /** Open an http(s) or mailto URL outside the app. */

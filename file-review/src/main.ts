@@ -65,6 +65,13 @@ import { initTabStrip } from "./tabs-view";
 import { icons, hydrateIcons } from "./icons";
 import { initLinkRouter, decoratePreview, invalidateLinkCache } from "./links";
 import {
+  initSelectionComment,
+  getPreviewSelection,
+  hideSelectionPill,
+  selectionTarget,
+} from "./selection-comment";
+import { initRelations, scheduleRelationsUpdate, resetRelations } from "./relations";
+import {
   initLayout,
   applyLayout,
   setLeftRailAvailable,
@@ -448,7 +455,10 @@ async function init() {
   initPreview(document.getElementById("preview-container")!, readActive, showToast);
   initCommentLinking(document.getElementById("preview-container")!, getEditorView().dom);
   initMermaid(() => currentTheme, showToast);
-  onPreviewRendered(decoratePreview);
+  onPreviewRendered((container) => {
+    decoratePreview(container);
+    scheduleRelationsUpdate();
+  });
   initLinkRouter({
     getActiveTab: readActive,
     openDoc: async (path) => {
@@ -483,6 +493,10 @@ async function init() {
   initInteractiveCommenting((sourceStart, sourceEnd, element) => {
     handlePreviewAddComment(sourceStart, sourceEnd, element);
   });
+  initSelectionComment(document.getElementById("preview-container")!, handlePreviewSelectionComment);
+
+  // Links tab of the left rail: outgoing links and backlinks
+  initRelations({ getActiveTab: readActive, getContent: getEditorContent });
 
   // Initialize keyboard shortcuts
   initShortcuts({
@@ -522,6 +536,7 @@ async function init() {
   // BEFORE the regular subscribe() listeners (tab-strip render).
   tabManager.subscribeActiveChange((from, to) => {
     closeComposer();
+    hideSelectionPill();
     if (from) snapshotActiveDocFor(from);
     if (to) activateTab(to);
     else clearActiveDisplay();
@@ -638,6 +653,7 @@ async function init() {
     if (suppressCommentSync) {
       return;
     }
+    scheduleRelationsUpdate();
 
     const active = readActive();
     if (!active || active.comments.length === 0) {
@@ -1061,6 +1077,7 @@ async function toggleMarkdownView() {
   if (!active?.isMarkdownFile) return;
 
   closeComposer();
+  hideSelectionPill();
   const newRawMode = !active.isRawMode;
   writeActive({ isRawMode: newRawMode });
   appConfig.markdown_raw = newRawMode;
@@ -1105,8 +1122,13 @@ function updateViewMode() {
 
 function handleAddCommentShortcut() {
   const active = readActive();
-  // In preview mode, use the active block from preview navigation
+  // In preview mode, prefer a text selection, then the active block from preview navigation
   if (active && !active.isRawMode && active.isMarkdownFile) {
+    const selection = getPreviewSelection();
+    if (selection) {
+      handlePreviewSelectionComment(selection);
+      return;
+    }
     const previewContainer = getPreviewContainer();
     const activeEl = previewContainer?.querySelector<HTMLElement>('.preview-active');
     if (activeEl) {
@@ -1165,6 +1187,36 @@ function blockKindLabel(element: HTMLElement): string {
 }
 
 /**
+ * Comment on a text selection in the preview: an inline comment on the exact
+ * source text inside one block, a line comment across blocks.
+ */
+function handlePreviewSelectionComment(range: Range) {
+  const container = getPreviewContainer();
+  if (!container) return;
+  const doc = getEditorView().state.doc;
+  const target = selectionTarget(range, container, doc.toString(), (pos) => doc.lineAt(pos));
+  hideSelectionPill();
+  if (!target) {
+    showToast("Select text inside the document to comment on it", "info");
+    return;
+  }
+
+  if (readActive()?.pendingPreviewComment) writeActive({ pendingPreviewComment: null });
+  const anchor = range.cloneRange();
+  const exact = target.commentType === "inline" || target.blocks.length > 1;
+  openComposer({
+    sourceStart: target.start,
+    sourceEnd: target.end,
+    commentType: target.commentType,
+    kind: exact ? "Selection" : blockKindLabel(target.blocks[0]),
+    anchorRect: () => (anchor.startContainer.isConnected ? anchor.getBoundingClientRect() : null),
+    quote: commentExcerpt(range.toString()),
+    pendingRange: anchor,
+    pendingElement: target.blocks[0],
+  });
+}
+
+/**
  * Handle adding comment from preview mode
  */
 function handlePreviewAddComment(
@@ -1191,7 +1243,10 @@ function handleCommentSubmit(text: string, target: ComposerTarget) {
 
   let comment: ReviewComment;
   const pending = active.pendingPreviewComment;
-  if (pending && pending.element === target.pendingElement) {
+  if (target.commentType) {
+    // Preview selection comment, typed when the composer opened
+    comment = createComment(target.commentType, target.sourceStart, target.sourceEnd, text);
+  } else if (pending && pending.element === target.pendingElement) {
     // Preview block comment
     comment = createComment("line", pending.sourceStart, pending.sourceEnd, text);
   } else {
@@ -1323,6 +1378,7 @@ function activateTabUI(tab: Tab) {
   if (tab.isRawMode || !tab.isMarkdownFile) {
     focusEditor();
   }
+  resetRelations();
 }
 
 /**
@@ -1422,7 +1478,7 @@ function updateFileNameDisplay(path: string, isStdin = false) {
   const inWebMode = !isTauri();
 
   if (fileNameEl) {
-    const nameSpan = fileNameEl.querySelector(".name");
+    const nameSpan = fileNameEl.querySelector<HTMLElement>(".name");
     if (isStdin) {
       // In stdin mode, show "(stdin)" and disable reveal in Finder
       if (nameSpan) nameSpan.textContent = "(stdin)";
@@ -1432,21 +1488,41 @@ function updateFileNameDisplay(path: string, isStdin = false) {
       fileNameEl.style.cursor = "default";
     } else if (inWebMode) {
       // Web mode - no reveal in Finder support
-      if (nameSpan) nameSpan.textContent = path.split("/").pop() || path;
+      if (nameSpan) renderFileBreadcrumb(nameSpan, path);
       fileNameEl.title = path;
       fileNameEl.style.display = "flex";
       fileNameEl.onclick = null;
       fileNameEl.style.cursor = "default";
     } else {
       // Normal Tauri file mode
-      if (nameSpan) nameSpan.textContent = path.split("/").pop() || path;
-      fileNameEl.title = `Click to reveal in Finder: ${path}`;
+      if (nameSpan) renderFileBreadcrumb(nameSpan, path);
+      fileNameEl.title = `${path}\nClick to reveal in Finder`;
       fileNameEl.style.display = "flex";
       fileNameEl.onclick = () => revealInFinder(path);
       fileNameEl.style.cursor = "pointer";
     }
   }
   if (openBtn) openBtn.style.display = "none";
+}
+
+/** "parent-dir / file.md" with the parent muted. */
+function renderFileBreadcrumb(el: HTMLElement, path: string) {
+  const parts = path.split("/").filter(Boolean);
+  const base = document.createElement("span");
+  base.className = "file-name-base";
+  base.textContent = parts.pop() ?? path;
+  const parent = parts.pop();
+  if (!parent) {
+    el.replaceChildren(base);
+    return;
+  }
+  const dir = document.createElement("span");
+  dir.className = "file-name-parent";
+  dir.textContent = parent;
+  const sep = document.createElement("span");
+  sep.className = "file-name-sep";
+  sep.textContent = "/";
+  el.replaceChildren(dir, sep, base);
 }
 
 async function revealInFinder(path: string) {

@@ -14,7 +14,7 @@
           <span class="icon" data-icon="folder"></span> Open File
         </button>
         <div id="file-name" class="file-name" style="display: none;">
-          <span class="icon" data-icon="file"></span>
+          <span class="icon" data-icon="folder"></span>
           <span class="name"></span>
         </div>
         <button id="add-comment-btn" type="button" style="display: none;" title="Comment line (⌘K)">
@@ -55,6 +55,10 @@
                 <span class="icon" data-icon="list-tree"></span>
                 <span>Outline</span>
               </button>
+              <button id="rail-tab-links" class="rail-tab" type="button" role="tab" aria-selected="false" aria-controls="links-panel">
+                <span class="icon" data-icon="link"></span>
+                <span>Links</span>
+              </button>
             </div>
             <div class="rail-header-actions">
               <button id="toc-search-btn" class="rail-icon-btn" type="button" aria-label="Filter headings" title="Filter headings"><span class="icon" data-icon="search"></span></button>
@@ -66,6 +70,9 @@
               <input id="toc-search-input" class="toc-search-input" type="text" placeholder="Filter headings..." />
             </div>
             <div id="toc-list"></div>
+          </div>
+          <div id="links-panel" class="rail-tabpanel" role="tabpanel" aria-labelledby="rail-tab-links" hidden>
+            <div id="links-list"></div>
           </div>
         </div>
         <div class="rail-strip">

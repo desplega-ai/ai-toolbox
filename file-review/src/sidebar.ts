@@ -4,6 +4,7 @@ import type { Tab } from "./tabs";
 import { icons } from "./icons";
 import { commentExcerpt, lineChipLabel, nextCommentId } from "./comment-utils";
 import { autoGrowTextarea } from "./composer";
+import { inlineCommentAt, setInlineEmphasis } from "./inline-highlights";
 
 type CommentDeleteHandler = (commentId: string) => void;
 type CommentClickHandler = (comment: ReviewComment) => void;
@@ -91,6 +92,8 @@ function updateFocusStyle() {
     rules.push(`${passageSelectors(id)} { animation: ${animation} 1s ease-out; }`);
   }
   style.textContent = rules.join("\n");
+  // Inline passages are Highlight ranges, not elements: flashing shows the active style.
+  setInlineEmphasis(new Set([...emphasized, ...flashIds]));
 }
 
 /** Briefly flash the passage of a comment in the preview and in CodeMirror. */
@@ -181,19 +184,34 @@ function setHovered(ids: string[], scrollRail: boolean) {
  * selection. Preview clicks arrive through the `preview-element-click` event.
  */
 export function initCommentLinking(preview: HTMLElement, editorDom: HTMLElement) {
-  const track = (root: HTMLElement, selector: string, read: (el: HTMLElement) => string[]) => {
-    root.addEventListener("mouseover", (e) => {
-      const el = (e.target as HTMLElement).closest<HTMLElement>(selector);
-      setHovered(el ? read(el) : [], true);
+  // Preview: an inline passage under the pointer wins over its block's comments.
+  let frame = 0;
+  preview.addEventListener("mousemove", (e) => {
+    if (frame) return;
+    const { clientX, clientY, target } = e;
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      const inline = inlineCommentAt(clientX, clientY);
+      const block = (target as HTMLElement).closest<HTMLElement>("[data-comment-ids]");
+      preview.classList.toggle("inline-comment-hover", inline !== null);
+      setHovered(
+        inline ? [inline] : (block?.dataset.commentIds ?? "").split(" ").filter(Boolean),
+        true
+      );
     });
-    root.addEventListener("mouseleave", () => setHovered([], false));
-  };
-  track(preview, "[data-comment-ids]", (el) =>
-    (el.dataset.commentIds ?? "").split(" ").filter(Boolean)
-  );
-  track(editorDom, ".cm-comment-highlight", (el) =>
-    el.dataset.commentId ? [el.dataset.commentId] : []
-  );
+  });
+  preview.addEventListener("mouseleave", () => {
+    cancelAnimationFrame(frame);
+    frame = 0;
+    preview.classList.remove("inline-comment-hover");
+    setHovered([], false);
+  });
+
+  editorDom.addEventListener("mouseover", (e) => {
+    const el = (e.target as HTMLElement).closest<HTMLElement>(".cm-comment-highlight");
+    setHovered(el?.dataset.commentId ? [el.dataset.commentId] : [], true);
+  });
+  editorDom.addEventListener("mouseleave", () => setHovered([], false));
 
   editorDom.addEventListener("click", (e) => {
     const { from, to } = getEditorView().state.selection.main;

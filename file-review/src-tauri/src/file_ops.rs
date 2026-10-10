@@ -107,6 +107,14 @@ pub fn file_exists(path: String) -> bool {
     std::path::Path::new(&path).exists()
 }
 
+/// Markdown files that link to `path`. Walks the disk, so it runs off the main thread.
+#[tauri::command]
+pub async fn find_backlinks(path: String) -> Result<Vec<crate::backlinks::Backlink>, String> {
+    tauri::async_runtime::spawn_blocking(move || crate::backlinks::find_backlinks(&path))
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Open a URL or local path with the OS default handler.
 pub fn open_with_system(target: &str) -> Result<(), String> {
     #[cfg(target_os = "macos")]

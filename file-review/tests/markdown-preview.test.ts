@@ -124,7 +124,7 @@ describe('collectCommentableRanges', () => {
       '',
     ].join('\n');
 
-    const { ranges } = renderMarkdown(markdown, []);
+    const { ranges } = renderMarkdown(markdown);
     const pLineRanges = ranges.filter((r) => r.kind === 'p-line');
     expect(pLineRanges.length).toBe(2);
     expect(markdown.slice(pLineRanges[0].start, pLineRanges[0].end)).toBe('Line one');
@@ -348,7 +348,7 @@ describe('mermaid blocks (regression)', () => {
       '',
     ].join('\n');
 
-    const { html } = renderMarkdown(markdown, []);
+    const { html } = renderMarkdown(markdown);
     expect(html).toContain('<pre class="mermaid"');
     expect(html).toContain('data-src="');
     // The mermaid block must NOT go through renderer.code (no code-line spans
@@ -361,7 +361,7 @@ describe('mermaid blocks (regression)', () => {
     const fence = ['```mermaid', 'graph TD;', '  A-->B;', '```'].join('\n');
     const markdown = ['---', 'title: x', '---', '# Title', '', fence, '', 'After.', ''].join('\n');
 
-    const { html } = renderMarkdown(markdown, []);
+    const { html } = renderMarkdown(markdown);
     const host = document.createElement('div');
     host.innerHTML = html;
     const node = host.querySelector<HTMLElement>('pre.mermaid')!;
@@ -373,7 +373,7 @@ describe('mermaid blocks (regression)', () => {
 
   it('stamps the fence range for a mermaid block nested in a list item', () => {
     const markdown = ['1. Step', '', '   ```mermaid', '   graph TD;', '   ```', ''].join('\n');
-    const { html } = renderMarkdown(markdown, []);
+    const { html } = renderMarkdown(markdown);
     const host = document.createElement('div');
     host.innerHTML = html;
     const node = host.querySelector<HTMLElement>('pre.mermaid')!;
@@ -386,7 +386,7 @@ describe('mermaid blocks (regression)', () => {
 describe('GitHub callouts', () => {
   function render(markdown: string): HTMLElement {
     const host = document.createElement('div');
-    host.innerHTML = renderMarkdown(markdown, []).html;
+    host.innerHTML = renderMarkdown(markdown).html;
     return host;
   }
 
@@ -545,7 +545,7 @@ describe('list items with nested block children (regression)', () => {
       '',
     ].join('\n');
 
-    const { html } = renderMarkdown(markdown, []);
+    const { html } = renderMarkdown(markdown);
     // The code block must end up as a real <pre> with the per-line wrap
     // marker — NOT as literal "```bash" lines inside li-line spans.
     expect(html).toMatch(/<li>[^]*<pre[^>]*data-code-line-ranges[^>]*>[^]*<\/pre>[^]*<\/li>/);
@@ -561,7 +561,7 @@ describe('list items with nested block children (regression)', () => {
       '',
     ].join('\n');
 
-    const { html } = renderMarkdown(markdown, []);
+    const { html } = renderMarkdown(markdown);
     expect(html).toMatch(/<li>[^]*<blockquote>[^]*<span class="bq-line"[^>]*>quoted line one<\/span>[^]*<\/blockquote>[^]*<\/li>/);
     expect(html).not.toMatch(/<span class="li-line"[^>]*>&gt; quoted line one<\/span>/);
   });
@@ -595,7 +595,7 @@ describe('renderMarkdown per-line list items', () => {
       '',
     ].join('\n');
 
-    const { html } = renderMarkdown(markdown, []);
+    const { html } = renderMarkdown(markdown);
     const matches = html.match(/<span class="li-line" data-commentable="true" data-source-start="(\d+)" data-source-end="(\d+)">/g) ?? [];
     expect(matches.length).toBe(3);
     expect(html).toContain('>one</span>');
@@ -611,7 +611,7 @@ describe('renderMarkdown per-line list items', () => {
       '',
     ].join('\n');
 
-    const { html } = renderMarkdown(markdown, []);
+    const { html } = renderMarkdown(markdown);
     const spans = html.match(/<span class="li-line"[^>]*>([^<]+)<\/span>/g) ?? [];
     // Use the textContent of each span by stripping the wrapping tag.
     const texts = spans.map((s) => s.replace(/^<span[^>]*>|<\/span>$/g, ''));
@@ -626,7 +626,7 @@ describe('renderMarkdown per-line list items', () => {
       '',
     ].join('\n');
 
-    const { html } = renderMarkdown(markdown, []);
+    const { html } = renderMarkdown(markdown);
     const spans = html.match(/<span class="li-line"[^>]*>([^<]+)<\/span>/g) ?? [];
     const texts = spans.map((s) => s.replace(/^<span[^>]*>|<\/span>$/g, ''));
     expect(texts).toEqual(['outer', 'inner', 'sibling']);
@@ -641,7 +641,7 @@ describe('renderMarkdown per-line list items', () => {
       '',
     ].join('\n');
 
-    const { html } = renderMarkdown(markdown, []);
+    const { html } = renderMarkdown(markdown);
     expect(html).toContain('<input disabled type="checkbox"> ');
     expect(html).toContain('<input disabled type="checkbox" checked> ');
     // The visible text should NOT contain "[ ]" / "[x]" — they were consumed.
@@ -660,7 +660,7 @@ describe('renderMarkdown per-line blockquotes', () => {
       '',
     ].join('\n');
 
-    const { html, ranges } = renderMarkdown(markdown, []);
+    const { html, ranges } = renderMarkdown(markdown);
     const matches = html.match(/<span class="bq-line"[^>]*>([^<]+)<\/span>/g) ?? [];
     expect(matches.length).toBe(2);
 
@@ -678,7 +678,7 @@ describe('renderMarkdown per-line blockquotes', () => {
       '',
     ].join('\n');
 
-    const { html } = renderMarkdown(markdown, []);
+    const { html } = renderMarkdown(markdown);
     const spans = html.match(/<span class="bq-line"[^>]*>([^<]*)<\/span>/g) ?? [];
     expect(spans.length).toBe(2);
   });
@@ -694,7 +694,7 @@ describe('renderMarkdown code-block per-line plumbing', () => {
       '',
     ].join('\n');
 
-    const { html } = renderMarkdown(markdown, []);
+    const { html } = renderMarkdown(markdown);
     const m = html.match(/<pre data-code-line-ranges="([^"]+)"/);
     expect(m).not.toBeNull();
     const json = decodeURIComponent(m![1]);
@@ -707,14 +707,14 @@ describe('renderMarkdown code-block per-line plumbing', () => {
 
   it('emits a <span class="code-lang"> badge when the fence has a language', () => {
     const markdown = ['```ts', 'const x = 1;', '```', ''].join('\n');
-    const { html } = renderMarkdown(markdown, []);
+    const { html } = renderMarkdown(markdown);
     expect(html).toContain('<span class="code-lang"');
     expect(html).toMatch(/<span class="code-lang"[^>]*>ts<\/span>/);
   });
 
   it('omits the language badge when the fence has no language', () => {
     const markdown = ['```', 'plain text', '```', ''].join('\n');
-    const { html } = renderMarkdown(markdown, []);
+    const { html } = renderMarkdown(markdown);
     expect(html).not.toContain('class="code-lang"');
     // But still gets the per-line wrap marker so it stays commentable.
     expect(html).toMatch(/<pre data-code-line-ranges="[^"]+"/);
@@ -810,7 +810,7 @@ describe('renderMarkdown per-line paragraphs', () => {
       '',
     ].join('\n');
 
-    const { html } = renderMarkdown(markdown, []);
+    const { html } = renderMarkdown(markdown);
     expect(html).toContain('class="preview-paragraph"');
     expect(html).toContain('class="preview-line"');
     expect(html).toContain('>First line</p>');
@@ -823,7 +823,7 @@ describe('renderMarkdown per-line paragraphs', () => {
       '',
     ].join('\n');
 
-    const { html } = renderMarkdown(markdown, []);
+    const { html } = renderMarkdown(markdown);
     expect(html).not.toContain('preview-paragraph');
     expect(html).not.toContain('preview-line');
     expect(html).toContain('<p>Just one line.</p>');
@@ -838,7 +838,7 @@ describe('inline formatting rendering', () => {
       '',
     ].join('\n');
 
-    const { html } = renderMarkdown(markdown, []);
+    const { html } = renderMarkdown(markdown);
     expect(html).toContain('class="preview-paragraph"');
     expect(html).toContain('<strong>bold</strong>');
     expect(html).not.toContain('**bold**');
@@ -851,7 +851,7 @@ describe('inline formatting rendering', () => {
       '',
     ].join('\n');
 
-    const { html } = renderMarkdown(markdown, []);
+    const { html } = renderMarkdown(markdown);
     expect(html).toContain('<em>italic</em>');
     expect(html).not.toContain('*italic*');
   });
@@ -863,14 +863,14 @@ describe('inline formatting rendering', () => {
       '',
     ].join('\n');
 
-    const { html } = renderMarkdown(markdown, []);
+    const { html } = renderMarkdown(markdown);
     expect(html).toContain('<code>myFunc()</code>');
   });
 
   it('renders inline formatting in headings', () => {
     const markdown = '# Title with **bold**\n';
 
-    const { html } = renderMarkdown(markdown, []);
+    const { html } = renderMarkdown(markdown);
     expect(html).toContain('<strong>bold</strong>');
     expect(html).not.toContain('**bold**');
   });
@@ -916,7 +916,7 @@ describe('cross-line inline formatting', () => {
     expect(ranges.length).toBe(2);
     expect(ranges.every((r) => r.kind === 'p-line')).toBe(true);
 
-    const { html } = renderMarkdown(markdown, []);
+    const { html } = renderMarkdown(markdown);
     expect(html).toContain('class="preview-paragraph"');
     expect(html).toContain('<strong>bold</strong>');
   });
@@ -1003,7 +1003,7 @@ describe('renderMarkdown frontmatter', () => {
       '',
     ].join('\n');
 
-    const { html, ranges } = renderMarkdown(markdown, []);
+    const { html, ranges } = renderMarkdown(markdown);
 
     expect(html).toContain('class="frontmatter-card"');
     expect(html).toContain('Metadata');
@@ -1035,7 +1035,7 @@ describe('renderMarkdown frontmatter', () => {
       '',
     ].join('\n');
 
-    const { html } = renderMarkdown(markdown, []);
+    const { html } = renderMarkdown(markdown);
 
     expect(html).not.toContain('class="frontmatter-card"');
     expect(html).toContain('date: 2026-01-30T12:00:00-08:00');
@@ -1051,7 +1051,7 @@ describe('renderMarkdown frontmatter', () => {
       '',
     ].join('\n');
 
-    const { html } = renderMarkdown(markdown, []);
+    const { html } = renderMarkdown(markdown);
 
     expect(html).not.toContain('class="frontmatter-card"');
     expect(html).toContain('date: 2026-01-30T12:00:00-08:00');

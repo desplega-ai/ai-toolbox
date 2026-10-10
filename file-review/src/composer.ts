@@ -1,6 +1,7 @@
 import { setPendingHighlight } from "./comments";
 import { getEditorView, getLineSpan } from "./editor";
 import { lineRangeLabel } from "./comment-utils";
+import { setPendingRange } from "./inline-highlights";
 
 /** A passage the floating composer writes a comment on. */
 export interface ComposerTarget {
@@ -14,6 +15,10 @@ export interface ComposerTarget {
   quote: string;
   /** Preview block that gets the pending outline. Without one, the range is marked in CodeMirror. */
   pendingElement?: HTMLElement | null;
+  /** Preview text marked as pending instead of the block, when the Highlight API exists. */
+  pendingRange?: Range | null;
+  /** Comment type to create. Without one, main.ts decides from the target. */
+  commentType?: "inline" | "line";
 }
 
 interface ComposerHandlers {
@@ -128,6 +133,7 @@ function submit() {
 }
 
 function setPending(target: ComposerTarget, on: boolean) {
+  if (target.pendingRange && setPendingRange(on ? target.pendingRange : null)) return;
   if (target.pendingElement) {
     target.pendingElement.classList.toggle("comment-pending", on);
     return;

@@ -28,6 +28,7 @@ import type { Tab } from './tabs';
 import { renderMermaidBlocks, resetMermaidProcessed } from './mermaid';
 import { applyFootnotes } from './footnotes';
 import { icons, type IconName } from './icons';
+import { inlineCommentAt, inlineCommentBlock, paintInlineHighlights } from './inline-highlights';
 
 // Register languages with aliases
 hljs.registerLanguage('javascript', javascript);
@@ -322,58 +323,6 @@ function hideHoverButtonNow() {
 export function flashElement(element: HTMLElement) {
   element.classList.add('element-flash');
   setTimeout(() => element.classList.remove('element-flash'), 1000);
-}
-
-/**
- * Replace comment markers with HTML spans
- * Handles both inline and line comment formats:
- * - Inline: <!-- review-start(id) -->...<!-- review-end(id): text -->
- * - Line: <!-- review-line-start(id) -->...<!-- review-line-end(id): text -->
- */
-function injectHighlightSpans(content: string, comments: ReviewComment[]): string {
-  let result = content;
-
-  // Sort by position (descending) to process from end to start
-  const sortedComments = [...comments].sort((a, b) => b.marker_pos - a.marker_pos);
-
-  for (const comment of sortedComments) {
-    const isLine = comment.comment_type === 'line';
-
-    // Build patterns based on comment type
-    const startMarkerRegex = isLine
-      ? new RegExp(`<!--\\s*review-line-start\\(${comment.id}\\)\\s*-->\\n?`)
-      : new RegExp(`<!--\\s*review-start\\(${comment.id}\\)\\s*-->`);
-
-    const endMarkerRegex = isLine
-      ? new RegExp(`\\n?<!--\\s*review-line-end\\(${comment.id}\\):[^>]*-->`)
-      : new RegExp(`<!--\\s*review-end\\(${comment.id}\\):[^>]*-->`);
-
-    const startMatch = result.match(startMarkerRegex);
-    if (!startMatch || startMatch.index === undefined) {
-      continue;
-    }
-
-    const startIdx = startMatch.index;
-    const afterStart = startIdx + startMatch[0].length;
-
-    const endMatch = result.slice(afterStart).match(endMarkerRegex);
-    if (!endMatch || endMatch.index === undefined) {
-      continue;
-    }
-
-    const highlightedText = result.slice(afterStart, afterStart + endMatch.index);
-    const endMarkerEnd = afterStart + endMatch.index + endMatch[0].length;
-
-    // Replace with HTML span
-    result =
-      result.slice(0, startIdx) +
-      `<span class="review-comment-highlight" data-comment-id="${comment.id}">` +
-      highlightedText +
-      '</span>' +
-      result.slice(endMarkerEnd);
-  }
-
-  return result;
 }
 
 function escapeHtml(value: string): string {
@@ -1236,21 +1185,18 @@ function getTokenSourceText(token: object, fallback: string): string {
 }
 
 /**
- * Render markdown with highlights
+ * Render markdown to preview HTML with source ranges on commentable blocks
  */
-export function renderMarkdown(content: string, comments: ReviewComment[]): RenderPreviewResult {
+export function renderMarkdown(content: string): RenderPreviewResult {
   const frontmatter = parseLeadingFrontmatter(content);
 
-  // Step 1: Replace comment markers with HTML spans BEFORE markdown parsing.
-  const contentWithSpans = injectHighlightSpans(frontmatter.bodyMarkdown, comments);
-
-  // Step 2: Compute exact source ranges from markdown body, then remap to original source offsets.
+  // Step 1: Compute exact source ranges from markdown body, then remap to original source offsets.
   const ranges = offsetRanges(
     collectCommentableRanges(frontmatter.bodyMarkdown),
     frontmatter.consumedChars
   );
 
-  // Step 3: Lex → annotate source offsets → render with custom renderers.
+  // Step 2: Lex → annotate source offsets → render with custom renderers.
   const slugCounts = new Map<string, number>();
   const renderer = new marked.Renderer();
   renderer.heading = function ({ tokens, depth }: Tokens.Heading) {
@@ -1442,7 +1388,7 @@ export function renderMarkdown(content: string, comments: ReviewComment[]): Rend
     return `<div class="preview-paragraph">${inner}</div>\n`;
   };
 
-  const tokens = lexMarkdown(contentWithSpans);
+  const tokens = lexMarkdown(frontmatter.bodyMarkdown);
   // Manual walker pass — `marked.parser(tokens, opts)` does NOT invoke any
   // registered `walkTokens`, so we mutate mermaid tokens here. It runs AFTER
   // `annotateSourceStart` so each diagram can stamp its fence range.
@@ -1473,7 +1419,14 @@ function setupElementClickHandlers() {
         return;
       }
 
-      const commentIds = (el.getAttribute('data-comment-ids') ?? '').split(' ').filter(Boolean);
+      // A click that ends a text selection is not an activation.
+      if (!window.getSelection()?.isCollapsed) return;
+
+      // An inline passage under the pointer wins over the block's comments.
+      const inline = inlineCommentAt(e.clientX, e.clientY);
+      const commentIds = inline
+        ? [inline]
+        : (el.getAttribute('data-comment-ids') ?? '').split(' ').filter(Boolean);
       if (commentIds.length > 0) {
         window.dispatchEvent(new CustomEvent('preview-element-click', {
           detail: { commentId: commentIds[0], commentIds, element: el }
@@ -1673,7 +1626,7 @@ let activeMermaidController: AbortController | null = null;
 export function updatePreview(content: string, comments: ReviewComment[]) {
   if (!previewContainer) return;
 
-  const { html, ranges } = renderMarkdown(content, comments);
+  const { html, ranges } = renderMarkdown(content);
   previewContainer.innerHTML = html;
   setCommentableAttributes(previewContainer, ranges, content);
 
@@ -1687,7 +1640,12 @@ export function updatePreview(content: string, comments: ReviewComment[]) {
   // After the commentable mapping, which compares element text to source.
   applyFootnotes(previewContainer);
   addHeadingLinks();
-  applyCommentHighlights(previewContainer, comments);
+  // Inline comments paint their exact text; the rest highlight their blocks.
+  const precise = paintInlineHighlights(previewContainer, comments, content);
+  applyCommentHighlights(
+    previewContainer,
+    comments.filter((comment) => !precise.has(comment.id))
+  );
 
   setupElementClickHandlers();
   setupHoverHandlers();
@@ -1706,7 +1664,9 @@ export function updatePreview(content: string, comments: ReviewComment[]) {
 export function scrollPreviewToComment(commentId: string) {
   if (!previewContainer) return;
 
-  const element = previewContainer.querySelector(`[data-comment-ids~="${commentId}"]`);
+  const element =
+    previewContainer.querySelector(`[data-comment-ids~="${commentId}"]`) ??
+    inlineCommentBlock(commentId);
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
   element?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
 }

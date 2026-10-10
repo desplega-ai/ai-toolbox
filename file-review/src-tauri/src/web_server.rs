@@ -100,6 +100,12 @@ pub struct FileExistsRequest {
     pub path: String,
 }
 
+/// Request body for find_backlinks
+#[derive(Deserialize)]
+pub struct FindBacklinksRequest {
+    pub path: String,
+}
+
 /// Query for GET /api/asset
 #[derive(Deserialize)]
 pub struct LocalAssetQuery {
@@ -143,6 +149,7 @@ pub fn create_router(state: Arc<WebState>) -> Router {
         .route("/api/insert-nextline-comment", post(insert_nextline_comment))
         .route("/api/remove-comment", post(remove_comment))
         .route("/api/file-exists", post(file_exists))
+        .route("/api/find-backlinks", post(find_backlinks))
         .route("/api/asset", get(serve_local_asset))
         .route("/api/quit", post(quit))
         // Web mode indicator
@@ -291,6 +298,16 @@ async fn remove_comment(Json(req): Json<RemoveCommentRequest>) -> impl IntoRespo
 /// POST /api/file-exists
 async fn file_exists(Json(req): Json<FileExistsRequest>) -> impl IntoResponse {
     Json(std::path::Path::new(&req.path).exists())
+}
+
+/// POST /api/find-backlinks - markdown files that link to `path`
+async fn find_backlinks(
+    Json(req): Json<FindBacklinksRequest>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    tokio::task::spawn_blocking(move || crate::backlinks::find_backlinks(&req.path))
+        .await
+        .map(Json)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
 }
 
 /// GET /api/asset?path=<absolute path> - serve a local image for the preview

@@ -177,7 +177,27 @@ function scrollToFragment(fragment: string): void {
   flashElement(el);
 }
 
-async function followHref(href: string): Promise<void> {
+/** Open a local document as a tab (or switch to it), then scroll to `fragment`. */
+export async function openDocument(path: string, fragment?: string): Promise<void> {
+  if (!deps) return;
+  if (path !== currentPath()) {
+    try {
+      await deps.openDoc(path);
+    } catch (error) {
+      console.error("Failed to open linked file:", path, error);
+      deps.toast(`File not found: ${path}`, "error");
+      return;
+    }
+  }
+  const tab = deps.getActiveTab();
+  if (fragment && tab?.isMarkdownFile && !tab.isRawMode) {
+    // Let the new tab's preview land before looking for the heading.
+    requestAnimationFrame(() => scrollToFragment(fragment));
+  }
+}
+
+/** Follow an href the way a click on a preview link does. */
+export async function followHref(href: string): Promise<void> {
   if (!deps) return;
   const link = resolveHref(href, currentPath());
 
@@ -186,24 +206,9 @@ async function followHref(href: string): Promise<void> {
       scrollToFragment(link.fragment ?? "");
       return;
 
-    case "doc": {
-      const path = link.path!;
-      if (path !== currentPath()) {
-        try {
-          await deps.openDoc(path);
-        } catch (error) {
-          console.error("Failed to open linked file:", path, error);
-          deps.toast(`File not found: ${path}`, "error");
-          return;
-        }
-      }
-      const tab = deps.getActiveTab();
-      if (link.fragment && tab?.isMarkdownFile && !tab.isRawMode) {
-        // Let the new tab's preview land before looking for the heading.
-        requestAnimationFrame(() => scrollToFragment(link.fragment!));
-      }
+    case "doc":
+      await openDocument(link.path!, link.fragment);
       return;
-    }
 
     case "file":
       if (!isTauri()) {
@@ -239,7 +244,7 @@ export function invalidateLinkCache(): void {
   existsCache.clear();
 }
 
-function checkExists(path: string): Promise<boolean> {
+export function checkExists(path: string): Promise<boolean> {
   let pending = existsCache.get(path);
   if (!pending) {
     // On a failed check, assume the target exists rather than flag it.
