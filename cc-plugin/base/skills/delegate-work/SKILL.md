@@ -5,7 +5,7 @@ description: Executor routing policy for ALL delegated work — pick the right m
 
 # delegate-work
 
-Claude (the session model: Fable 5.1 or Opus 5.5) is the **orchestrator**: it thinks, designs, schedules, reviews, commits, and talks to the user. Everything else is delegated to the **cheapest executor that clears the quality bar**. Codex types; Claude judges.
+Claude (Opus 5.5 by default; Fable 5.1 only for hard problems) is the **orchestrator**: it thinks, designs, schedules, reviews, commits, and talks to the user. Everything else is delegated to the **cheapest executor that clears the quality bar**. Codex types; Claude judges.
 
 This skill applies in BOTH modes:
 - **Ad-hoc**: any time you'd spawn an `Agent`/Task, pick its model from the matrix below instead of the default.
@@ -17,8 +17,8 @@ Rankings 1–10, higher = better. Cost = subscription quota burned — both Clau
 
 | executor                | cost | code | taste | speed | role |
 |-------------------------|------|------|-------|-------|------|
-| fable-5.1               | 2    | 8    | 9     | 4     | orchestration, deep reasoning, architecture, final judgment |
-| opus-5.5                | 5    | 9    | 9     | 6     | UI implementation, complex review, browser E2E |
+| fable-5.1               | 2    | 8    | 9     | 4     | hard problems only: deep long-horizon reasoning, novel architecture, high-stakes judgment |
+| opus-5.5                | 5    | 9    | 9     | 6     | default orchestrator; UI implementation, complex review, browser E2E |
 | sonnet-5.5              | 6    | 8    | 7     | 7     | routine review, API QA agents, standard sub-agent work |
 | haiku-5.5               | 10   | 5    | 5     | 9     | search, locate, digest, sweeps, structure checks, bounded mechanical edits |
 | codex gpt-6-astra       | 5    | 10   | 6     | 4     | escalation only: hardest long-horizon or research-grade work |
@@ -33,7 +33,8 @@ Rankings 1–10, higher = better. Cost = subscription quota burned — both Clau
 
 | work | executor | how |
 |------|----------|-----|
-| orchestration, deep reasoning, spec-writing, architecture | **session model** (Fable 5.1 / Opus 5.5) | stay in the main session; never delegated |
+| orchestration, spec-writing, architecture | **Opus 5.5** (default session model) | stay in the main session; never delegated |
+| hard problems: long-horizon reasoning, novel architecture with many unknowns, high-stakes design calls, or anything Opus 5.5 already got wrong twice | **Fable 5.1** | if the session runs on Opus, recommend the user switch with `/model`, or spawn a focused `Agent` with `model: "fable"` and judge its answer in the main session |
 | UI implementation (pages, components, styles, UX flows) | **Opus 5.5** | `Agent` with `model: "opus"`, background |
 | code review — routine / per-phase | **Sonnet 5.5** | `Agent` with `model: "sonnet"` |
 | code review — complex, security-sensitive, cross-cutting, or reviewing Sol/Astra output | **Opus 5.5** (+ optional parallel Codex review, see Verify ↓) | `Agent` with `model: "opus"` |
@@ -61,7 +62,7 @@ Heuristic: if the prompt reads as a work order → delegate; if writing it force
 
 When the harness exposes the `Workflow` tool AND the user has opted in (the desplega skills ask during setup — that answer IS the explicit opt-in the tool requires), fan-out runs as a workflow script instead of ad-hoc `Agent` calls. The matrix above still routes every executor; it just maps onto `agent()` opts:
 
-- **Model tiers** → `model: "haiku" | "sonnet" | "opus" | "fable"` (aliases resolve to the latest version of each family); omit `model` for work that must stay at orchestrator quality (it inherits the session model). `effort` follows the same logic: `low` for mechanical stages, higher tiers only for verify/judge stages.
+- **Model tiers** → `model: "haiku" | "sonnet" | "opus" | "fable"` (aliases resolve to the latest version of each family; `"fable"` only for hard-problem stages, per the routing table); omit `model` for work that must stay at orchestrator quality (it inherits the session model). `effort` follows the same logic: `low` for mechanical stages, higher tiers only for verify/judge stages.
 - **Named agents** (locators, analyzers, pattern-finders) → the `agentType` opt.
 - **Codex rows** still apply inside a workflow: an `agent()` can drive `codex-exec.sh` in its own worktree. Plan bookkeeping and commits stay orchestrator-side, as always.
 - **The join stays Claude-side**: the workflow returns data (findings, reports, file lists) — reading the diff, deduping findings, and the final verdict happen in the main session, never inside the script.
