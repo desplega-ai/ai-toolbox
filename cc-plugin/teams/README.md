@@ -28,7 +28,7 @@ The plugin registers a `teams` MCP server with 5 tools:
 
 ## How It Works
 
-1. **Session registry** — A hook fires on `SessionStart`, `PostToolUse`, and `Stop` to register/heartbeat/deregister sessions in `~/.desplega/desplega.db`
+1. **Session registry** — A hook fires on `SessionStart`, `PostToolUse`, and `SessionEnd` to register/heartbeat/deregister sessions in `~/.desplega/desplega.db`
 2. **Slug assignment** — Each session gets a unique human-readable slug (e.g., `bold-eagle-1337`)
 3. **Messaging** — Sessions send messages via `send-message`, which stores in SQLite and delivers to the recipient's tmux pane via `send-keys`
 4. **Discovery** — `list-sessions` shows all active sessions with their slugs and directories

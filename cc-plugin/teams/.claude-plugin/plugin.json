@@ -1,7 +1,7 @@
 {
     "name": "teams",
     "description": "Inter-session communication for Claude Code — session registry, messaging, and coordination",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "author": {
         "name": "desplega.ai",
         "email": "contact@desplega.ai"
@@ -28,7 +28,7 @@
                 }]
             }
         ],
-        "Stop": [
+        "SessionEnd": [
             {
                 "hooks": [{
                     "type": "command",
