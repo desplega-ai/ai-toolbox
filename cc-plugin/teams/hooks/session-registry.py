@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Session registry hook for desplega teams plugin.
 
-Handles SessionStart, PostToolUse, and Stop lifecycle events.
+Handles SessionStart, PostToolUse, and SessionEnd lifecycle events.
 Registers sessions with unique slugs, sends heartbeats, and cleans up on exit.
 """
 
@@ -144,8 +144,13 @@ def handle_post_tool_use(data):
         print(f"WARNING: Throttle touch failed: {e}", file=sys.stderr)
 
 
-def handle_stop(data):
-    """Clean up session on Stop."""
+def handle_session_end(data):
+    """Clean up session on SessionEnd.
+
+    Not on Stop: Stop fires each time Claude finishes a response, so an idle
+    session waiting for a message would be deregistered and lose its unread
+    messages.
+    """
     session_id = data.get("session_id", "")
     if not session_id:
         return
@@ -182,8 +187,8 @@ def main():
         handle_session_start(data)
     elif event == "PostToolUse":
         handle_post_tool_use(data)
-    elif event == "Stop":
-        handle_stop(data)
+    elif event == "SessionEnd":
+        handle_session_end(data)
     else:
         # Unknown event — pass through silently
         pass
