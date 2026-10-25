@@ -6,6 +6,8 @@ and validates:
 1. Path structure: thoughts/{username|agentId|shared}/{research|plans|plans-yolo|brainstorms|qa|questions|learnings|reviews}/YYYY-MM-DD-topic.md
    (design-docs/ is the exception: thoughts/{...}/design-docs/system-slug.md — living docs, no date prefix)
 2. File format: Must have YAML frontmatter (for Write operations)
+3. Exception: any file under an assets/ folder of a thoughts subdirectory
+   (e.g. thoughts/{...}/brainstorms/assets/wireframe.png) skips both checks.
 
 Exit codes:
 - 0: Allow operation
@@ -15,6 +17,12 @@ Exit codes:
 import json
 import re
 import sys
+
+# Screenshots, wireframes and recordings that support a doc live in an assets/
+# folder next to it. They have no date prefix and no frontmatter.
+ASSETS_PATTERN = re.compile(
+    r'thoughts/[^/]+/(?:research|plans|plans-yolo|brainstorms|qa|questions|learnings|reviews|design-docs)/assets/[^/]'
+)
 
 
 def validate_path(file_path: str) -> tuple[bool, str]:
@@ -174,6 +182,10 @@ def main():
 
     # Only validate thoughts directory writes
     if "/thoughts/" not in file_path:
+        sys.exit(0)
+
+    # Supporting artifacts skip path and frontmatter validation
+    if ASSETS_PATTERN.search(file_path):
         sys.exit(0)
 
     # Validate path structure
