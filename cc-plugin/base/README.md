@@ -108,6 +108,8 @@ Inside you will find:
 | `bu-auto-instrument` | Auto-instrument Business-Use SDK tracking |
 | `script-builder` | Generate durable validation scripts from testing intent |
 | `comms` | Re-express the last reply or current topic so it lands: simpler, visual, joint, or precise STE rewrite |
+| `tackle-gh-comments` | One sweep over a PR's review threads and findings: verify, fix, reply, resolve, push |
+| `babysit-pr` | Keep a PR moving until it is clean on its head commit |
 
 #### Skills
 
@@ -133,7 +135,8 @@ Inside you will find:
 | `script-builder` | Generate TS/Python/Bash validation scripts with PASS/FAIL + /tmp log convention |
 | `engineering-standards` | The senior-engineer simplicity bar — named tests (deletion, two-adapters, …), smell table, `runbooks/` convention, Pushback protocol |
 | `code-reviewing` | Two-axis diff review (Standards vs Spec) via fresh parallel sub-agents, reported separately |
-| `tackle-gh-comments` | Work through every PR review thread — verify, fix, reply, resolve, push |
+| `tackle-gh-comments` | Work through every PR review thread and finding outside threads: verify, fix, reply, resolve, push |
+| `babysit-pr` | Round loop on a PR: fix CI, handle findings, rebase, re-trigger discovered reviewers, wait in the background, stop when clean on head |
 | `feedback` | Radically Candid feedback (bundled from the radical-candor plugin) |
 | `ask-user` | Shared conventions for `AskUserQuestion` prompts across the other skills |
 | `improve-agents-md` | Improve or bootstrap an AGENTS.md / CLAUDE.md with `<important if>` blocks |

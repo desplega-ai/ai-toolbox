@@ -13,7 +13,7 @@ with `gh auth token`.
 
 ## The loop
 
-1. **Fetch** — `list` the unresolved threads.
+1. **Fetch**: `list` the unresolved threads and the findings outside threads.
 2. **Verify each claim before acting on it.** Bot reviewers are often right and
    sometimes confidently wrong. Read the code the comment points at.
 3. **Fix what is real**, in a commit separate from the original work so the
@@ -29,9 +29,10 @@ Push last. A thread that resolves before the fix is pushed reads as dismissed.
 ```bash
 SKILL="${CLAUDE_PLUGIN_ROOT}/skills/tackle-gh-comments/scripts/gh-pr-comments.ts"
 
-bun $SKILL list                    # unresolved threads in the current PR
-bun $SKILL list --pr 1044 --all    # explicit PR, include resolved
+bun $SKILL list                    # unresolved threads and findings on head, current PR
+bun $SKILL list --pr 1044 --all    # explicit PR, add resolved threads and older findings
 bun $SKILL json                    # machine-readable, for scripting
+bun $SKILL findings                # review bodies and PR comments on head, as JSON
 bun $SKILL handle --thread <id> --body "..."   # reply + resolve
 bun $SKILL reply   --thread <id> --body "..."  # reply only
 bun $SKILL resolve --thread <id>               # resolve only
@@ -102,14 +103,20 @@ reader does not have to re-derive it.
 Do not pad replies with thanks-for-the-review filler. One line of
 acknowledgement at most, then the substance.
 
+**Findings outside threads** (review bodies, bot summary comments) have no
+thread to resolve. Answer them with one PR comment (`gh pr comment`) that names
+each finding and its outcome, with the same rules as above.
+
 ## Traps
 
 - **Resolving before pushing the fix.** The thread shows resolved against code
   that does not yet contain the change. Push last, always.
 - **`gh pr view --comments` looks empty.** It does not show inline review
   threads. Use `list`.
-- **A bot re-reviews after each push** and can open new threads. Re-run `list`
-  after the push settles, and handle the new ones the same way.
+- **A bot can review again after a push** and open new threads or findings.
+  Re-run `list` after the push settles for one more sweep. To continue until
+  the PR is approved (re-trigger reviewers, wait, fix CI, repeat), use
+  `desplega:babysit-pr`.
 - **Outdated threads** (`outdated` flag) attach to lines that have since moved.
   Still reply — the underlying point usually survives the diff.
 - **Blanket-resolving to get a green PR.** The resolved state is a claim that
@@ -117,5 +124,7 @@ acknowledgement at most, then the substance.
 
 ## Definition of done
 
-`bun $SKILL verify` exits 0, every thread has a substantive reply, the fixes are
-committed, and the branch is pushed.
+- `bun $SKILL verify` exits 0.
+- Every thread has a substantive reply.
+- Every finding outside threads has an answer in a PR comment.
+- The fixes are committed, and the branch is pushed.

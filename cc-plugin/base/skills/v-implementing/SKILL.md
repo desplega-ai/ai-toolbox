@@ -164,7 +164,7 @@ When every step is `done`:
 2. Set `root.md` frontmatter `status: completed`.
 3. Offer post-implementation auditing: "Would you like me to run `/verify-plan` and `/review` on the plan directory?"
 4. If commit-per-step was off, offer to create a single bundled commit now.
-5. If the work ships as a GitHub PR: once review comments land, address them with `desplega:tackle-gh-comments` (fetch threads, verify each claim, fix, reply, resolve — push last).
+5. If the work ships as a GitHub PR: once review comments land, address them with `desplega:tackle-gh-comments` (fetch threads, verify each claim, fix, reply, resolve, then push last). To keep the PR moving until it is approved, use `desplega:babysit-pr`.
 
 ## Important Guidelines
 
