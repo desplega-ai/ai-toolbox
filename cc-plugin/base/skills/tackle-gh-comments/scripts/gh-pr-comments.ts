@@ -8,18 +8,21 @@
  *
  * Usage:
  *   bun gh-pr-comments.ts list    [--pr N] [--repo owner/name] [--all]
+ *   bun gh-pr-comments.ts json    [--pr N] [--repo owner/name]      # threads as JSON
+ *   bun gh-pr-comments.ts findings [--pr N] [--repo owner/name] [--all]
  *   bun gh-pr-comments.ts reply   --thread <threadId> --body "..."
  *   bun gh-pr-comments.ts resolve --thread <threadId>
  *   bun gh-pr-comments.ts handle  --thread <threadId> --body "..."   # reply + resolve
  *   bun gh-pr-comments.ts verify  [--pr N]                           # assert none unresolved
  *
- * `list` prints unresolved threads by default (--all includes resolved ones).
+ * `list` prints unresolved threads and current findings (--all includes older findings and resolved threads).
+ * Findings are review bodies and PR comments. The query reads the last 50 reviews and the last 100 comments.
  * Thread ids are opaque GraphQL node ids — pass them back verbatim.
  */
 
 import { $ } from "bun";
 
-type ThreadComment = {
+export type ThreadComment = {
   id: string;
   author: string;
   body: string;
@@ -27,7 +30,7 @@ type ThreadComment = {
   url: string;
 };
 
-type ReviewThread = {
+export type ReviewThread = {
   id: string;
   isResolved: boolean;
   isOutdated: boolean;
@@ -36,9 +39,9 @@ type ReviewThread = {
   comments: ThreadComment[];
 };
 
-type Args = Record<string, string | boolean>;
+export type Args = Record<string, string | boolean>;
 
-function parseArgs(argv: string[]): { cmd: string; args: Args } {
+export function parseArgs(argv: string[]): { cmd: string; args: Args } {
   const cmd = argv[0] ?? "list";
   const args: Args = {};
   for (let i = 1; i < argv.length; i++) {
@@ -62,7 +65,7 @@ async function token(): Promise<string> {
   return value;
 }
 
-async function graphql<T>(query: string, variables: Record<string, unknown>): Promise<T> {
+export async function graphql<T>(query: string, variables: Record<string, unknown>): Promise<T> {
   const res = await fetch("https://api.github.com/graphql", {
     method: "POST",
     headers: {
@@ -83,7 +86,7 @@ async function graphql<T>(query: string, variables: Record<string, unknown>): Pr
 }
 
 /** Resolve owner/name + PR number from flags, falling back to the current checkout. */
-async function context(args: Args): Promise<{ owner: string; name: string; number: number }> {
+export async function context(args: Args): Promise<{ owner: string; name: string; number: number }> {
   let repo = typeof args.repo === "string" ? args.repo : "";
   if (!repo) {
     repo = (await $`gh repo view --json nameWithOwner -q .nameWithOwner`.text()).trim();
@@ -123,7 +126,7 @@ query($owner:String!, $name:String!, $number:Int!, $cursor:String) {
   }
 }`;
 
-async function fetchThreads(ctx: {
+export async function fetchThreads(ctx: {
   owner: string;
   name: string;
   number: number;
@@ -183,6 +186,103 @@ async function fetchThreads(ctx: {
   return threads;
 }
 
+export type Finding = {
+  id: string;
+  kind: "review" | "comment";
+  author: string;
+  authorType: string;
+  state?: string;
+  body: string;
+  at: string;
+  url: string;
+  commitOid?: string | null;
+};
+
+const FINDINGS_QUERY = `
+query($owner:String!, $name:String!, $number:Int!) {
+  viewer { login }
+  repository(owner:$owner, name:$name) {
+    pullRequest(number:$number) {
+      headRefOid
+      commits(last:1) { nodes { commit { committedDate } } }
+      reviews(last:50) {
+        nodes { id author { login __typename } state body submittedAt url commit { oid } }
+      }
+      comments(last:100) {
+        nodes { id author { login __typename } body createdAt url }
+      }
+    }
+  }
+}`;
+
+export async function fetchFindings(
+  ctx: { owner: string; name: string; number: number },
+  { all = false }: { all?: boolean } = {},
+): Promise<Finding[]> {
+  const data = await graphql<{
+    viewer: { login: string };
+    repository: {
+      pullRequest: {
+        headRefOid: string;
+        commits: { nodes: { commit: { committedDate: string } }[] };
+        reviews: {
+          nodes: {
+            id: string;
+            author: { login: string; __typename: string } | null;
+            state: string;
+            body: string;
+            submittedAt: string;
+            url: string;
+            commit: { oid: string } | null;
+          }[];
+        };
+        comments: {
+          nodes: {
+            id: string;
+            author: { login: string; __typename: string } | null;
+            body: string;
+            createdAt: string;
+            url: string;
+          }[];
+        };
+      };
+    };
+  }>(FINDINGS_QUERY, ctx);
+
+  const pr = data.repository.pullRequest;
+  const committedAt = pr.commits.nodes[0]?.commit.committedDate;
+  const findings: Finding[] = [];
+  for (const review of pr.reviews.nodes) {
+    if (!review.body.trim() || review.author?.login === data.viewer.login) continue;
+    if (!all && review.commit?.oid !== pr.headRefOid) continue;
+    findings.push({
+      id: review.id,
+      kind: "review",
+      author: review.author?.login ?? "(ghost)",
+      authorType: review.author?.__typename ?? "Unknown",
+      state: review.state,
+      body: review.body,
+      at: review.submittedAt,
+      url: review.url,
+      commitOid: review.commit?.oid ?? null,
+    });
+  }
+  for (const comment of pr.comments.nodes) {
+    if (!comment.body.trim() || comment.author?.login === data.viewer.login) continue;
+    if (!all && (!committedAt || Date.parse(comment.createdAt) <= Date.parse(committedAt))) continue;
+    findings.push({
+      id: comment.id,
+      kind: "comment",
+      author: comment.author?.login ?? "(ghost)",
+      authorType: comment.author?.__typename ?? "Unknown",
+      body: comment.body,
+      at: comment.createdAt,
+      url: comment.url,
+    });
+  }
+  return findings;
+}
+
 async function reply(threadId: string, body: string): Promise<void> {
   await graphql(
     `mutation($threadId:ID!, $body:String!) {
@@ -238,55 +338,85 @@ function render(threads: ReviewThread[], showAll: boolean): void {
   }
 }
 
-const { cmd, args } = parseArgs(process.argv.slice(2));
+const FINDING_BODY_LIMIT = 1500;
 
-switch (cmd) {
-  case "list": {
-    render(await fetchThreads(await context(args)), args.all === true);
-    break;
-  }
-  case "json": {
-    console.log(JSON.stringify(await fetchThreads(await context(args)), null, 2));
-    break;
-  }
-  case "reply": {
-    const id = String(args.thread ?? "");
-    const body = String(args.body ?? "");
-    if (!id || !body) throw new Error("reply needs --thread and --body");
-    await reply(id, body);
-    console.log(`replied to ${id}`);
-    break;
-  }
-  case "resolve": {
-    const id = String(args.thread ?? "");
-    if (!id) throw new Error("resolve needs --thread");
-    await resolve(id);
-    console.log(`resolved ${id}`);
-    break;
-  }
-  case "handle": {
-    const id = String(args.thread ?? "");
-    const body = String(args.body ?? "");
-    if (!id || !body) throw new Error("handle needs --thread and --body");
-    await reply(id, body);
-    await resolve(id);
-    console.log(`replied + resolved ${id}`);
-    break;
-  }
-  case "verify": {
-    const threads = await fetchThreads(await context(args));
-    const open = threads.filter((t) => !t.isResolved);
-    if (open.length > 0) {
-      console.error(`${open.length} thread(s) still unresolved:`);
-      for (const thread of open) {
-        console.error(`  ${thread.path ?? "(general)"} — ${thread.id}`);
-      }
-      process.exit(1);
+function renderFindings(findings: Finding[]): void {
+  console.log(`Findings outside threads: ${findings.length}\n`);
+  for (const [index, finding] of findings.entries()) {
+    const kind = finding.state ? `${finding.kind}, ${finding.state}` : finding.kind;
+    const body = finding.body.trim();
+    const indented = body
+      .slice(0, FINDING_BODY_LIMIT)
+      .split("\n")
+      .map((line) => `     ${line}`)
+      .join("\n");
+    console.log(`── [${index + 1}] @${finding.author}  (${kind})`);
+    console.log(`   ${finding.url}`);
+    console.log(indented);
+    if (body.length > FINDING_BODY_LIMIT) {
+      console.log(`     ... (truncated, read the rest at ${finding.url})`);
     }
-    console.log(`All ${threads.length} thread(s) resolved.`);
-    break;
+    console.log();
   }
-  default:
-    console.error(`Unknown command "${cmd}". See the header for usage.`);
-    process.exit(1);
+}
+
+if (import.meta.main) {
+  const { cmd, args } = parseArgs(process.argv.slice(2));
+
+  switch (cmd) {
+    case "list": {
+      const ctx = await context(args);
+      render(await fetchThreads(ctx), args.all === true);
+      renderFindings(await fetchFindings(ctx, { all: args.all === true }));
+      break;
+    }
+    case "findings": {
+      console.log(JSON.stringify(await fetchFindings(await context(args), { all: args.all === true }), null, 2));
+      break;
+    }
+    case "json": {
+      console.log(JSON.stringify(await fetchThreads(await context(args)), null, 2));
+      break;
+    }
+    case "reply": {
+      const id = String(args.thread ?? "");
+      const body = String(args.body ?? "");
+      if (!id || !body) throw new Error("reply needs --thread and --body");
+      await reply(id, body);
+      console.log(`replied to ${id}`);
+      break;
+    }
+    case "resolve": {
+      const id = String(args.thread ?? "");
+      if (!id) throw new Error("resolve needs --thread");
+      await resolve(id);
+      console.log(`resolved ${id}`);
+      break;
+    }
+    case "handle": {
+      const id = String(args.thread ?? "");
+      const body = String(args.body ?? "");
+      if (!id || !body) throw new Error("handle needs --thread and --body");
+      await reply(id, body);
+      await resolve(id);
+      console.log(`replied + resolved ${id}`);
+      break;
+    }
+    case "verify": {
+      const threads = await fetchThreads(await context(args));
+      const open = threads.filter((t) => !t.isResolved);
+      if (open.length > 0) {
+        console.error(`${open.length} thread(s) still unresolved:`);
+        for (const thread of open) {
+          console.error(`  ${thread.path ?? "(general)"} — ${thread.id}`);
+        }
+        process.exit(1);
+      }
+      console.log(`All ${threads.length} thread(s) resolved.`);
+      break;
+    }
+    default:
+      console.error(`Unknown command "${cmd}". See the header for usage.`);
+      process.exit(1);
+  }
 }
