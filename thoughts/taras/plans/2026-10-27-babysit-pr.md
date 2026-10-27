@@ -358,6 +358,19 @@ table gets `tackle-gh-comments` and `babysit-pr` rows. `plugin.json` version `2.
   the two changed cross-link lines.
 - Not done: a gated Stop hook (follow-up per the Appendix). Reactions (for example a bot's thumbs-up) are not seen by
   `wait`. A clean re-review that only reacts shows up at the next `timeout`.
+- Follow-up after a review of https://github.com/t3dotgg/tstack (its `babysit-pr` and `pr-wait`), chosen by Taras:
+  - `readChecks` reads required check names from the base branch rulesets (`ACTIVE` only) and classic protection
+    (GitHub returns null for non-admins). A required check that has not started shows as `EXPECTED` and counts as
+    pending, in `snapshot` and in `wait`.
+  - `wait` holds a per-PR lock file in the temp dir (written with `link()`, so it never shows empty). A second `wait`
+    exits with the pid of the first. A lock whose pid is not a running `pr-state` process (`ps -o command=`) is
+    replaced, so a reused pid never blocks a wait or gets a `kill` suggestion.
+  - SKILL.md: rebase records the old head and fork point, checks `git range-diff`, and pushes with
+    `--force-with-lease=<branch>:<old-head>`. Stop-and-ask uses `AskUserQuestion` (final report only as a fallback).
+    Out-of-scope findings are declined with a reason and listed as follow-ups instead of a stop. Fetch and re-snapshot
+    right before a merge, never `--admin`.
+  - Not taken: tstack's hardcoded bot lists (we classify from evidence), its "edits are never events" rule (we keep
+    `updatedAt`), Monitor-based waiting (Monitor is capped at 30 minutes, the same as a background task).
 
 ## Appendix
 

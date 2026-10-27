@@ -21,14 +21,15 @@ decision belongs to the user.
 A turn in a babysit run ends in exactly one of two ways:
 
 1. A `wait` command runs in the background.
-2. You write the final report (done, round limit, or stop and ask).
+2. You write the final report: the PR is done, merged, or closed, the user told you to stop, or
+   a stop question got no answer (see Guardrails).
 
 Do not end a turn in a different way. When `wait` exits, start the next round at once. The
 `next` field in the `wait` output repeats this instruction. This keeps the loop alive after a
 context compaction.
 
-An `AskUserQuestion` prompt pauses the round. It does not end the round. After the answer,
-continue the round.
+To stop and ask, use `AskUserQuestion` (see Guardrails). The prompt pauses the round. It does
+not end the round. After the answer, continue the round.
 
 ## Commands
 
@@ -69,8 +70,14 @@ calls:
 1. **Snapshot.** Run `snapshot` and read the output.
 2. **Done check.** If the PR meets the definition of done, write the final report. If
    `state` is `MERGED` or `CLOSED`, write the final report.
-3. **Rebase** if `gates.upToDate` is false. Fetch the base branch. Rebase on `base.ref`. Run
-   the local checks. If a conflict needs a judgment call, stop and ask.
+3. **Rebase** if `gates.upToDate` is false.
+   1. Run `git fetch origin <base.ref>`.
+   2. Record the old head (`git rev-parse HEAD`) and the old fork point
+      (`git merge-base HEAD origin/<base.ref>`).
+   3. Run `git rebase origin/<base.ref>`. If a conflict needs a judgment call, stop and ask.
+   4. Run `git range-diff <old-fork-point>..<old-head> origin/<base.ref>..HEAD`. Make sure that
+      no change of the PR is gone, and that no change from the base returned.
+   5. Run the local checks.
 4. **CI failures.** Find the link of each failing check with `gh pr checks <N> --repo <owner/name>`.
    For a GitHub Actions run, the link holds the run id. Read the logs
    (`gh run view <run-id> --log-failed`).
@@ -80,13 +87,20 @@ calls:
    as real.
 5. **Findings.** If `threads.unresolved` is above 0 or `findings` is not empty, follow
    `desplega:tackle-gh-comments`: verify, fix, reply, and resolve. Do not push yet.
+   - Keep the PR at the size of its goal. Fix real bugs in the intended case. Decline other
+     findings with a written reason, and list them as follow-ups. Examples: tests that the goal
+     does not need, guards for rare edge cases, extra integration or compatibility, small
+     performance costs. Prefer the fix that deletes or narrows code.
    - `findings` holds only findings on the head commit. Some are approvals or status notes.
      Read each one. Act only on real requests.
    - A finding that you answered in an earlier round stays in `findings` until the next push.
      Do not answer it again.
    - A reviewer can review an older head after your last push. Its `latest.onHead` is then
      false. Read that review with `list --all` and handle it too.
-6. **Push one time**, after all fixes of the round.
+6. **Push one time**, after all fixes of the round. After a rebase, run
+   `git push --force-with-lease=<branch>:<old-head>`. If the lease fails, the remote branch has
+   commits that you do not have. Fetch, then stop and ask. Do not overwrite those commits.
+   Never force-push without a lease.
 7. **Re-trigger** each relevant reviewer (see the next section). Send one trigger per reviewer
    per round. Send a trigger only after a push, or when a relevant reviewer has no activity on
    head.
@@ -145,6 +159,9 @@ All of these conditions are true on `head.oid`:
   - If `checks.requiredCount` is 0, `requiredChecksGreen` uses all checks.
   - You can waive a known unrelated failing check (for example a deploy preview on a fork).
     Write the reason in the final report.
+  - `checks.required` also lists the required checks of the base branch rules that have not
+    started yet. Their status is `EXPECTED`, and they count as pending. The script reads
+    rulesets, and classic branch protection when your account can read it.
   - `requiredChecksGreen` is also true when no check exists. If `checks.required` and
     `checks.optional` are both empty right after a push, wait for one more event. GitHub may not
     have registered the checks yet.
@@ -166,20 +183,23 @@ All of these conditions are true on `head.oid`:
   foreground. Set `--timeout` at least two intervals below the time limit of the tool. On
   `timeout`, run `wait` again in the same turn.
 - Use `wait` for all waiting. Do not use `sleep` loops or other polling.
+- Only one `wait` runs per PR. A second `wait` exits at once with an error that gives the pid
+  of the first. Then end the turn. The first `wait` starts the next round when it exits. If you
+  cannot find that background task, run `kill <pid>` and start `wait` again.
 - **Optional `/goal`.** In Claude Code, give the user this line to paste. `/goal` is a user
   command, so you cannot set it yourself.
 
   ```text
-  /goal The babysit-pr run for <PR url> wrote its final report: the PR is clean on its head commit, it reached the round limit, or it stopped to ask.
+  /goal The babysit-pr run for <PR url> wrote its final report: the PR is clean on its head commit, merged, or closed, or the user told it to stop.
   ```
 
 ## Guardrails
 
-Stop and ask (write the final report with the question) when one of these conditions occurs:
+Stop and ask when one of these conditions occurs:
 
 - The run reaches the round limit.
 - The same finding appears again after a fix.
-- A finding needs work outside the PR's goal.
+- A finding says that the goal or the approach of the PR is wrong.
 - The PR looks obsolete, for example an overlapping PR already merged the change.
 - A rebase conflict needs a judgment call.
 - A reviewer ignores two triggers in a row.
@@ -187,18 +207,27 @@ Stop and ask (write the final report with the question) when one of these condit
   An old `CHANGES_REQUESTED` review then blocks the PR. Find its author with
   `gh pr view <N> --repo <owner/name> --json latestReviews`. Only that author can clear it.
 
+To stop and ask, use `AskUserQuestion`. A question in a normal message looks like a finished
+run, and the user can miss it. Put the PR url, the blocker, and the options in the question. Put
+your recommendation first. If no question tool exists, or the prompt returns no answer, write
+the final report and start it with the question. Leave the PR open and unmerged.
+
 Always obey these rules:
 
 - Never merge without `--merge`. With `--merge`, merge only when the PR is done. Use the merge
   method of the repo. If you cannot find the method, ask.
+- Right before a merge, run `git fetch` and a new `snapshot`. Merge only when that snapshot
+  meets the definition of done on the same `head.oid`.
+- Never use `--admin` or another bypass of branch protection.
 - Never close a PR without asking.
 - Post no filler comments. If nothing changed, post nothing on the PR.
-- Send a `PushNotification` each time you write the final report.
+- Send a `PushNotification` each time you stop and ask, and each time you write the final
+  report.
 
 ## Final report
 
 - PR url, and rounds used out of the limit.
 - Per round: what you fixed, with commit shas.
-- Declined findings, each with its reason.
+- Declined findings, each with its reason. Mark the ones that are follow-ups.
 - Waived checks, each with its reason.
 - Status: "ready to merge", "merged", or "stopped" with the reason or the question.

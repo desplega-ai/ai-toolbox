@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, expect, mock, spyOn, test } from "bun:test";
 import { $ } from "bun";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 
-const { snapshot, waitForChange } = await import("./pr-state.ts");
+const { snapshot, waitForChange, lockPath } = await import("./pr-state.ts");
 
 const ctx = {
   owner: "fixture",
@@ -91,6 +93,9 @@ type Frame = {
   comments?: ReturnType<typeof comment>[];
   threads?: ReturnType<typeof thread>[];
   checks?: ReturnType<typeof check>[];
+  noRollup?: boolean;
+  rules?: { enforcement: string; names: string[] }[];
+  classic?: string[];
 };
 
 let frames: Frame[];
@@ -169,7 +174,16 @@ beforeEach(() => {
           repository: {
             pullRequest: {
               commits: {
-                nodes: [{ commit: { statusCheckRollup: { contexts: page(frame.checks ?? []) } } }],
+                nodes: [{ commit: { statusCheckRollup: frame.noRollup ? null : { contexts: page(frame.checks ?? []) } } }],
+              },
+              baseRef: {
+                branchProtectionRule: frame.classic ? { requiredStatusCheckContexts: frame.classic } : null,
+                rules: {
+                  nodes: (frame.rules ?? []).map((rule) => ({
+                    repositoryRuleset: { enforcement: rule.enforcement },
+                    parameters: { requiredStatusChecks: rule.names.map((context) => ({ context })) },
+                  })),
+                },
               },
             },
           },
@@ -202,6 +216,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  rmSync(lockPath(ctx), { force: true });
   globalThis.fetch = originalFetch;
   output.mockRestore();
   tokenLookup.mockRestore();
@@ -415,4 +430,80 @@ test("rejects a pagination connection exceeding twenty pages", async () => {
   pageMode = "endless";
   await expect(snapshot(ctx)).rejects.toThrow(/20/);
   expect(commentPages).toBe(20);
+});
+
+test("lists active required checks from the base rules that have not started", async () => {
+  frames = [{
+    checks: [check("lint", "COMPLETED", "SUCCESS", false)],
+    rules: [
+      { enforcement: "ACTIVE", names: ["Gate", "Check lint"] },
+      { enforcement: "EVALUATE", names: ["Trial"] },
+    ],
+    classic: ["Legacy"],
+  }];
+  const result = await snapshot(ctx);
+  expect(result.value.checks.required).toEqual([
+    { name: "Check lint", status: "COMPLETED", conclusion: "SUCCESS" },
+    { name: "Legacy", status: "EXPECTED", conclusion: null },
+    { name: "Gate", status: "EXPECTED", conclusion: null },
+  ]);
+  expect(result.value.checks.optional).toEqual([]);
+  expect(result.value.gates.requiredChecksGreen).toBe(false);
+});
+
+test("lists required checks when the head has no check rollup", async () => {
+  frames = [{ noRollup: true, rules: [{ enforcement: "ACTIVE", names: ["Gate"] }] }];
+  const result = await snapshot(ctx);
+  expect(result.value.checks.requiredCount).toBe(1);
+  expect(result.value.gates.requiredChecksGreen).toBe(false);
+});
+
+test("waits for a required check that has not started before checks-done", async () => {
+  const rules = [{ enforcement: "ACTIVE", names: ["Check gate"] }];
+  const lint = check("lint");
+  frames = [
+    { checks: [], rules },
+    { checks: [lint], rules },
+    { checks: [lint, check("gate", "IN_PROGRESS", null)], rules },
+    { checks: [lint, check("gate")], rules },
+  ];
+  expect((await wait()).event).toBe("checks-done");
+  expect(stateCalls).toBe(4);
+});
+
+test("refuses a second wait while a pr-state process holds the lock", async () => {
+  const holder = Bun.spawn([process.execPath, "-e", "setTimeout(() => {}, 30000)", "pr-state-lock-fixture"]);
+  try {
+    mkdirSync(dirname(lockPath(ctx)), { recursive: true });
+    writeFileSync(lockPath(ctx), String(holder.pid));
+    await expect(waitForChange(ctx, { since: head, interval: "0.005" })).rejects.toThrow(
+      `Another wait (pid ${holder.pid})`,
+    );
+    expect(stateCalls).toBe(0);
+    expect(readFileSync(lockPath(ctx), "utf8")).toBe(String(holder.pid));
+  } finally {
+    holder.kill();
+  }
+});
+
+test.each([
+  ["an empty file", () => ""],
+  ["a pid that does not run", () => "99999999"],
+  ["a live pid of another program", (other: number) => String(other)],
+])("replaces a lock with %s and removes it at the end", async (_label, content) => {
+  const other = Bun.spawn([process.execPath, "-e", "setTimeout(() => {}, 30000)"]);
+  try {
+    mkdirSync(dirname(lockPath(ctx)), { recursive: true });
+    writeFileSync(lockPath(ctx), content(other.pid));
+    expect((await wait()).event).toBe("timeout");
+    expect(existsSync(lockPath(ctx))).toBe(false);
+  } finally {
+    other.kill();
+  }
+});
+
+test("removes the lock when wait fails", async () => {
+  stateFailures = 3;
+  await expect(waitForChange(ctx, { since: head, interval: "0.005" })).rejects.toThrow("Transient fixture failure");
+  expect(existsSync(lockPath(ctx))).toBe(false);
 });

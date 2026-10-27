@@ -7,9 +7,13 @@
  *   bun pr-state.ts wait --since oid [--interval 60] [--timeout 2700] [--round N/M]
  *   bun pr-state.ts rerequest --reviewer login [--dry-run]
  * All commands accept --repo and --pr.
+ * Only one wait runs per PR. Its lock file in the temp dir holds its pid.
  */
 
 import { $ } from "bun";
+import { linkSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import {
   graphql,
   context,
@@ -213,14 +217,44 @@ async function readState(ctx: Context, wait = false): Promise<StateData | WaitSt
   }
 }
 
+type BaseRules = {
+  branchProtectionRule: { requiredStatusCheckContexts: string[] } | null;
+  rules: {
+    nodes: {
+      repositoryRuleset: { enforcement: string } | null;
+      parameters: { requiredStatusChecks?: { context: string }[] } | null;
+    }[];
+  } | null;
+} | null;
+
+// Required check names from the base branch rulesets, and from classic branch protection when the
+// viewer can read it. GitHub hides classic protection from non-admins and returns null.
+function requiredNames(base: BaseRules): Set<string> {
+  const names = new Set(base?.branchProtectionRule?.requiredStatusCheckContexts ?? []);
+  for (const rule of base?.rules?.nodes ?? []) {
+    if (rule.repositoryRuleset && rule.repositoryRuleset.enforcement !== "ACTIVE") continue;
+    for (const item of rule.parameters?.requiredStatusChecks ?? []) names.add(item.context);
+  }
+  return names;
+}
+
 async function readChecks(ctx: Context, wait = false): Promise<Check[]> {
   const required = wait ? "" : "isRequired(pullRequestNumber:$number)";
   const checks: Check[] = [];
+  let names = new Set<string>();
   let cursor: string | null = null;
+  // A required check that has not started yet is missing from the rollup. List it as pending.
+  const withExpected = () => [
+    ...checks.map((check) => names.has(check.name) ? { ...check, required: true } : check),
+    ...[...names]
+      .filter((name) => !checks.some((check) => check.name === name))
+      .map((name) => ({ id: `expected:${name}`, name, status: "EXPECTED", conclusion: null, required: true })),
+  ];
   for (let count = 0; count < 20; count++) {
     const data = await graphql<{
       repository: {
         pullRequest: {
+          baseRef: BaseRules;
           commits: {
             nodes: {
               commit: { statusCheckRollup: { contexts: Page<CheckContext> } | null };
@@ -232,6 +266,13 @@ async function readChecks(ctx: Context, wait = false): Promise<Check[]> {
       query($owner:String!, $name:String!, $number:Int!, $cursor:String) {
         repository(owner:$owner, name:$name) {
           pullRequest(number:$number) {
+            baseRef {
+              branchProtectionRule { requiredStatusCheckContexts }
+              rules(first:100) { nodes {
+                repositoryRuleset { enforcement }
+                parameters { ... on RequiredStatusChecksParameters { requiredStatusChecks { context } } }
+              } }
+            }
             commits(last:1) { nodes { commit { statusCheckRollup {
               contexts(first:100, after:$cursor) {
                 pageInfo { hasNextPage endCursor }
@@ -248,8 +289,9 @@ async function readChecks(ctx: Context, wait = false): Promise<Check[]> {
       ...ctx,
       cursor,
     });
+    if (!cursor) names = requiredNames(data.repository.pullRequest.baseRef);
     const connection = data.repository.pullRequest.commits.nodes[0]?.commit.statusCheckRollup?.contexts;
-    if (!connection) return checks;
+    if (!connection) return withExpected();
     for (const node of connection.nodes) {
       if (node.__typename === "StatusContext") {
         let status = "COMPLETED";
@@ -275,7 +317,7 @@ async function readChecks(ctx: Context, wait = false): Promise<Check[]> {
         });
       }
     }
-    if (!connection.pageInfo.hasNextPage || !connection.pageInfo.endCursor) return checks;
+    if (!connection.pageInfo.hasNextPage || !connection.pageInfo.endCursor) return withExpected();
     cursor = connection.pageInfo.endCursor;
   }
   throw new Error("Pagination exceeded 20 pages for checks.");
@@ -545,11 +587,72 @@ type FailedCheck = {
   conclusion: string | null;
 };
 
+export function lockPath(ctx: Context): string {
+  return join(tmpdir(), "babysit-pr", `${ctx.owner}__${ctx.name}__${ctx.number}.lock`);
+}
+
+// True when the pid belongs to a running pr-state process. A reused pid of another program is false.
+function waiting(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  const ps = Bun.spawnSync(["ps", "-p", String(pid), "-o", "command="]);
+  return ps.exitCode === 0 && ps.stdout.toString().includes("pr-state");
+}
+
+// One wait per PR. Two waits would start two rounds from one event.
+function lock(ctx: Context): () => void {
+  const path = lockPath(ctx);
+  mkdirSync(dirname(path), { recursive: true });
+  // link() puts the lock in place with its pid already written, so no reader sees an empty file.
+  const temp = `${path}.${process.pid}`;
+  writeFileSync(temp, String(process.pid));
+  try {
+    for (;;) {
+      try {
+        linkSync(temp, path);
+        return () => {
+          try {
+            if (readFileSync(path, "utf8") === String(process.pid)) rmSync(path);
+          } catch {
+            // Someone removed the lock already.
+          }
+        };
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      }
+      let pid: number;
+      try {
+        pid = Number(readFileSync(path, "utf8"));
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+        throw error;
+      }
+      if (waiting(pid)) {
+        throw new Error(
+          `Another wait (pid ${pid}) watches ${ctx.owner}/${ctx.name}#${ctx.number}. Do not start a second wait. ` +
+          `If you cannot find that background task, run \`kill ${pid}\` and start wait again.`,
+        );
+      }
+      // No pr-state process holds this lock now.
+      rmSync(path, { force: true });
+    }
+  } finally {
+    rmSync(temp, { force: true });
+  }
+}
+
 export async function waitForChange(ctx: Context, args: Args): Promise<void> {
   if (typeof args.since !== "string" || args.since.length < 7) {
     throw new Error("wait needs --since with at least seven characters.");
   }
-  const since = args.since;
+  const release = lock(ctx);
+  try {
+    await watch(ctx, args, args.since);
+  } finally {
+    release();
+  }
+}
+
+async function watch(ctx: Context, args: Args, since: string): Promise<void> {
   const seconds = (key: string, fallback: number) => {
     const value = args[key] === undefined ? fallback : Number(args[key]);
     if (!Number.isFinite(value) || value <= 0) throw new Error(`--${key} must be a positive number.`);
