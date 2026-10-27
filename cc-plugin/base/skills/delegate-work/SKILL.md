@@ -83,7 +83,14 @@ printf '%s' "$PROMPT" | codex-exec.sh -m gpt-6.1-sol -e medium \
 - `-C` working root — a **git worktree** for parallel work, repo root for sequential.
 - `-o` report file — Codex's final message; read THIS back, not the log.
 - `-l` log file — for monitoring only; keep raw logs out of the session.
+- `-i` image: attaches one image to the prompt. Repeat it for more images. The script stops on a missing file or a comma in the path, because codex drops a missing image without an error and splits `-i` values on commas.
 - Sandbox defaults to `workspace-write` (edits inside `-C`, reads anywhere). `CODEX_BYPASS=1` only when a task genuinely must write outside its worktree.
+- Outside a git repo (a judge or review over frames, contact sheets or a `/tmp` dir): set `CODEX_SANDBOX=read-only`. A read-only run adds `--skip-git-repo-check`, so it runs in any dir. Write modes keep codex's git-repo check: they need a git worktree (or a dir trusted in `~/.codex/config.toml`).
+
+  ```
+  CODEX_SANDBOX=read-only codex-exec.sh -m gpt-6-astra -e xhigh -C <dir> \
+    -i <sheet-1.png> -i <sheet-2.png> -o <verdict-file> < <prompt-file>
+  ```
 - **Always background** (`run_in_background: true`, `timeout: 600000`).
 - **Prompt via stdin/temp file, never inline arg** — the inline form can silently drop the prompt and hang on stdin (observed). A ~39-byte log means it hung.
 - Follow-up fixes: `codex exec resume --last` from the same dir is cheaper than a fresh run and keeps its context — use for review-fix rounds and crash recovery ("assess partial state via git status/diff first; don't redo, don't trust").
