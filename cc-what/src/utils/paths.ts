@@ -1,10 +1,12 @@
 /**
  * Encode a file path for use as a directory name.
- * Claude Code uses a specific encoding: all `/` become `-`
+ * Claude Code replaces every non-alphanumeric character (`/`, `.`, `_`,
+ * spaces, ...) with `-`
  * e.g., /Users/taras/code -> -Users-taras-code
+ *       /Users/taras/.config/app -> -Users-taras--config-app
  */
 export function encodePath(path: string): string {
-	return path.replace(/\//g, '-')
+	return path.replace(/[^a-zA-Z0-9]/g, '-')
 }
 
 /**
