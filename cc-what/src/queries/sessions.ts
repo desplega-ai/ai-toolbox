@@ -180,15 +180,14 @@ class SessionQueryBuilder {
 			(a, b) => new Date(b.created).getTime() - new Date(a.created).getTime(),
 		)
 
-		// Apply limit
-		if (this._limit) {
-			entries = entries.slice(0, this._limit)
-		}
-
-		// Filter by subagent presence if requested
+		// Filter by subagent presence if requested, before applying the limit
+		// so qualifying sessions past the first n rows are not dropped
 		if (this._includeSubagents) {
+			const limit = this._limit ?? 0
 			const withSubagents: SessionEntry[] = []
 			for (const entry of entries) {
+				// Stop scanning once enough matches are found
+				if (limit > 0 && withSubagents.length >= limit) break
 				const result = await findSessionEntry(entry.sessionId)
 				if (result) {
 					const count = await countSubagents(
@@ -200,7 +199,12 @@ class SessionQueryBuilder {
 					}
 				}
 			}
-			return withSubagents
+			entries = withSubagents
+		}
+
+		// Apply limit
+		if (this._limit) {
+			entries = entries.slice(0, this._limit)
 		}
 
 		return entries
