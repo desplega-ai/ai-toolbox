@@ -183,9 +183,11 @@ class SessionQueryBuilder {
 		// Filter by subagent presence if requested, before applying the limit
 		// so qualifying sessions past the first n rows are not dropped
 		if (this._includeSubagents) {
+			const limit = this._limit ?? 0
 			const withSubagents: SessionEntry[] = []
 			for (const entry of entries) {
-				if (this._limit && withSubagents.length >= this._limit) break
+				// Stop scanning once enough matches are found
+				if (limit > 0 && withSubagents.length >= limit) break
 				const result = await findSessionEntry(entry.sessionId)
 				if (result) {
 					const count = await countSubagents(
@@ -197,7 +199,7 @@ class SessionQueryBuilder {
 					}
 				}
 			}
-			return withSubagents
+			entries = withSubagents
 		}
 
 		// Apply limit
